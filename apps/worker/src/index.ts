@@ -9,6 +9,7 @@ import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {continueFeedReview} from './connector-review-continuation';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
+import { sendSocialNotifications } from './social-push';
 import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,deferConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
@@ -365,6 +366,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
     // Preserve reader notifications in the indexed scheduling path.
     try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+    try {await sendSocialNotifications(env)} catch {console.warn('Could not send social notifications')}
     await runProjectionMaintenance(env);
     // Keep auxiliary recovery/retention; avoid the legacy population scans below.
     const repo=new D1Repository(env.DB),now=new Date();
@@ -383,6 +385,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+  try {await sendSocialNotifications(env)} catch {console.warn('Could not send social notifications')}
   await runProjectionMaintenance(env);
   const repo = new D1Repository(env.DB);
   const now = new Date();

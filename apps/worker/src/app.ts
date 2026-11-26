@@ -1551,6 +1551,8 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewerHasStarred = await repo.hasBriefingStar(briefing.id, voterId, claims?.sub);
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
       // Cached data only: access, the viewer's star and feed settings are read per request.
       const version = await feedReadVersion(c.env.DB, briefing.id);
@@ -1565,7 +1567,6 @@ export function createApp(options: AppOptions = {}) {
           return { value, hash: fnv1a(JSON.stringify(value)) };
         })
       ]);
-      const viewerHasStarred = voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false;
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
       const publicFeed = publicBriefing(briefing);
@@ -1602,7 +1603,7 @@ export function createApp(options: AppOptions = {}) {
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       editionsComplete:legacyEditions?legacyEditions.length<=50:true,
       ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
-      viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
+      viewerHasStarred
     };
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json(payload);
@@ -1693,7 +1694,10 @@ export function createApp(options: AppOptions = {}) {
     const voterId = await getOrCreateVoterId(c);
     if (!voterId) return c.json({ error: "voting is not configured" }, 500);
 
-    const stars = await repo.setBriefingStar(briefing.id, voterId, input.starred);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const reader = claims ? await repo.getAccountById(claims.sub) : null;
+    const accountId = reader && !reader.disabledAt && reader.id !== briefing.ownerAccountId ? reader.id : undefined;
+    const stars = await repo.setBriefingStar(briefing.id, voterId, input.starred, nowFor(), accountId);
     return c.json({ stars, viewerHasStarred: input.starred });
   });
 

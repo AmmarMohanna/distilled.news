@@ -418,8 +418,8 @@ export interface Repository {
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
-  hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;
-  setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
+  hasBriefingStar(briefingId: string, voterId: string | null, accountId?: string): Promise<boolean>;
+  setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date, accountId?: string): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
   saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now?:Date):Promise<{briefing:BriefingConfig;sourceIds:string[]}>;
   deleteBriefing(id: string, now?: Date): Promise<void>;

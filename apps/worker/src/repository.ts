@@ -517,7 +517,7 @@ export class D1Repository implements Repository {
 
   async setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void> {
     const statement = following
-      ? "INSERT INTO channel_follows (channel_id, follower_id) VALUES (?, ?) ON CONFLICT DO NOTHING"
+      ? "INSERT INTO channel_follows (channel_id, follower_id, followed_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT DO NOTHING"
       : "DELETE FROM channel_follows WHERE channel_id = ? AND follower_id = ?";
     await this.db.prepare(statement).bind(channelId, followerId).run();
   }
@@ -549,24 +549,25 @@ export class D1Repository implements Repository {
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     if (limit <= 0) return [];
-    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; viewer_follows_channel: number}>(
+    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; viewer_follows_channel: number; saved_for_account: number}>(
       this.db
         .prepare(
           `SELECT briefings.*, accounts.username as owner_username,
           ${BRIEFING_CARD_FIELDS},
-          EXISTS (SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?) AS viewer_follows_channel
+          EXISTS (SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?) AS viewer_follows_channel,
+          EXISTS (SELECT 1 FROM account_star_alerts WHERE feed_id=briefings.id AND account_id=?) AS saved_for_account
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
           AND (? IS NULL OR briefings.owner_account_id != ?)
           ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
-          ${starredOnly ? "AND EXISTS (SELECT 1 FROM briefing_stars WHERE briefing_id=briefings.id AND voter_id=?)" : ""}
+          ${starredOnly ? "AND (EXISTS (SELECT 1 FROM briefing_stars WHERE briefing_id=briefings.id AND voter_id=?) OR EXISTS (SELECT 1 FROM account_star_alerts WHERE feed_id=briefings.id AND account_id=?))" : ""}
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(voterId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null] : []), limit, offset)
+        .bind(voterId ?? null, viewerId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null, viewerId ?? null] : []), limit, offset)
     );
-    return rows.map(row => ({...rowToBriefingCard(row), viewerFollowsChannel: Boolean(row.viewer_follows_channel)}));
+    return rows.map(row => ({...rowToBriefingCard(row), viewerHasStarred: Boolean(row.viewer_starred || row.saved_for_account), viewerFollowsChannel: Boolean(row.viewer_follows_channel)}));
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -602,26 +603,33 @@ export class D1Repository implements Repository {
     return row ? rowToBriefing(row) : null;
   }
 
-  async hasBriefingStar(briefingId: string, voterId: string): Promise<boolean> {
-    const row = await first<{ voter_id: string }>(
-      this.db
-        .prepare("SELECT voter_id FROM briefing_stars WHERE briefing_id = ? AND voter_id = ?")
-        .bind(briefingId, voterId)
-    );
-    return Boolean(row?.voter_id);
+  async hasBriefingStar(briefingId: string, voterId: string | null, accountId?: string): Promise<boolean> {
+    if (accountId && await first(this.db.prepare("SELECT 1 FROM account_star_alerts WHERE feed_id=? AND account_id=?").bind(briefingId, accountId))) return true;
+    return Boolean(voterId && await first(this.db.prepare("SELECT 1 FROM briefing_stars WHERE briefing_id=? AND voter_id=?").bind(briefingId, voterId)));
   }
 
-  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date()): Promise<number> {
-    if (starred) {
-      await this.db
-        .prepare("INSERT OR IGNORE INTO briefing_stars (briefing_id, voter_id, created_at) VALUES (?, ?, ?)")
-        .bind(briefingId, voterId, now.toISOString())
-        .run();
+  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date(), accountId?: string): Promise<number> {
+    const timestamp = now.toISOString();
+    if (starred && accountId) {
+      await this.db.batch([
+        this.db.prepare("INSERT OR IGNORE INTO account_star_alerts (feed_id,account_id,started_at,voter_id) VALUES (?,?,?,?)")
+          .bind(briefingId, accountId, timestamp, voterId),
+        this.db.prepare(`INSERT OR IGNORE INTO briefing_stars (briefing_id,voter_id,created_at)
+          SELECT feed_id,voter_id,started_at FROM account_star_alerts WHERE feed_id=? AND account_id=?`)
+          .bind(briefingId, accountId)
+      ]);
+    } else if (!starred && accountId) {
+      await this.db.batch([
+        this.db.prepare(`DELETE FROM briefing_stars WHERE briefing_id=? AND
+          (voter_id=? OR voter_id=(SELECT voter_id FROM account_star_alerts WHERE feed_id=? AND account_id=?))`)
+          .bind(briefingId, voterId, briefingId, accountId),
+        this.db.prepare("DELETE FROM account_star_alerts WHERE feed_id=? AND account_id=?").bind(briefingId, accountId)
+      ]);
+    } else if (starred) {
+      await this.db.prepare("INSERT OR IGNORE INTO briefing_stars (briefing_id,voter_id,created_at) VALUES (?,?,?)")
+        .bind(briefingId, voterId, timestamp).run();
     } else {
-      await this.db
-        .prepare("DELETE FROM briefing_stars WHERE briefing_id = ? AND voter_id = ?")
-        .bind(briefingId, voterId)
-        .run();
+      await this.db.prepare("DELETE FROM briefing_stars WHERE briefing_id=? AND voter_id=?").bind(briefingId, voterId).run();
     }
 
     const countRow = await first<{ count: number }>(
@@ -706,10 +714,19 @@ export class D1Repository implements Repository {
     if(sources.some(source=>source.briefingId!==input.id))throw new Error('Source belongs to another feed');
     const writes=sources.map(source=>this.configuredSourceWrite(source,now));
     const ids=[...new Set(writes.map(write=>write.sourceId))],guard=crypto.randomUUID();
+    const sourceChange = previous && input.publicFeedEnabled && !input.paused
+      ? [this.db.prepare(`INSERT OR IGNORE INTO social_push_events(id,feed_id,kind,created_at)
+          SELECT json_array('feed-change',?,?),?,'feed-edited',?
+          WHERE EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=?)
+            AND (EXISTS(SELECT 1 FROM sources WHERE briefing_id=? AND enabled=1 AND id NOT IN(SELECT value FROM json_each(?)))
+              OR EXISTS(SELECT 1 FROM json_each(?) desired WHERE NOT EXISTS(SELECT 1 FROM sources WHERE briefing_id=? AND id=desired.value AND enabled=1)))`)
+        .bind(input.id,now.toISOString(),input.id,now.toISOString(),input.ownerAccountId,input.id,JSON.stringify(ids),JSON.stringify(ids),input.id)]
+      : [];
     try {
       await this.db.batch([
         this.db.prepare(`INSERT INTO v1_enrollment_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM accounts WHERE id=? AND disabled_at IS NULL) AND ${row?'EXISTS(SELECT 1 FROM briefings WHERE id=? AND owner_account_id=? AND updated_at=? AND stars=?)':'NOT EXISTS(SELECT 1 FROM briefings WHERE id=?)'} THEN 1 ELSE 0 END`).bind(guard,input.ownerAccountId,input.id,...(row?[input.ownerAccountId,row.updated_at,row.stars]:[])),
         this.briefingWrite(input,now),
+        ...sourceChange,
         ...writes.flatMap(write=>[write.statement,this.db.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND briefing_id=?").bind(write.sourceId,input.id)]),
         this.db.prepare('DELETE FROM sources WHERE briefing_id=? AND enabled=1 AND id NOT IN (SELECT value FROM json_each(?))').bind(input.id,JSON.stringify(ids)),
         this.db.prepare('DELETE FROM v1_enrollment_guards WHERE id=?').bind(guard)
@@ -2113,8 +2130,8 @@ export class InMemoryRepository implements Repository {
     return briefing ? this.withCurrentBriefingOwner(briefing) : null;
   }
 
-  async hasBriefingStar(briefingId: string, voterId: string): Promise<boolean> {
-    return this.starsByBriefing.get(briefingId)?.has(voterId) ?? false;
+  async hasBriefingStar(briefingId: string, voterId: string | null): Promise<boolean> {
+    return voterId ? this.starsByBriefing.get(briefingId)?.has(voterId) ?? false : false;
   }
 
   async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date()): Promise<number> {
