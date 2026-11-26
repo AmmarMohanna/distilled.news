@@ -45,7 +45,8 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
       expect(art.x).toBeCloseTo(container.x, 0);
     }
     const viewport = page.locator('.app-pages > .screen-page-viewport');
-    await expect(viewport).toHaveCSS('scrollbar-gutter','auto');
+    await expect(viewport).toHaveCSS('scrollbar-gutter', 'stable');
+    await expect(viewport).toHaveCSS('overscroll-behavior-y', 'none');
     expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth), 0);
     expect(banner.x).toBeCloseTo(0, 0);
     expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);

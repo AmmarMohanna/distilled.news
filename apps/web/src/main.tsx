@@ -2170,14 +2170,16 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const hasSeparateSummary = Boolean(summary && fullText && comparedText(summary) !== comparedText(fullText));
   const date = editionDisplayTime(edition);
   return <main className="briefing-detail-page">
-    <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back}
-      onAccount={() => setProfileOpen(true)} actions={briefing.publicFeedEnabled && <span className="feed-banner-menu"><ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/></span>}/>
+    {header}
     {error && <p role="alert">{t(error)}</p>}
-    <header className="briefing-detail-hero" dir={direction}>
+    <header className="briefing-detail-hero" lang={briefing.language} dir={direction}>
       <div>
         <time dateTime={date}>{formatDayHeading(date, language)} · {formatClock(date, language)}</time>
         <h1><bdi>{edition.title || briefing.title}</bdi></h1>
         <a className="briefing-parent-feed" href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
+        {briefing.publicFeedEnabled && <div className="feed-banner-menu briefing-detail-menu">
+          <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
+        </div>}
       </div>
     </header>
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
@@ -2187,7 +2189,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       </figure>}
       {hasSeparateSummary && <div className="briefing-detail-summary">{renderBody(summary)}</div>}
       {hasSeparateSummary ? edition.sections.map((section, index) => <div className="news-story" key={index}>
-        {section.title && <h2 dir="auto">{section.title}</h2>}
+        {section.title && <h2>{section.title}</h2>}
         {renderBody(section.summary)}
         {references.filter(item => item.sectionIndex === index).map(item => renderReference(item.number))}
       </div>) : <BriefingText summary={edition.summary} sections={edition.sections} direction={direction}
