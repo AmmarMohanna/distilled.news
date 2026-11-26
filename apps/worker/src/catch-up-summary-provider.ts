@@ -6,11 +6,11 @@ import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,UnreadSummaryResourceWait,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
+import {summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError} from './catch-up-summary';
 
 /** Same provider account ledger and rate/concurrency admission as live V3.
  * Receipts survive a client disconnect; an uncertain call is never resubmitted. */
-export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:typeof fetch=fetch):ModelPort{
+export function catchUpSummaryPort(env:Env,feedId:string,readerId:string,fetcher:typeof fetch=fetch):ModelPort{
   return accountedModelPort(env,feedId,readerId,fetcher,'summary');
 }
 
@@ -21,8 +21,8 @@ export function websiteDiscoveryModelPort(env:Env,feedId:string,sourceId:string,
 function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof fetch,mode:'summary'|'discovery'):ModelPort{
   const db=env.DB;
   const discovery=mode==='discovery';
-  const operation=discovery?'website-link-discovery':'unread-summary';
-  const receiptKind=discovery?'website_link_discovery_provider':'unread_summary_provider';
+  const operation=discovery?'website-link-discovery':'reader-catch-up-v1';
+  const receiptKind=discovery?'website_link_discovery_provider':'reader_catch_up_provider_v1';
   return {async complete(request){
     const {signal:_,...body}=request;
     const id=operation+'-provider:'+await sha256(JSON.stringify([feedId,scopeId,body]));
@@ -32,7 +32,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       await settleModelSpending(db,id,receipt.token,{costUsd:receipt.response.costUsd!,reported:true});
       return receipt.response;
     }
-    if(await db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind(id).first())throw new UnreadSummaryError('SUMMARY_OUTCOME_UNKNOWN');
+    if(await db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind(id).first())throw new CatchUpSummaryError('SUMMARY_OUTCOME_UNKNOWN');
     const capability=modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
     if(!capability)throw new BriefingBudgetError('Summary model is not configured.');
     const inputTokens=summaryTokenUpperBound(request);
@@ -47,15 +47,15 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       SELECT ?,?,?,? WHERE
       (SELECT COUNT(*) FROM auth_attempts WHERE key=? AND action=? AND created_at>=?) < ?`)
       .bind(crypto.randomUUID(),scopeId,operation,at,scopeId,operation,new Date(now-3_600_000).toISOString(),discovery?2:6).run();
-    if(quota.meta.changes!==1)throw new UnreadSummaryQuotaError();
+    if(quota.meta.changes!==1)throw new CatchUpSummaryQuotaError();
     const token=crypto.randomUUID();
 
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
       await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter','interactive')});
     }catch(error){
-      if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new UnreadSummaryResourceWait();
-      console.warn(discovery?'website-link-discovery-admission-failed':'unread-summary-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});
+      if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new CatchUpSummaryResourceWait();
+      console.warn(discovery?'website-link-discovery-admission-failed':'reader-catch-up-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});
       throw new BriefingBudgetError('Summaries are temporarily unavailable. Try again shortly.');
     }
     let header:ProviderReceipt|undefined;

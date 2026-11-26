@@ -6,6 +6,24 @@ The app can be installed from **Settings → Install app (PWA)**. Browsers that 
 
 The service worker provides an offline explanation and retry action. It does not cache personal/API responses or provide offline reading. Speech input still uses the browser's speech service; no transcription API key is needed.
 
+## Reader history and retention
+
+The web reader requests `/api/feed/:username/:slug?timeline=1`. Each page presents up to eight published briefings, newest first by publication time, with the edition ID breaking ties. The `timelineNextCursor` can be passed as `before` on the same route. The Worker selects 24 hours for 30- and 60-minute schedules, 48 hours for 120-minute schedules, and 72 hours for 360-minute, 720-minute, daily and slower schedules. Persisted scheduling data takes precedence over the legacy cadence label. The ordinary feed response and retained search keep their established retrieval bounds. Direct edition and evidence reads still require publication and feed access checks.
+
+The timeline seeks the existing publication timestamp indexes and hydrates only a bounded set of editions and citations for each response. This limits D1 result size, optional R2 reads, and browser payload. Measure query rows scanned, response bytes, latency, and database size separately on the target database. [Cloudflare D1 metrics](https://developers.cloudflare.com/d1/observability/metrics-analytics/)
+
+The reader cutoff has no effect on stored editions, citation links, original source evidence, published story history, or the history used to decide novelty and issue corrections. The cutoff also has no effect on financial records or recoverable work. D1 storage continues to grow with retained data. [Cloudflare D1 storage limits](https://developers.cloudflare.com/d1/platform/limits/)
+
+A separate retention review could begin with derived response caches whose durable provider receipts remain available, or already terminal and unreferenced operational payloads. Moving published content or evidence to R2 would first need a verified manifest, bounded fallback reads, a restore test, and reference checks covering search, citations, corrections, novelty, pending recovery, and financial reconciliation. No new expiry policy or data migration is needed for the reader change. A deployment receiving PR #62 for the first time must apply `0104_channel_follows.sql` followed by `0105_social_push_events.sql`.
+
+## Catch me up
+
+`POST /api/feed/:username/:slug/catch-up` accepts an empty request. A verified account can request a summary of a feed it can read. The Worker selects up to 12 recent published editions and supplies complete briefings within the UTF-8 input budget, keeping their chronological order and retaining correction relationships and source attribution. Daily feeds get three days of evidence. Retained weekly and monthly schedules get up to two periods, capped at 60 days. Empty windows make no model call.
+
+The new `CATCH_UP_ENABLED=true` flag is required in addition to the provider credentials and the existing model-spending authority. It is unset on the checked-in deployment targets. The old flag and historical receipts do not activate the new endpoint. Migration `0070_unread_summary_cache.sql` already provides the shared cache table. Catch me up uses versioned identities for its results and provider operations. Historical spending and recovery records keep their original identities. The previous endpoint returns `410`.
+
+Offline fixtures cover selection, cache reuse, limits, authorization, provider holds, and how correction, repetition, and uncertainty reach the model. They do not measure the factual accuracy of generated summaries. Keep the new flag unset in production until an approved evaluation of generated English, French, and Arabic summaries passes human review for corrections, attribution, uncertainty, and distinct events. [Historical unread summary evaluation](unread-summary.md)
+
 ## Local development
 
 For a new checkout, generate the local notification keys and apply the local migration:

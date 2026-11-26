@@ -227,9 +227,11 @@ describe("worker app accounts", () => {
       expect(response.status).toBe(200);
       return response.json() as Promise<{editions:{id:string}[];timelineNextCursor:string|null}>;
     };
+    let sequence=0;
     const publish=(id:string,at:string,status:'published'|'empty'='published')=>repo.saveBriefingEdition({
-      id,briefingId:briefing.id,cadence:'daily',windowStart:at,windowEnd:at,title:'Coastal news',summary:'The coastal road reopened.',
-      sections:[{title:'Infrastructure',summary:'The coastal road reopened.',evidence:[]}],status,publishedAt:at,createdAt:at,updatedAt:at
+      id,briefingId:briefing.id,cadence:'daily',windowStart:new Date(Date.parse(at)-++sequence*60_000).toISOString(),windowEnd:at,
+      title:'Coastal news',summary:'The coastal road reopened after an overnight security closure.',
+      sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status,publishedAt:at,createdAt:at,updatedAt:at
     });
     expect((await read()).editions).toEqual([]);
     await publish('archive','2026-10-01T11:00:00.000Z');
