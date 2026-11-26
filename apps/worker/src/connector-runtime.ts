@@ -13,6 +13,7 @@ import {canonicalJson} from './v1-intake/canonical';
 import {hasUncertainSourcePayment} from './connector-paid-fence';
 import {sourceAvailability} from './connector-availability';
 import {readStorageHealth} from './storage-maintenance';
+import {consumeConnectorStorageCanary} from './connector-storage-recovery';
 import {approvedCollectionBounds,freezeCollectionWindow,initialCollectionStart} from './connector-collection-window';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
@@ -114,15 +115,28 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
   await scheduler.schedule(request.runId,request,now.toISOString(),stored);
  }
 }
+interface ConnectorMaintenanceResult {
+ scheduled:{id:string;scheduler:string;sourceId:string}[];
+ outcomes:{scheduler:string;state:string}[];
+ durationMs:number;
+ storageDeferred?:true;
+}
+
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
-export async function runConnectorMaintenance(env:Env,now=new Date(),options:{scheduleOnly?:boolean;skipSchedule?:boolean}={}) {
+export async function runConnectorMaintenance(env:Env,now=new Date(),options:{scheduleOnly?:boolean;skipSchedule?:boolean;feedId?:string}={}):Promise<ConnectorMaintenanceResult|undefined> {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
+ let ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
+ let canarySource:string|undefined;
  if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&!options.skipSchedule){
   const health=await readStorageHealth(env.DB);
   if(health.status==='critical'){
-   console.warn(JSON.stringify({event:'connector_collection_admission_deferred',...health}));
-   if(options.scheduleOnly)return {scheduled:[],outcomes:[],durationMs:0,storageDeferred:true as const};
-   options={...options,skipSchedule:true};
+   canarySource=options.feedId?await consumeConnectorStorageCanary(env.DB,options.feedId,ids,health.allocatedBytes,now.getTime()):undefined;
+   if(canarySource)ids=[canarySource];
+   else {
+    console.warn(JSON.stringify({event:'connector_collection_admission_deferred',...health}));
+    if(options.scheduleOnly)return {scheduled:[],outcomes:[],durationMs:0,storageDeferred:true as const};
+    options={...options,skipSchedule:true};
+   }
   }
  }
  const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
@@ -130,7 +144,6 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
  const backend=createConnectorRuntime(env);
  const budgets=await configureConnectorBudgets(env,backend);
  const ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}') as Record<string,number>;
- const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  // Synchronize the entire approved set before freezing any poll revision.
  // Enrolling a later source can advance its Feed revision; scheduling during
  // that first pass left earlier sources with stale requests at handoff.
@@ -175,7 +188,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   // scheduler revalidates its saved request at every execution boundary.
   const table=request.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
   const existing=await env.DB.prepare(`SELECT job_id FROM ${table} WHERE job_id=?`).bind(request.runId).first();
-  if(existing){scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});if(request.source.family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);continue;}
+  if(existing){scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});if(!canarySource&&request.source.family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);continue;}
   if(paidFamily.startsWith('linkedin_')){
    // A confirmed provider cap is account-side. Space fresh attempts while
    // preserving the last failure and all existing poll and payment identities.
@@ -211,11 +224,11 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
       family.startsWith('linkedin_')?DEFAULT_SOURCE_ORDER[family]:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);
-    if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?intervalMs:86400000);
+    if(!canarySource&&family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?intervalMs:86400000);
    }
   }
  }
- if(options.scheduleOnly)return {scheduled,outcomes:[],durationMs:0};
+ if(options.scheduleOnly)return {scheduled,outcomes:[],durationMs:0,...(canarySource?{storageDeferred:true as const}:{})};
  const started=Date.now();let rssIdle=false,providerIdle=false;
  // Funded current windows must not wait behind years of unstarted polling
  // jobs with an obsolete provider order. One minute in four keeps oldest-first

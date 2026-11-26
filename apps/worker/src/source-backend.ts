@@ -1,5 +1,5 @@
 import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,
-  DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,ConnectorBatchArchive,CONNECTOR_BATCH_ARCHIVE_NAMESPACE,sourceSqlFromD1,
+  DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,ConnectorBatchArchive,sourceSqlFromD1,
   D1RssPollScheduler,RssSourceCollector,D1SourceRepository,isSourceDatabaseUnavailable,SourceProviderError,type RssRequest,
   type SourceFetchRequest,type WebsiteLinkSelector} from '@distilled/connectors';
 import {HandoffError,type CandidateIntakePort} from '@distilled/contracts';
@@ -8,6 +8,7 @@ import {composeSourceExecution} from './native-source-execution';
 import {rateLimitedPublicHttp} from './connector-rate-limit';
 import {admittedSourceExecution} from './source-execution-admission';
 import {PUBLIC_SOURCE_USER_AGENT} from './public-source-fetch';
+import {connectorBatchPayloads} from './connector-batch-uploads';
 
 export interface SourceBackendEnv {
   DB:D1Database;
@@ -43,7 +44,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   selectWebsiteLinks?:(request:SourceFetchRequest)=>WebsiteLinkSelector;
 }) {
   const sql=sourceSqlFromD1(env.DB),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
-  const batchArchive=new ConnectorBatchArchive(new R2SourcePayloadStore(env.RAW_ARCHIVE,CONNECTOR_BATCH_ARCHIVE_NAMESPACE));
+  const batchArchive=new ConnectorBatchArchive(connectorBatchPayloads(env));
   const dispatch=options.fetcher??fetch;
   const publicDispatch:typeof fetch=(value,init)=>{
     const headers=new Headers(init?.headers);

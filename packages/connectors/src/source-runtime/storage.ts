@@ -65,8 +65,8 @@ export class ConnectorBatchArchive {
     const bytes = new TextEncoder().encode(data);
     if (bytes.length < BATCH_PAYLOAD_THRESHOLD) return data;
     const {feedId,feedSourceId} = handoff.coverage;
-    const {ref} = await this.payloads.put(batchArchiveScope(feedId,feedSourceId),bytes,'application/json');
-    return canonical({archiveRef:ref,providerId,request:{coverage:handoff.coverage},
+    const {ref,hash} = await this.payloads.put(batchArchiveScope(feedId,feedSourceId),bytes,'application/json');
+    return canonical({archiveRef:ref,archiveDigest:hash,providerId,request:{coverage:handoff.coverage},
       observationCount:handoff.observations.length,proposalCount:handoff.proposals.length});
   }
 
@@ -81,6 +81,17 @@ function batchArchiveScope(feedId:string,feedSourceId:string):SourceScope {
 }
 
 export const CONNECTOR_BATCH_ARCHIVE_NAMESPACE = 'connector-batches/v1';
+export const TRACKED_CONNECTOR_BATCH_NAMESPACE = 'connector-batches/v2';
+
+// A retry can create a different upload key for the same bytes. Keep the
+// first committed reference and compare the full canonical payload digest.
+export function matchingBatchData(column:string) {
+  return `${column} IN (excluded.data,?) OR (
+    json_extract(excluded.data,'$.archiveDigest') IS NOT NULL AND
+    (json_extract(${column},'$.archiveDigest')=json_extract(excluded.data,'$.archiveDigest') OR
+    (json_extract(${column},'$.archiveRef') LIKE 'connector-batches/v1/%' AND
+     substr(json_extract(${column},'$.archiveRef'),-64)=json_extract(excluded.data,'$.archiveDigest'))))`;
+}
 
 export class D1SourceRepository implements SourceRepository {
   constructor(private readonly db: SqlDatabase, protected readonly batchArchive?: ConnectorBatchArchive) {}
@@ -171,8 +182,8 @@ export class D1SourceRepository implements SourceRepository {
     const data = canonical(batch);
     const stored = await this.batchArchive?.store(batch.request,data) ?? data;
     const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?)
-      ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET data=excluded.data
-      WHERE connector_batches.data IN (excluded.data,?) RETURNING handoff_id`)
+      ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET data=connector_batches.data
+      WHERE ${matchingBatchData('connector_batches.data')} RETURNING handoff_id`)
       .bind(feedId,feedSourceId,batch.request.handoffId,stored,data).first();
     if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
@@ -189,10 +200,18 @@ export class D1SourceRepository implements SourceRepository {
     connectorHandoffRequestSchema.parse(batch.request);
     const c = batch.request.coverage;
     const data = canonical(batch);
+    const digest = await sha256(data);
+    // The collector saves the batch before handing it to intake. Reuse the
+    // existing object for receipt writes rather than staging another upload.
+    const updated = await this.db.prepare(`UPDATE connector_batches SET receipts=? WHERE feed_id=? AND feed_source_id=? AND handoff_id=? AND
+      (data=? OR json_extract(data,'$.archiveDigest')=? OR
+      (json_extract(data,'$.archiveRef') LIKE 'connector-batches/v1/%' AND substr(json_extract(data,'$.archiveRef'),-64)=?)) RETURNING handoff_id`)
+      .bind(canonical(response),c.feedId,c.feedSourceId,batch.request.handoffId,data,digest,digest).first();
+    if(updated)return;
     const stored = await this.batchArchive?.store(batch.request,data) ?? data;
     const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data,receipts) VALUES(?,?,?,?,?)
       ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET receipts=excluded.receipts
-      WHERE connector_batches.data IN (excluded.data,?) RETURNING handoff_id`)
+      WHERE ${matchingBatchData('connector_batches.data')} RETURNING handoff_id`)
       .bind(c.feedId,c.feedSourceId,batch.request.handoffId,stored,canonical(response),data).first();
     if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }

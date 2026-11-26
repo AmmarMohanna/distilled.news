@@ -4,6 +4,7 @@ import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,Unrea
 import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
+import {authorizeConnectorStorageCanary} from './connector-storage-recovery';
 import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
@@ -1696,6 +1697,14 @@ export function createApp(options: AppOptions = {}) {
       return object?new Response(object.body,{headers:{'content-type':'application/json','cache-control':'private, no-store'}}):c.json({error:'archive not found or expired'},404);
     }
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json(await storageMaintenanceStatus(c.env));
+    if(c.req.param('action')==='collection-canary'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true'&&c.env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+      const input=z.object({feedId:z.string().min(1).max(256),sourceId:z.string().min(1).max(256)}).strict()
+        .safeParse(await c.req.json().catch(()=>null));
+      if(!input.success)return c.json({error:'invalid canary scope'},400);
+      const {feedId,sourceId}=input.data;
+      const admitted=await authorizeConnectorStorageCanary(c.env.DB,feedId,sourceId);
+      return c.json({admitted},admitted?202:409);
+    }
     if(c.req.param('action')==='run'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true')return c.json(await runStorageMaintenance(c.env));
     return c.json({error:'not found'},404);
   });

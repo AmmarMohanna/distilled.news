@@ -209,7 +209,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
     if(claimed.collection_due_ms<=Date.now()){
      const interval=Number(scoped.SOURCE_COLLECTION_INTERVAL_MS??300000);
      if(!Number.isSafeInteger(interval)||interval<60000||interval>86400000)throw Error('INVALID_COLLECTION_INTERVAL');
-     const collection=await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});
+     const collection=await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true,feedId:body.feedId});
      storageDeferred=collection?.storageDeferred===true;
      if(!storageDeferred)nextCollection=(Math.floor(Date.now()/interval)+1)*interval;
     }
