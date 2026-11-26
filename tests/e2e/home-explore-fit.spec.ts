@@ -183,8 +183,9 @@ test('desktop card has readable linked identity and a separate menu control',asy
  await card.screenshot({path:'test-results/desktop-feed-card.png'});
 });
 
-test('compact captions leave room for two full rows of square covers on Home', async ({page}) => {
+for (const collapsed of [true, false]) test(`two full Home rows fit with the sidebar ${collapsed ? 'closed' : 'open'}`, async ({page}) => {
   await page.setViewportSize({width:1280,height:720});
+  await page.addInitScript(collapsed => localStorage.setItem("dn-sidebar-collapsed", String(collapsed)), collapsed);
   await openApp(page,12);
   const grid=page.locator('.feed-tile-grid[data-feed-view=home]');
   await expect.poll(() => grid.locator('.feed-tile').evaluateAll(cards => {
