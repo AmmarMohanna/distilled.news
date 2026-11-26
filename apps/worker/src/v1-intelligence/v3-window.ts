@@ -43,15 +43,27 @@ export function productV3PromptVersion(env:Pick<Env,'BRIEFING_PROMPT_VERSION'>):
  if(env.BRIEFING_PROMPT_VERSION==='6')return 6;
  throw Error('INVALID_BRIEFING_PROMPT_VERSION');
 }
-export function productV3Models(env: Env): BriefingModels {
- const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
- if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
- if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
- return {
+export function productV3Models(env: Env, createdAt?: string): BriefingModels {
+ const base = {
   editor: env.BRIEFING_EDITOR_MODEL ?? 'openai/gpt-4.1',
   verifier: env.BRIEFING_SOURCE_BINDINGS_ENABLED === 'true'
    ? env.BRIEFING_SOURCE_BINDINGS_MODEL ?? 'openai/gpt-4.1'
    : env.BRIEFING_VERIFIER_MODEL ?? 'openai/gpt-4.1-mini',
+ };
+ const cutoff = env.BRIEFING_V5_FEEDS_CREATED_FROM;
+ if (cutoff !== undefined) {
+  const instant = Date.parse(cutoff);
+  if (!Number.isFinite(instant) || new Date(instant).toISOString() !== cutoff) {
+   throw Error('INVALID_BRIEFING_V5_FEEDS_CREATED_FROM');
+  }
+  const created = Date.parse(createdAt ?? '');
+  if (!Number.isFinite(created) || created < instant) return base;
+ }
+ const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
+ if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
+ if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
+ return {
+  ...base,
   ...(generation ? { generation } : {}),
   ...v5StageRouting(env.BRIEFING_V5_STAGE_ROUTES_JSON),
  };
@@ -59,7 +71,7 @@ export function productV3Models(env: Env): BriefingModels {
 
 /** Read-through preparation is mechanical. The window is frozen only at close,
  * so arrivals during preparation are included without paying twice. */
-export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy']):Promise<V3WindowInput>{
+export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels|((createdAt:string)=>BriefingModels)={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy']):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
@@ -95,7 +107,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
  const input:BriefingInput={feed:{...(verificationInputPolicy?{verificationInputPolicy}:{}),...(editorSelectionPolicy?{verificationOutputPolicy:'reader-load-batches-v1' as const}:{}),...(identityFidelityPolicy?{identityFidelityPolicy}:{}),...(verificationRecoveryPolicy?{verificationRecoveryPolicy}:{}),...(topicSelectionPolicy?{topicSelectionPolicy}:{}),...(wordingFidelityPolicy?{wordingFidelityPolicy}:{}),interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const value={...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models:typeof models==='function'?models(feed.createdAt):models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
@@ -179,7 +191,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env));snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),createdAt=>productV3Models(env,createdAt),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env));snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;

@@ -408,7 +408,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.
   const preparing=feed.briefingSchedule?preparingLiveWindow(feed.briefingSchedule,now):undefined;
   if(preparing&&Date.parse(feed.createdAt)<=Date.parse(preparing.start))await maintenance(id,'WINDOW_PREPARATION',async()=>{
-   if(productV3Enabled(env)){const prepared=await prepareV3Window(store,id,preparing,now.toISOString(),productV3Models(env));console.info(JSON.stringify({type:'BRIEFING_WINDOW_PREPARATION',engine:'v3',feedId:id,window:preparing,evidenceRevisions:prepared.evidenceRevisionIds.length,preparedAt:now.toISOString()}));return;}
+   if(productV3Enabled(env)){const prepared=await prepareV3Window(store,id,preparing,now.toISOString(),productV3Models(env,feed.createdAt));console.info(JSON.stringify({type:'BRIEFING_WINDOW_PREPARATION',engine:'v3',feedId:id,window:preparing,evidenceRevisions:prepared.evidenceRevisionIds.length,preparedAt:now.toISOString()}));return;}
    const prepared=await feedTransact(store,id,async tx=>{
     const draft=await shortlistInTransaction(tx,preparing,now.toISOString(),undefined,{collectOnly:true,reportingWindows:env.V1_PUBLICATION_VALIDATION_CONTRACT==='EVIDENCE_GROUNDED_V2'});
     if(!await tx.read('shortlists',draft.id))await tx.write('shortlists',draft.id,draft);
@@ -488,7 +488,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    if(await recoverBlockedV3Request(store,id,request,now.toISOString()))continue;
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
-    try{await modelSpendingAccount(env.DB,(request.engine==='v3'||!request.engine&&productV3Enabled(env))?productV3Models(env).editor:llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}
+    try{await modelSpendingAccount(env.DB,(request.engine==='v3'||!request.engine&&productV3Enabled(env))?productV3Models(env,feed.createdAt).editor:llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.

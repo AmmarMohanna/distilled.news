@@ -5,6 +5,30 @@ import { v5StageRouting } from './v5-generation';
 import type { Env } from '../types';
 
 describe('V5 stage routing', () => {
+  it('applies the V5 writer and stage routes only to feeds created at or after the rollout cutoff', () => {
+    const cutoff = '2026-12-01T00:00:00.000Z';
+    const env = {
+      BRIEFING_V5_FEEDS_CREATED_FROM: cutoff,
+      BRIEFING_V5_GENERATION_PROFILE: 'deepseek-flash-wafer',
+      BRIEFING_V5_STAGE_ROUTES_JSON: '{"default":{"novelty":"deepseek-flash-wafer"}}',
+      BRIEFING_SOURCE_BINDINGS_ENABLED: 'true',
+      BRIEFING_SOURCE_BINDINGS_MODEL: 'fixture-verifier',
+    } as Env;
+    const v3 = { editor: 'openai/gpt-4.1', verifier: 'fixture-verifier' };
+    expect(productV3Models(env, '2026-11-30T23:59:59.999Z')).toEqual(v3);
+    expect(productV3Models(env)).toEqual(v3);
+    expect(productV3Models(env, 'invalid')).toEqual(v3);
+    expect(productV3Models(env, cutoff)).toMatchObject({
+      ...v3,
+      generation: { provider: 'wafer/us' },
+      stageRoutes: { novelty: { provider: 'wafer/us' } },
+    });
+    expect(productV3Models({ ...env, BRIEFING_V5_FEEDS_CREATED_FROM: undefined }).generation)
+      .toMatchObject({ provider: 'wafer/us' });
+    expect(() => productV3Models({ ...env, BRIEFING_V5_FEEDS_CREATED_FROM: '2026-02-30T00:00:00.000Z' }, cutoff))
+      .toThrow('INVALID_BRIEFING_V5_FEEDS_CREATED_FROM');
+  });
+
   it('accepts only explicit supported stages, languages and pinned profiles', () => {
     expect(v5StageRouting(undefined)).toEqual({});
     expect(v5StageRouting('{"default":{"novelty":"deepseek-flash-wafer"}}').stageRoutes?.novelty)
