@@ -118,6 +118,25 @@ test('opens a top channel with its public feeds and sharing menu', async ({ page
   await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Report a concern' })).toHaveCount(0);
 });
+test('Show all isolates channels and places Back below search', async ({ page }) => {
+  await mock(page, false);
+  await page.route('**/api/explore/channels', route => route.fulfill({
+    json: { channels: [{ username: 'joud', publicFeedCount: 1, followerCount: 1 }] }
+  }));
+  await page.goto('/explore');
+  await page.getByRole('region', { name: 'Explore channels', exact: true }).filter({ has: page.getByRole('heading') })
+    .getByRole('button', { name: 'Show all' }).click();
+  await expect(page.locator('.catalog-vertical-grid .channel-card')).toHaveCount(1);
+  await expect(page.locator('.featured-feeds')).toHaveCount(0);
+  const back = page.getByRole('button', { name: 'Back', exact: true });
+  const search = await page.getByRole('searchbox').boundingBox();
+  const backBox = await back.boundingBox();
+  expect(backBox!.y).toBeGreaterThanOrEqual(search!.y + search!.height);
+  await expect(back).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await back.click();
+  await expect(page.locator('.catalog-vertical-grid')).toHaveCount(0);
+  await expect(page.locator('.featured-feeds')).toBeVisible();
+});
 test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
   await mock(page);
   let following = false;
