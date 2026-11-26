@@ -22,6 +22,32 @@ async function mock(page: any, authenticated = true, username = 'joud') {
  await route.fulfill({json:body});
  });
 }
+test('landing pencil artwork uses the inline dark filter on reload', async ({ page }) => {
+  await mock(page, false);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.addInitScript(() => localStorage.setItem('dn_theme', 'dark'));
+  const cover = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 80;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }), 'base64');
+  await page.route('**/api/feed/joud/lebanon/sketch*', route => route.fulfill({
+    body: cover,
+    contentType: 'image/png',
+    headers: { 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+  }));
+  await page.route('**/assets/dark-pencil-art*.svg', route => route.abort());
+  await page.goto('/');
+  const art = page.locator('.feed-tile .transparent-cover-image').first();
+  await expect(art).toBeVisible();
+  await page.reload();
+  await expect(art).toHaveCSS('filter', 'url("#dark-pencil-ink")');
+  await expect(page.locator('#dark-pencil-ink feColorMatrix')).toHaveCount(1);
+});
 test('home has one creation entry and no decorative globe or briefing card',async({page})=>{
  await mock(page); await page.goto('/');
  await expect(page.getByRole('heading',{name:'Welcome back!'})).toBeVisible();
