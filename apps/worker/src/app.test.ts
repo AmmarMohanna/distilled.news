@@ -82,6 +82,117 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("persists channel follows for the signed-in viewer and rejects self-follows", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel-follow-owner@example.invalid", "Channel Follow Owner");
+    const reader = await createVerifiedUser(app, repo, "channel-follower@example.invalid", "Channel Follower");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    const username = encodeURIComponent(owner.account.username);
+    const follow = (following: boolean, cookie = "") => app.request(`/api/me/channels/${username}/follow`, {
+      method: "PUT",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ following })
+    }, env());
+    expect((await follow(true)).status).toBe(401);
+    expect((await follow(true, owner.cookie)).status).toBe(400);
+    expect(await (await follow(true, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, followerCount: 1 } });
+    const profile = (cookie: string) => app.request(`/api/explore/channels/${username}`, { headers: { cookie } }, env());
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true } });
+    expect(await (await profile(owner.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false } });
+    expect(await (await follow(false, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false, followerCount: 0 } });
+  });
+
+  it("serves an uploaded channel cover only while the owner has an active public feed", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "cover-owner@example.invalid", "Cover Owner");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const objects = new Map<string, { bytes: Uint8Array<ArrayBuffer>; channel: string }>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>, options: {customMetadata: {channel: string}}) => {
+        objects.set(key, { bytes, channel: options.customMetadata.channel });
+      },
+      get: async (key: string) => {
+        const object = objects.get(key);
+        return object ? { body: new Response(object.bytes).body, customMetadata: { channel: object.channel } } : null;
+      }
+    } } as unknown as Env;
+    const upload = "/api/me/channel-cover";
+    const original = new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]);
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(upload, { method: "PUT", body: original }, runtime)).status).toBe(401);
+    expect((await app.request(upload, { method: "PUT", body: original, headers }, runtime)).status).toBe(200);
+    expect((await app.request("/api/me/avatar", {headers}, runtime)).status).toBe(404);
+    const cover = `/api/explore/channels/${encodeURIComponent(owner.account.username)}/cover`;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
+    expect((await app.request(cover, {}, runtime)).status).toBe(404);
+  });
+
+  it("stores a replacement avatar privately for the signed-in account", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "avatar-owner@example.invalid", "Picture Owner");
+    const other = await createVerifiedUser(app, repo, "avatar-other@example.invalid", "Other Reader");
+    const objects = new Map<string, Uint8Array<ArrayBuffer>>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>) => { objects.set(key, bytes); },
+      get: async (key: string) => objects.has(key) ? { body: new Response(objects.get(key)).body } : null,
+      delete: async (key: string) => { objects.delete(key); }
+    } } as unknown as Env;
+    const path = "/api/me/avatar";
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(path, { method: "PUT", body: "not a JPEG", headers }, runtime)).status).toBe(415);
+    for (const byte of [0x01, 0x02]) {
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, byte, 0xff, 0xd9]);
+      expect((await app.request(path, { method: "PUT", body: jpeg, headers }, runtime)).status).toBe(200);
+      const saved = await app.request(path, { headers }, runtime);
+      expect(saved.headers.get("cache-control")).toBe("private, no-store");
+      expect(new Uint8Array(await saved.arrayBuffer())).toEqual(jpeg);
+    }
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { headers: { cookie: other.cookie } }, runtime)).status).toBe(404);
+    expect((await app.request(path, {}, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE" }, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE", headers: { ...headers, origin: "https://other.example" } }, runtime)).status).toBe(403);
+    expect((await app.request(path, { method: "DELETE", headers: { cookie: other.cookie } }, runtime)).status).toBe(200);
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { method: "DELETE", headers }, runtime)).status).toBe(200);
+    expect((await app.request(path, { headers }, runtime)).status).toBe(404);
+  });
+
+  it("keeps feed stars separate from channel follows and exposes only active public feeds and opted-in photos", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel@example.invalid", "Channel Owner");
+    const original = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...original, publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "another-public", slug: "another", publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "private", slug: "private", publicFeedEnabled: false, paused: false });
+    await repo.upsertBriefing({ ...original, id: "paused", slug: "paused", publicFeedEnabled: true, paused: true });
+    await repo.setBriefingStar(original.id, "same-reader", true);
+    await repo.setBriefingStar("another-public", "same-reader", true);
+    await repo.setBriefingStar("private", "private-reader", true);
+    await repo.setBriefingStar("paused", "paused-reader", true);
+    const prefix = "/api/explore/channels";
+    const channel = { username: owner.account.username, publicFeedCount: 2, followerCount: 0 };
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [channel] });
+    const filtered = await (await app.request(`/api/explore/feeds?channel=${owner.account.username}`, { headers: { cookie: owner.cookie } }, env())).json() as { feeds: Array<{ slug: string }> };
+    expect(filtered.feeds.map(feed => feed.slug).sort()).toEqual(["another", "personal"]);
+    let visibility = "private";
+    const avatarRuntime = { ...env(), RAW_ARCHIVE: { get: async () => ({ body: new Response("picture").body, customMetadata: { channel: visibility } }) } } as unknown as Env;
+    const avatarPath = `${prefix}/${owner.account.username}/avatar`;
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    visibility = "public";
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(200);
+    await repo.updateAccount({ id: owner.account.id, disabled: true });
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [] });
+  });
+
   it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
     const repo=new InMemoryRepository(),app=createApp({repository:repo});
     const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');

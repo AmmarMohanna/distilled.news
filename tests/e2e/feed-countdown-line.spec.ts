@@ -1,7 +1,7 @@
 import {expect,test} from '@playwright/test';
 
 for(const width of [320,390,1280]) for(const language of ['en','fr','ar']) {
-  test(`feed countdown and summary stay on one line: ${language} ${width}px`,async({page})=>{
+  test(`feed countdown fits beneath the byline: ${language} ${width}px`,async({page})=>{
     await page.setViewportSize({width,height:850});
     await page.clock.install({time:new Date('2026-11-02T08:00:00Z')});
     await page.addInitScript(language=>localStorage.setItem('dn_language',language),language);
@@ -25,8 +25,10 @@ for(const width of [320,390,1280]) for(const language of ['en','fr','ar']) {
     })).toBe(true);
     for(const control of [status,summary])expect(await control.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
     const a=(await status.boundingBox())!,b=(await summary.boundingBox())!;
-    expect(Math.abs(a.y-b.y)).toBeLessThan(1);expect(Math.abs(a.height-b.height)).toBeLessThan(1);
-    expect(a.height).toBeGreaterThanOrEqual(44);
+    const byline=(await page.locator(".page-heading > p").boundingBox())!;
+    expect(a.y).toBeGreaterThanOrEqual(byline.y+byline.height-1);
+    expect(a.y+a.height).toBeLessThan(b.y);
+    await expect(page.locator(".feed-tools input")).toHaveCount(0);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     if(language==='en')await expect(status).toHaveAttribute('aria-label','Next daily brief in 6h 58m');
   });

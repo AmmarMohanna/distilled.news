@@ -15,7 +15,7 @@ async function openLanding(page: import("@playwright/test").Page, count: number)
     return route.fulfill({ json: {} });
   });
   await page.goto("/");
-  await expect(page.locator(".guest-landing .curated-feed-grid .topic-card")).toHaveCount(count);
+  await expect(page.locator(".guest-landing .feed-tile-grid[data-feed-view=explore] .feed-tile")).toHaveCount(count);
 }
 
 for (const size of [
@@ -30,14 +30,11 @@ for (const size of [
   test(`one landing feed fits ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     await openLanding(page, 1);
-    const viewport = page.locator(".app-pages > .screen-page-viewport");
-    const card = page.locator(".guest-landing .curated-feed-grid .topic-card");
-    const bounds = await card.boundingBox();
+    const card = page.locator(".guest-landing .feed-tile-grid[data-feed-view=explore] .feed-tile");
     const art = await card.locator(".topic-art").boundingBox();
     expect(Math.abs(art!.width - art!.height)).toBeLessThan(1);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
-    if (size.height >= 500) expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-    else { await card.scrollIntoViewIfNeeded(); await expect(card).toBeInViewport(); }
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeInViewport({ ratio: 0.95 });
   });
 }
 
@@ -49,14 +46,14 @@ test("landing feeds scroll only when they no longer fit", async ({ page }) => {
 });
 
 for (const width of [320, 749, 900, 1280]) {
-  test(`feed identities remain readable and rows centered at ${width}px`, async ({ page }, info) => {
+  test(`feed identities remain readable and tiles fit at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await openLanding(page, 5);
-    const cards = page.locator('.curated-feed-grid .topic-card');
+    const cards = page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile');
     await expect(cards.first()).toBeVisible();
     const measurements = await cards.evaluateAll(nodes => nodes.map(node => {
       const card = node.getBoundingClientRect();
-      const title = node.querySelector('strong')!;
+      const title = node.querySelector('.feed-tile-caption > a')!;
       const identity = title.getBoundingClientRect();
       const art=node.querySelector(".topic-art")!.getBoundingClientRect();
       return { x: card.x, y: card.y, width: card.width, titleWidth: identity.width, artSquare:Math.abs(art.width-art.height)<1, clipped: title.scrollWidth > title.clientWidth + 1 };
@@ -69,16 +66,17 @@ for (const width of [320, 749, 900, 1280]) {
     }
     await expect(cards.first().locator('.feed-card-status.live')).toHaveCount(0);
     expect(await cards.first().locator('.topic-art').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-    const authorBounds = await cards.first().locator('.feed-card-identity small').boundingBox();
+    const authorBounds = await cards.first().locator('.feed-tile-caption > small').boundingBox();
     const updatedBounds = await cards.first().locator('.feed-updated-at').boundingBox();
-    await expect(cards.first()).toHaveCSS('row-gap','2px');
+    await expect(cards.first().locator('.feed-tile-caption')).toHaveCSS('row-gap','2px');
     expect(updatedBounds!.y - authorBounds!.y - authorBounds!.height).toBeCloseTo(2,0);
-    const grid = await page.locator('.curated-feed-grid').boundingBox();
+    const grid = await page.locator('.feed-tile-grid[data-feed-view=explore]').boundingBox();
     await page.screenshot({path:`.local-reports/staging-feed-card-layout/${info.project.name}-${width}-cards.png`,animations:"disabled"});
     const lastY = measurements.at(-1)!.y;
     const lastRow = measurements.filter(card => Math.abs(card.y - lastY) < 1);
     const left = lastRow[0].x;
     const right = lastRow.at(-1)!.x + lastRow.at(-1)!.width;
-    expect(Math.abs((left + right) / 2 - (grid!.x + grid!.width / 2))).toBeLessThan(2);
+    expect(left).toBeGreaterThanOrEqual(grid!.x - 1);
+    expect(right).toBeLessThanOrEqual(grid!.x + grid!.width + 1);
   });
 }

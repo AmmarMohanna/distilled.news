@@ -27,12 +27,12 @@ test("guest landing browses and searches public feeds without a menu", async ({ 
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("searchbox", { name: "Search feeds" })).toBeVisible();
-  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
+  await expect(page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile")).toHaveCount(1);
   await page.getByRole("searchbox", { name: "Search feeds" }).fill("nonexistent");
-  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(0);
+  await expect(page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile")).toHaveCount(0);
   await expect(page.getByText("No feeds match your search.")).toBeVisible();
   await page.getByRole("searchbox").fill("joud");
-  await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
+  await expect(page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile")).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("searchbox").fill("");
   await page.screenshot({ path: "test-results/landing-" + test.info().project.name + ".png" });

@@ -14,6 +14,11 @@ export type ProcessingJobState = "queued" | "completed" | "failed";
 export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
 export type AccountRole = "admin" | "user";
 export type AuthTokenPurpose = "email_verification" | "password_reset";
+export interface ExploreChannel {
+  username: string;
+  publicFeedCount: number;
+  followerCount: number;
+}
 export type AccountAuthAction =
   | { purpose: "email_verification"; email?: string }
   | { purpose: "password_reset"; passwordHash: string };
@@ -414,13 +419,17 @@ export interface Repository {
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;
-  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
+  listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]>;
+  hasChannelFollow(channelId: string, followerId: string): Promise<boolean>;
+  setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void>;
+  listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string; latestEditionId?: string}>>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly?: boolean): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; viewerFollowsChannel: boolean; latestUpdatedAt?: string}>>;
   getExploreRevision(): Promise<string>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
-  hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;
-  setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
+  hasBriefingStar(briefingId: string, voterId: string | null, accountId?: string): Promise<boolean>;
+  setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date, accountId?: string): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
   saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now?:Date):Promise<{briefing:BriefingConfig;sourceIds:string[]}>;
   deleteBriefing(id: string, now?: Date): Promise<void>;

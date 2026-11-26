@@ -25,6 +25,8 @@ import {ProductSourceApprovalError,approveProductSource,configuredProductSource,
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
+import { bodyLimit } from 'hono/body-limit';
+import { briefingPublisherPhotos } from "./briefing-photo";
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
@@ -62,7 +64,7 @@ import { Context, Hono } from "hono";
 import {stream} from 'hono/streaming';
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { sketchKey } from "./sketches";
+import { IMPORTED_COVER_DISPOSITION, IMPORTED_PNG_COVER_DISPOSITION, PENCIL_COVER_STYLE, sketchKey } from "./sketches";
 import { queueInitialFeedSketch } from "./feed-sketch-jobs";
 import {
   accountAuth,
@@ -88,7 +90,7 @@ import { sendPasswordResetEmail, sendVerificationEmail, usesCampaignVerification
 import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
-import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
+import type { AccountRecord, AccountRole, Env, ExploreChannel, ProcessingJobMessage, Repository } from "./types";
 import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
@@ -295,6 +297,9 @@ function isDatabaseUnavailable(error: unknown): boolean {
   return error instanceof Error && /D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
 }
 
+const accountAvatarKey = (accountId: string) => `account-avatars/${encodeURIComponent(accountId)}.jpg`;
+const channelCoverKey = (accountId: string) => `channel-covers/${encodeURIComponent(accountId)}.jpg`;
+
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
   let activeTraces = 0;
@@ -320,6 +325,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   const repoFor = (c: { env: Env }): Repository => options.repository ?? new D1Repository(c.env.DB);
+  const channelRankings = new WeakMap<object, { revision: string; entries: Promise<ExploreChannel[]> }>();
   const bucketFor = (c: { env: Env }) => options.bucket ?? c.env.RAW_ARCHIVE;
   const queueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
   const fetcher = options.fetcher ?? fetch;
@@ -929,6 +935,53 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ account: publicAccount(updated), briefings: await repo.listBriefings(updated.id) });
   });
 
+  app.get("/api/me/avatar", async (c) => {
+    const avatar = await c.env.RAW_ARCHIVE?.get(accountAvatarKey(c.get("account")!.id));
+    if (!avatar) return c.body(null, 404, { "Cache-Control": "private, no-store" });
+    return c.body(avatar.body, 200, {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "private, no-store",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox"
+    });
+  });
+
+  const accountPictureLimit = bodyLimit({
+    maxSize: 512 * 1024,
+    onError: c => c.json({ error: "Profile picture is too large" }, 413)
+  });
+  const saveAccountPicture = (cover: boolean) => async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Invalid upload origin" }, 403);
+    const bucket = c.env.RAW_ARCHIVE;
+    if (!bucket) return c.json({ error: "Profile picture storage is unavailable" }, 503);
+    const account = c.get("account")!;
+    await assertRateLimit(c.get("repo"), `avatar:${account.id}`, "avatar_upload", 20, 60 * 60 * 1000);
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    if (c.req.header("content-type") !== "image/jpeg" || data.length < 5 ||
+        data[0] !== 0xff || data[1] !== 0xd8 || data[2] !== 0xff ||
+        data[data.length - 2] !== 0xff || data[data.length - 1] !== 0xd9) {
+      return c.json({ error: "Choose a JPEG, PNG, or WebP image" }, 415);
+    }
+    await bucket.put(cover ? channelCoverKey(account.id) : accountAvatarKey(account.id), data, {
+      httpMetadata: { contentType: "image/jpeg" },
+      customMetadata: { channel: cover || c.req.query("channel") === "1" ? "public" : "private" }
+    });
+    return c.json({ ok: true });
+  };
+  app.put("/api/me/avatar", accountPictureLimit, saveAccountPicture(false));
+  app.put("/api/me/channel-cover", accountPictureLimit, saveAccountPicture(true));
+
+  app.delete("/api/me/avatar", async (c) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Forbidden" }, 403);
+    const bucket = c.env.RAW_ARCHIVE;
+    if (!bucket) return c.json({ error: "Profile picture storage is unavailable" }, 503);
+    await bucket.delete(accountAvatarKey(c.get("account")!.id));
+    return c.json({ ok: true });
+  });
+
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
@@ -1390,6 +1443,10 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: "keep at least one admin" }, 400);
     }
     await repo.deleteAccount(target.id);
+    if (c.env.RAW_ARCHIVE) {
+      await repo.queueArchiveDeletion(accountAvatarKey(target.id), nowFor());
+      await repo.queueArchiveDeletion(channelCoverKey(target.id), nowFor());
+    }
     return c.json({ accounts: await repo.listAccounts(), briefings: await repo.listBriefings() });
   });
 
@@ -1432,6 +1489,97 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await repo.listBriefings(), accounts: await repo.listAccounts() });
   });
 
+  app.get("/api/explore/channels", async (c) => {
+    c.header("Cache-Control", "no-store");
+    const repo = repoFor(c);
+    c.header("Vary", "Cookie");
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const followed = c.req.query("followed") === "1";
+    if (viewer && !viewer.disabledAt) return c.json({ channels: await repo.listExploreChannels(100, undefined, { id: viewer.id, followed }) });
+    if (followed) return c.json({ channels: [] });
+    const scope = options.repository ?? c.env.DB;
+    const revision = await repo.getExploreRevision();
+    let ranking = channelRankings.get(scope);
+    if (ranking?.revision !== revision) {
+      const entries = repo.listExploreChannels(100).catch(error => {
+        if (channelRankings.get(scope)?.entries === entries) channelRankings.delete(scope);
+        throw error;
+      });
+      ranking = { revision, entries };
+      channelRankings.set(scope, ranking);
+    }
+    return c.json({ channels: await ranking.entries });
+  });
+
+  app.get("/api/explore/highlights", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    c.header("Vary", "Cookie");
+    const repo = repoFor(c);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const ownerId = viewer && !viewer.disabledAt ? viewer.id : undefined;
+    const voterId = await getVoterId(c) ?? undefined;
+    const now = nowFor().getTime();
+    const [trending, newest] = await Promise.all([
+      repo.listExploreHighlights("trending", new Date(now - 7 * 86_400_000).toISOString(), 8, voterId, ownerId),
+      repo.listExploreHighlights("new", new Date(now - 30 * 86_400_000).toISOString(), 8, voterId, ownerId)
+    ]);
+    const card = (feed: typeof trending[number]) => ({
+      ...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt, latestEditionId: feed.latestEditionId
+    });
+    return c.json({ trending: trending.map(card), newest: newest.map(card) });
+  });
+
+  async function channelOwner(repo: Repository, username: string) {
+    const owner = await repo.getAccountByUsername(username) ?? (await repo.resolveUsernameAlias(username))?.account;
+    return owner?.disabledAt ? undefined : owner;
+  }
+
+  app.get("/api/explore/channels/:username", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    c.header("Vary", "Cookie");
+    const repo = repoFor(c);
+    const owner = await channelOwner(repo, c.req.param("username"));
+    const channel = owner && (await repo.listExploreChannels(1, owner.id))[0];
+    if (!owner || !channel) return c.json({ error: "Channel not found" }, 404);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims && await repo.getAccountById(claims.sub);
+    const viewerFollowing = Boolean(viewer && !viewer.disabledAt && await repo.hasChannelFollow(owner.id, viewer.id));
+    return c.json({ channel: { ...channel, viewerFollowing } });
+  });
+
+  app.put("/api/me/channels/:username/follow", async (c) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Forbidden" }, 403);
+    const viewer = c.get("account")!;
+    const repo = c.get("repo");
+    const owner = await channelOwner(repo, c.req.param("username"));
+    if (!owner || !(await repo.listExploreChannels(1, owner.id)).length) return c.json({ error: "Channel not found" }, 404);
+    if (owner.id === viewer.id) return c.json({ error: "You can’t follow your own channel" }, 400);
+    const { following } = z.object({ following: z.boolean() }).parse(await c.req.json());
+    await repo.setChannelFollow(owner.id, viewer.id, following);
+    const channel = (await repo.listExploreChannels(1, owner.id))[0];
+    if (!channel) return c.json({ error: "Channel not found" }, 404);
+    return c.json({ channel: { ...channel, viewerFollowing: following } });
+  });
+
+  async function readChannelPicture(c: Context<{ Bindings: Env; Variables: Variables }>, username: string, cover: boolean) {
+    c.header("Cache-Control", "no-store");
+    const repo = repoFor(c);
+    const owner = await channelOwner(repo, username);
+    if (!owner || !(await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id)).length) return c.body(null, 404);
+    const avatar = await c.env.RAW_ARCHIVE?.get(cover ? channelCoverKey(owner.id) : accountAvatarKey(owner.id));
+    if (avatar?.customMetadata?.channel !== "public") return c.body(null, 404);
+    return c.body(avatar.body, 200, {
+      "Content-Type": "image/jpeg",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox"
+    });
+  }
+  app.get("/api/explore/channels/:username/avatar", c => readChannelPicture(c, c.req.param("username"), false));
+  app.get("/api/explore/channels/:username/cover", c => readChannelPicture(c, c.req.param("username"), true));
+
   app.get("/api/explore/feeds", async (c) => {
     c.header('Cache-Control','private, no-store');
     c.header('Vary','Cookie');
@@ -1440,16 +1588,21 @@ export function createApp(options: AppOptions = {}) {
     const expected=z.string().max(128).optional().parse(c.req.query('revision'));
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     const viewer = claims ? await repo.getAccountById(claims.sub) : null;
-    const excludedOwner=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const channel = z.string().max(200).optional().parse(c.req.query("channel"));
+    const owner = channel ? await channelOwner(repo, channel) : undefined;
+    if (channel && !owner) return c.json({ feeds: [], nextOffset: null });
+    const followed = c.req.query("followed") === "1";
+    if (followed && (!viewer || viewer.disabledAt)) return c.json({ feeds: [], nextOffset: null });
+    const excludedOwner=!owner&&viewer&&!viewer.disabledAt?viewer.id:undefined;
     const before=await repo.getExploreRevision();
-    const revision=await hashToken(JSON.stringify([before,excludedOwner??null]));
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null,followed]));
     const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
     if(offset>0&&expected!==undefined&&expected!==revision)return changed();
-    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined);
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id, viewer && !viewer.disabledAt ? viewer.id : undefined, followed);
     // The revision bookends the query, so a page cannot be labelled with a
     // revision from before or after a concurrent membership/ranking change.
     if(await repo.getExploreRevision()!==before)return changed();
-    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
+    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, viewerFollowsChannel: feed.viewerFollowsChannel, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
   });
 
   app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
@@ -1461,9 +1614,15 @@ export function createApp(options: AppOptions = {}) {
       return c.body(null, 404, { "Cache-Control": "no-store", ...(job && job.state !== 'ready' ? {"Retry-After":"3"} : {}) });
     }
     // Resolve visibility before every network read. Never put private artwork in a shared cache.
-    const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
-    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers});
-    return new Response(object.body, { headers });
+    const disposition = object.httpMetadata?.contentDisposition;
+    const transparentCover = object.httpMetadata?.contentType === "image/png" && disposition === IMPORTED_PNG_COVER_DISPOSITION;
+    const headers = { "Content-Type": transparentCover ? "image/png" : "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
+    const responseHeaders = new Headers(headers);
+    if (transparentCover || object.customMetadata?.artworkStyle === PENCIL_COVER_STYLE || disposition === IMPORTED_COVER_DISPOSITION) {
+      responseHeaders.set("X-Feed-Artwork-Style", PENCIL_COVER_STYLE);
+    }
+    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers: responseHeaders});
+    return new Response(object.body, { headers: responseHeaders });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
@@ -1473,6 +1632,8 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewerHasStarred = await repo.hasBriefingStar(briefing.id, voterId, claims?.sub);
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
       // Cached data only: access, the viewer's star and feed settings are read per request.
       const version = await feedReadVersion(c.env.DB, briefing.id);
@@ -1487,7 +1648,6 @@ export function createApp(options: AppOptions = {}) {
           return { value, hash: fnv1a(JSON.stringify(value)) };
         })
       ]);
-      const viewerHasStarred = voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false;
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
       const publicFeed = publicBriefing(briefing);
@@ -1524,7 +1684,7 @@ export function createApp(options: AppOptions = {}) {
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       editionsComplete:legacyEditions?legacyEditions.length<=50:true,
       ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
-      viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
+      viewerHasStarred
     };
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json(payload);
@@ -1548,7 +1708,14 @@ export function createApp(options: AppOptions = {}) {
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
-    return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
+    if (c.req.query("photo") === "1") {
+      if (!briefing.publicFeedEnabled) return c.json({ photo: null, photos: [] });
+      const photos = await briefingPublisherPhotos(edition, fetcher);
+      const current = photos.length ? await repo.getBriefingById(briefing.id) : null;
+      const visiblePhotos = current?.publicFeedEnabled ? photos : [];
+      return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
+    }
+    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -1609,7 +1776,10 @@ export function createApp(options: AppOptions = {}) {
     const voterId = await getOrCreateVoterId(c);
     if (!voterId) return c.json({ error: "voting is not configured" }, 500);
 
-    const stars = await repo.setBriefingStar(briefing.id, voterId, input.starred);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const reader = claims ? await repo.getAccountById(claims.sub) : null;
+    const accountId = reader && !reader.disabledAt && reader.id !== briefing.ownerAccountId ? reader.id : undefined;
+    const stars = await repo.setBriefingStar(briefing.id, voterId, input.starred, nowFor(), accountId);
     return c.json({ stars, viewerHasStarred: input.starred });
   });
 

@@ -14,6 +14,7 @@ async function fixture(page:Page,isPublic=false){
   if(path==='/api/explore/feeds')return route.fulfill({json:{feeds:[],nextOffset:null}});
   if(path.endsWith('/star')){starCalls++;return starCalls===1?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{stars:3,viewerHasStarred:true}});}
   if(path.endsWith('/sketch'))return route.fulfill({status:404});
+  if(path.includes("/editions/"))return route.fulfill({json:{briefing:feed,edition}});
   if(path.startsWith('/api/feed/'))return !signedIn&&!isPublic?route.fulfill({status:404,json:{error:'feed not found'}}):route.fulfill({json:{briefing:feed,editions:[edition],viewerHasStarred:false}});
   return route.fulfill({json:{}});
  });
@@ -42,10 +43,13 @@ test('logout replaces the open private feed with Home and cannot restore its con
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(0);
 });
 test('renaming the owner follows its canonical feed URL and retains editor controls and read progress',async({page})=>{
- await fixture(page);await page.goto('/owner/news/');await page.getByRole('button',{name:'Mark as read',exact:true}).click();
+ await fixture(page);await page.goto('/owner/news/');await page.locator('.briefing-headline-link').click();
+ await expect(page.locator('.briefing-detail-hero')).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id'])))).toContain('stable-edition');
+ await page.getByRole('link',{name:'Back to feed'}).click();
  await rename(page);await expect(page).toHaveURL(/\/renamed-owner\/news\/$/);
  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
- await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
+ await expect(page.locator('.news-item')).toHaveClass(/is-read/);
 });
 for(const [language,message] of [
  ['en','Could not complete the request. Try again.'],
@@ -60,40 +64,24 @@ for(const [language,message] of [
 test('reader history from the old account-scoped URL key migrates across a publisher rename',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','owner-id'],'owner','news']),'["stable-edition"]'));
  const state=await fixture(page,true);state.rename();await page.goto('/renamed-owner/news/');
- await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
+ await expect(page.locator('.news-item')).toHaveClass(/is-read/);
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id']))??'[]'))).toContain('stable-edition');
- await page.getByRole('button',{name:'Mark as unread',exact:true}).click();await page.reload();
- await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
+ await page.reload();
+ await expect(page.locator('.news-item')).toHaveClass(/is-read/);
 });
 
-test('legacy historical read flags migrate from search and an explicit unread flag survives reload',async({page})=>{
- await page.addInitScript(()=>{if(!localStorage.getItem('history-fixture')){localStorage.setItem('history-fixture','1');localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','owner-id'],'old-owner','news']),'["historical-only"]');}});
- await fixture(page,true);
- await page.route('**/api/feed/owner/news/search?*',route=>route.fulfill({json:{editions:[{...edition,id:'historical-only',title:'Historical development',sections:edition.sections.map(section=>({...section,title:'Historical development'}))}]}}));
- await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
- await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();await page.getByRole('button',{name:'Mark as unread',exact:true}).click();
- await page.reload();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
- await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
-});
-
-test('two tabs synchronize independent read marks and retain an explicit unread choice after reload',async({page,context})=>{
+test('two tabs synchronize read progress when a briefing is opened',async({page,context})=>{
  const other=await context.newPage();
- const rows=['A','B','C'].map(letter=>({...edition,id:'edition-'+letter,title:'Development '+letter,sections:edition.sections.map(section=>({...section,title:'Development '+letter}))}));
  for(const tab of [page,other]){
   await fixture(tab,true);
-  await tab.route('**/api/feed/owner/news',route=>route.fulfill({json:{briefing:{...base,publicFeedEnabled:true},editions:rows,viewerHasStarred:false}}));
+  await tab.goto('/owner/news/');
+  await expect(tab.locator('.news-item')).not.toHaveClass(/is-read/);
  }
- const row=(tab:Page,letter:string)=>tab.locator('.news-item').filter({hasText:'Development '+letter});
- await Promise.all([page.goto('/owner/news/'),other.goto('/owner/news/')]);
- for(const tab of [page,other])await expect(tab.locator('.news-item')).toHaveCount(3);
- await Promise.all([row(page,'A').getByRole('button',{name:'Mark as read',exact:true}).click(),row(other,'B').getByRole('button',{name:'Mark as read',exact:true}).click()]);
- for(const tab of [page,other])await expect(tab.locator('.news-item.is-read')).toHaveCount(2);
- await row(page,'A').getByRole('button',{name:'Mark as unread',exact:true}).click();
- await row(other,'C').getByRole('button',{name:'Mark as read',exact:true}).click();
- for(const tab of [page,other]){await expect(row(tab,'A')).not.toHaveClass(/is-read/);await expect(tab.locator('.news-item.is-read')).toHaveCount(2);}
- await Promise.all([page.reload(),other.reload()]);
- for(const tab of [page,other]){await expect(row(tab,'A')).not.toHaveClass(/is-read/);await expect(row(tab,'B')).toHaveClass(/is-read/);await expect(row(tab,'C')).toHaveClass(/is-read/);}
+ await page.locator('.briefing-headline-link').click();
+ await expect(page.locator('.briefing-detail-hero')).toBeVisible();
+ await expect(other.locator('.news-item')).toHaveClass(/is-read/);
+ await page.getByRole('link',{name:'Back to feed'}).click();
+ await expect(page.locator('.news-item')).toHaveClass(/is-read/);
 });
 
 test('failed logout keeps the private reader authenticated and retryable',async({page})=>{
@@ -118,14 +106,11 @@ test('session outage keeps loaded feed history unassigned until retry confirms t
  });
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
  await expect(page.getByRole('button',{name:'Retry session',exact:true})).toBeVisible();
- await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeDisabled();
+ await expect(page.locator('.read-button')).toHaveCount(0);
  expect(await page.evaluate(key=>localStorage.getItem(key),anonymousKey)).toBe('["anonymous-only"]');
  expect(await page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id'])))).toBeNull();
  await page.getByRole('button',{name:'Retry session',exact:true}).click();
  await expect(page.getByRole('button',{name:'Account profile',exact:true})).toBeVisible();
- await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeEnabled();
- await page.getByRole('button',{name:'Mark as read',exact:true}).click();
- await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id']))??'[]'))).toContain('stable-edition');
+ await expect(page.locator('.read-button')).toHaveCount(0);
  expect(await page.evaluate(key=>localStorage.getItem(key),anonymousKey)).toBe('["anonymous-only"]');expect(sessions).toBe(2);
 });
