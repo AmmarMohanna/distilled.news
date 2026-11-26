@@ -1,0 +1,100 @@
+// Isolated campaign Worker used only by the live k6 campaign
+// (.github/workflows/performance-real.yml). Same bindings as the November pilot deployment.
+// Never point this at the normal staging or production database, queues or bucket.
+// No cron trigger on purpose: the campaign runner turns Cron on and off itself.
+// After every deploy: remove any cron trigger, then update CAMPAIGN_EXPECTED_BUNDLE_DIGEST
+// with `node evaluation/performance-reliability/real/bundle-digest.mjs`.
+{
+  "name": "distilled-news-staging-campaign-pilot",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [],
+  "minify": true,
+  "vars": {
+    "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
+    "BRIEFING_ENGINE": "v3",
+    "BRIEFING_VERIFIER_MODEL": "openai/gpt-4.1-mini",
+    "DISTILLED_LIVE_OPENROUTER_MODEL": "openai/gpt-4.1-mini",
+    "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
+    "DISTILLED_LLM_API_GATEWAY": "openrouter",
+    "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
+    "DISTILLED_WEB_OPERATOR_ENABLED": "false",
+    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
+    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "PRODUCT_FEEDS_ENABLED": "true",
+    "PUBLIC_API_BASE_URL": "https://distilled-news-staging-campaign-pilot.distillednews-platform.workers.dev",
+    "PUBLIC_WEB_BASE_URL": "https://distilled-news-staging-campaign-pilot.distillednews-platform.workers.dev",
+    "SOURCE_ASSESSMENT_ENABLED": "true",
+    "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",
+    "SOURCE_COLLECTION_BUDGET_MODE": "limited",
+    "SOURCE_CONNECTORS_ENABLED": "true",
+    "SOURCE_DISCOVERY_MODEL": "openai/gpt-4.1",
+    "SOURCE_FULL_ARTICLES_ENABLED": "true",
+    "SOURCE_GOOGLE_RESOLUTION_ENABLED": "true",
+    "SOURCE_LEGACY_POLLING_ENABLED": "false",
+    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0.01,\"apify\":0.25,\"zyte\":0.05}",
+    "SOURCE_PER_PROVIDER_BUDGET_USD": "1",
+    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":0,\"x_apify\":0,\"google_apify\":0,\"linkedin_apify\":0,\"zyte\":0}",
+    "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
+    "SOURCE_RECOMMENDATIONS_ENABLED": "true",
+    "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
+    "STORAGE_MAINTENANCE_ENABLED": "true",
+    "UNREAD_SUMMARY_ENABLED": "true",
+    "V1_BROWSER_ACQUISITION_ENABLED": "false",
+    "V1_DOWNSTREAM_ENABLED": "true",
+    "V1_DOWNSTREAM_FEED_SOURCE_IDS": "staging-rss-source,staging-twitter-source",
+    "V1_EDITORIAL_MODEL_POLICY": "SEMANTIC",
+    "V1_EDITORIAL_PLAN_ENABLED": "true",
+    "V1_EDITORIAL_RANKING_POLICY": "SEMANTIC",
+    "V1_PROVIDER_MAX_CONCURRENCY": "3",
+    "V1_PUBLICATION_VALIDATION_CONTRACT": "EVIDENCE_GROUNDED_V2",
+    "V1_REAL_MODEL_REQUIRED": "true",
+    "V1_REVIEW_PREPARATION_ISOLATED": "true",
+    "V1_SALIENCE_POLICY": "DETERMINISTIC",
+    "V1_SEMANTIC_POLICY": "SEMANTIC",
+    "V1_SEMANTIC_STRONG_MODEL": "openai/gpt-4.1-mini",
+    "V1_SYNTHESIS_MODEL_ENABLED": "true",
+    "ENVIRONMENT": "staging",
+    "BRIEFING_PROMPT_VERSION": "4",
+    "AGENTOPS_ENABLED": "true",
+    "AGENTOPS_CAMPAIGN_ENABLED": "true",
+    "AGENTOPS_CAMPAIGN_ISOLATED": "true",
+    "AGENTOPS_CAMPAIGN_ALLOW_FAULTS": "false"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "distilled-news-staging-campaign-pilot",
+      "database_id": "5ca750ba-dad8-413f-896e-bd62b1023ac2",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {"binding": "RAW_ARCHIVE", "bucket_name": "distilled-news-staging-campaign-pilot-raw"}
+  ],
+  "queues": {
+    "producers": [
+      {"binding": "PROCESSING_QUEUE", "queue": "dn-campaign-pilot-processing"},
+      {"binding": "SOURCE_COLLECTION_QUEUE", "queue": "dn-campaign-pilot-collection"},
+      {"binding": "V1_ACQUISITION_QUEUE", "queue": "dn-campaign-pilot-acquisition"},
+      {"binding": "V1_PROCESSING_QUEUE", "queue": "dn-campaign-pilot-v1"}
+    ],
+    "consumers": [
+      {"queue": "dn-campaign-pilot-processing", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "max_concurrency": 2, "dead_letter_queue": "dn-campaign-pilot-dlq"},
+      {"queue": "dn-campaign-pilot-collection", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "max_concurrency": 2, "dead_letter_queue": "dn-campaign-pilot-dlq"},
+      {"queue": "dn-campaign-pilot-acquisition", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "max_concurrency": 2, "dead_letter_queue": "dn-campaign-pilot-dlq"},
+      {"queue": "dn-campaign-pilot-v1", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "max_concurrency": 2, "dead_letter_queue": "dn-campaign-pilot-dlq"}
+    ]
+  },
+  "observability": {"enabled": false},
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  }
+}
