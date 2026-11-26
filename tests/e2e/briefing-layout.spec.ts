@@ -110,9 +110,9 @@ test("published headlines open retained briefing evidence and preserve read-only
   expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
   expect(detailLogin.x + detailLogin.width).toBeCloseTo(feedLogin.x + feedLogin.width, 0);
   expect(detailLogin.y + detailLogin.height / 2).toBeCloseTo(feedLogin.y + feedLogin.height / 2, 0);
-  const menu = page.locator('.briefing-detail-title-row .feed-more > summary');
+  const menu = page.locator('.briefing-detail-feed-row .feed-more > summary');
   await expect(menu).toHaveCSS('border-radius', '50%');
-  const titleBounds = (await page.locator('.briefing-detail-title-row h1').boundingBox())!;
+  const titleBounds = (await page.locator('.briefing-detail-feed-row .briefing-parent-feed').boundingBox())!;
   const menuBounds = (await menu.boundingBox())!;
   expect(menuBounds.x).toBeGreaterThan(titleBounds.x + titleBounds.width);
   expect(menuBounds.y + menuBounds.height / 2).toBeCloseTo(titleBounds.y + titleBounds.height / 2, 0);
