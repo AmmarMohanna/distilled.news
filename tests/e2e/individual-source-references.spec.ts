@@ -26,6 +26,18 @@ for(const language of ['en','fr','ar'])test(`each supporting source opens separa
  await third.click();
  const preview=page.getByRole('dialog');
  await expect(preview).toContainText('Retained source 3');
+ const centers = await preview.locator('.citation-source-heading').evaluate(heading => {
+  const center = (element: Element) => {
+   const box = element.getBoundingClientRect();
+   return box.left + box.width / 2;
+  };
+  const title = heading.querySelector('h2')!;
+  const titleText = document.createRange();
+  titleText.selectNodeContents(title);
+  const text = titleText.getBoundingClientRect();
+  return [center(heading.closest('dialog')!), center(heading.querySelector('img,svg')!), text.left + text.width / 2, center(heading.querySelector('a')!)];
+ });
+ for (const position of centers.slice(1)) expect(position).toBeCloseTo(centers[0], 0);
  const opened=page.waitForEvent('popup');
  await preview.locator('a[href="https://publisher3.example/article"]').click();
  const article=await opened;

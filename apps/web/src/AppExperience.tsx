@@ -303,7 +303,7 @@ export function AppExperience(props: {
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
-        {tab !== "followed" && (!channelName
+        {(!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
           : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
@@ -696,7 +696,9 @@ function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
     </div>
     <div className="feed-tile-caption">
       <a href={destination ?? href}><bdi>{feed.title}</bdi></a>
-      <small><bdi>@{feed.ownerUsername}</bdi></small>
+      <small>{feed.publicFeedEnabled
+        ? <a className="feed-tile-owner" href={channelUrl(feed.ownerUsername)}><ChannelAvatar username={feed.ownerUsername}/><bdi>@{feed.ownerUsername}</bdi></a>
+        : <bdi>@{feed.ownerUsername}</bdi>}</small>
       <FeedUpdatedAt value={feed.latestUpdatedAt}/>
       {feed.paused && <small>{t("Paused")}</small>}
     </div>
