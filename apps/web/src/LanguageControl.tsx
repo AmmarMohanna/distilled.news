@@ -77,7 +77,7 @@ const translations: Record<string, [string, string]> = {
   "articles could not be fetched under the current access policy.": ["articles n’ont pas pu être récupérés avec les autorisations d’accès actuelles.","مقالات تعذّر جلبها وفق قواعد الوصول الحالية."],
   "Couldn't load your feeds": ["Impossible de charger vos fils", "تعذر تحميل خلاصاتك"],
   "Try Again": ["Réessayer", "حاول مجددًا"],
-  "Summarize unread": ["Résumer les non lus", "لخّص ما لم أقرأه"],
+  "Summarize": ["Résumer", "لخّص"],
   "Summarizing…": ["Résumé en cours…", "جارٍ التلخيص…"],
   "Summary": ["Résumé", "ملخص"],
   "Unread summary": ["Résumé des non lus", "ملخص ما لم أقرأه"],

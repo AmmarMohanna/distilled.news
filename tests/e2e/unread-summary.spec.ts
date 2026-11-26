@@ -15,7 +15,7 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
     return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'owner',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path==='/api/me/sources'?{sources:[]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[edition],viewerHasStarred:false,unreadSummaryAvailable:true}:{}});
   });
   await page.goto('/owner/news/');
-  const button=page.getByRole('button',{name:'Summarize unread',exact:true});
+  const button=page.getByRole('button',{name:'Summarize',exact:true});
   await expect(button).toBeVisible();expect(calls).toBe(0);
   await button.click();
   const card=page.getByRole('region',{name:'Unread summary'});
