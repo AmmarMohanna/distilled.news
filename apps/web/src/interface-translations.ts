@@ -129,7 +129,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Back to Explore': ['Retour à Explorer', 'العودة إلى الاستكشاف'],
   'Follow': ['Suivre', 'تابع'],
   'Source preview': ['Aperçu de la source', 'معاينة المصدر'],
-  'Read article': ['Lire l’article', 'قراءة المقال'],
+  'Read full article': ['Lire l’article complet', 'قراءة المقال كاملاً'],
   'Next image': ['Image suivante', 'الصورة التالية'],
   'Followed': ['Abonnements', 'المتابعة'],
   'Followed channels': ['Chaînes suivies', 'القنوات المتابَعة'],

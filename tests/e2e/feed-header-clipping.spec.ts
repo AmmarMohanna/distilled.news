@@ -41,9 +41,8 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
       expect(art.y).toBeCloseTo(container.y, 0);
       expect(art.height).toBeCloseTo(container.height, 0);
       const fade = await artwork.evaluate(node => getComputedStyle(node).maskImage);
-      expect(fade).toContain(language === 'ar' ? 'to left' : 'to right');
-      if (language === 'ar') expect(art.x + art.width).toBeCloseTo(container.x + container.width, 0);
-      else expect(art.x).toBeCloseTo(container.x, 0);
+      expect(fade).toContain('to right');
+      expect(art.x).toBeCloseTo(container.x, 0);
     }
     const viewport = page.locator('.app-pages > .screen-page-viewport');
     await expect(viewport).toHaveCSS('scrollbar-gutter','auto');

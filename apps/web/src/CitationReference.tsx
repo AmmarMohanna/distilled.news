@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { BriefingEdition } from '@distilled/core';
 import { briefingReferences, readerEvidenceUrl } from './briefing-references';
 import { sourceEvidenceLabels } from './source-evidence-labels';
+import { ExternalLink, X } from 'lucide-react';
 import { SourceLogo } from './SourceLogo';
 import { createPortal } from 'react-dom';
 import { Dialog } from './Dialog';
@@ -65,10 +66,15 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     </span>}</a>
     {sourceOpen && createPortal(<Dialog label={t("Source preview")} className="citation-source-dialog" onClose={() => setSourceOpen(false)}>
       <div className="dialog-inner">
-        <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setSourceOpen(false)}>×</button>
-        <h2 dir="auto">{entry ? sourceEvidenceLabels(entry).headline : t("Source preview")}</h2>
-        {entry && <><p className="muted" dir="auto">{publisher}</p><p className="citation-source-text" dir="auto">{entry.text}</p></>}
-        {url && <a className="primary-button" href={url} target="_blank" rel="noopener noreferrer">{t("Read article")}</a>}
+        <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setSourceOpen(false)}><X size={22} aria-hidden/></button>
+        <div className="citation-source-heading">
+          {entry && publisher && <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/>}
+          <h2 dir="auto">{publisher ?? t("Source preview")}</h2>
+          {url && <a className="citation-source-link" href={url} target="_blank" rel="noopener noreferrer">
+            {t("Read full article")}<ExternalLink size={14} aria-hidden/>
+          </a>}
+        </div>
+        {entry && <p className="citation-source-text" dir="auto">{entry.text}</p>}
       </div>
     </Dialog>, document.body)}
   </span>;

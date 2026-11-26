@@ -106,7 +106,7 @@ test("published headlines open retained briefing evidence and preserve read-only
   await page.locator(".briefing-detail-body .briefing-reference").first().click();
   const source = page.getByRole("dialog", { name: "Source preview" });
   await expect(source).toContainText("The full briefing ends here");
-  await expect(source.getByRole("link", { name: "Read article" })).toHaveAttribute("href", sourceUrl);
+  await expect(source.getByRole("link", { name: "Read full article" })).toHaveAttribute("href", sourceUrl);
 });
 
 test("briefing photos load only after opening the detail page", async ({ page }) => {

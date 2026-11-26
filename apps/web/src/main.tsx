@@ -2171,12 +2171,12 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const date = editionDisplayTime(edition);
   return <main className="briefing-detail-page">
     <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back}
-      onAccount={() => setProfileOpen(true)} actions={briefing.publicFeedEnabled && <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>}/>
+      onAccount={() => setProfileOpen(true)} actions={briefing.publicFeedEnabled && <span className="feed-banner-menu"><ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/></span>}/>
     {error && <p role="alert">{t(error)}</p>}
-    <header className="briefing-detail-hero">
+    <header className="briefing-detail-hero" dir={direction}>
       <div>
         <time dateTime={date}>{formatDayHeading(date, language)} · {formatClock(date, language)}</time>
-        <h1 dir="auto">{edition.title || briefing.title}</h1>
+        <h1><bdi>{edition.title || briefing.title}</bdi></h1>
         <a className="briefing-parent-feed" href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
       </div>
     </header>
@@ -2269,7 +2269,7 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
 
 function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
   const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
-  return <a className="feed-nav-back" lang={language} href={isOwnFeed ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
+  return <a className="feed-nav-back" lang={language} href={isOwnFeed || document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
