@@ -4225,13 +4225,21 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 :root.apple-ui.apple-ui .experience.product-refresh:has(.channel-heading) > .experience-header.experience-header { position: relative; }
 :root.apple-ui.apple-ui :is(.channel-heading, .feed-shell > .experience-header, .briefing-detail-page) .feed-nav-back:hover { background: transparent; box-shadow: none; }
-:root.apple-ui.apple-ui .feed-shell .feed-tools .unread-summary-button {
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading > .feed-hero-controls {
+  flex-direction: column;
+  align-items: start;
+  gap: 0;
+}
+@media (max-width: 700px) {
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading > .feed-hero-controls { align-items: center; }
+}
+:root.apple-ui.apple-ui .feed-shell .feed-hero-controls .unread-summary-button {
   justify-self: end;
   width: auto;
   border: 0;
   background: transparent;
 }
-:root.apple-ui.apple-ui .feed-shell .feed-tools .unread-summary-button:hover:not(:disabled) {
+:root.apple-ui.apple-ui .feed-shell .feed-hero-controls .unread-summary-button:hover:not(:disabled) {
   background: transparent;
   color: var(--text);
 }

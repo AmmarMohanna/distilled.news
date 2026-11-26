@@ -128,8 +128,9 @@ test("briefing photos load only after opening the detail page", async ({ page })
   const edition = { id: "latest", title: "A published headline", summary: "Published briefing text.",
     publishedAt: "2026-10-11T08:00:00Z", sections: [] };
   const photoUrl = "https://example.test/briefing-photo.svg";
+  const secondPhotoUrl = "https://example.test/second-briefing-photo.svg";
   let photoRequests = 0;
-  await page.route(photoUrl, route => route.fulfill({
+  await page.route("https://example.test/*briefing-photo.svg", route => route.fulfill({
     contentType: "image/svg+xml",
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
   }));
@@ -137,7 +138,7 @@ test("briefing photos load only after opening the detail page", async ({ page })
     const url = new URL(route.request().url());
     if (url.searchParams.has("photo")) {
       photoRequests++;
-      return route.fulfill({ json: { photo: { url: photoUrl, source: "Example" } } });
+      return route.fulfill({ json: { photos: [{ url: photoUrl, source: "Example" }, { url: secondPhotoUrl, source: "Second publisher" }] } });
     }
     if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
     return route.fulfill({ json: url.pathname === "/api/auth/session"
@@ -149,5 +150,8 @@ test("briefing photos load only after opening the detail page", async ({ page })
   expect(photoRequests).toBe(0);
   await headline.click();
   await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
+  await page.getByRole("button", { name: "Next image" }).click();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
   expect(photoRequests).toBe(1);
 });

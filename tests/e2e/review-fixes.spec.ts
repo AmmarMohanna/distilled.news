@@ -259,17 +259,14 @@ test("a few feeds retain bounded square tiles on laptops and phones", async ({ p
   await expect.poll(async () => (await cover.boundingBox())!.width).toBeLessThan(large.width);
 });
 
-test("a feed retains per-edition read controls in one reading column", async ({ page }) => {
+test("a feed shows briefings in one column without manual read controls", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/api/feed/joud/lebanon", route=>route.fulfill({json:{briefing:feed,editions:[{id:"one",title:"Supported update",summary:"A supported development.",publishedAt:"2026-10-24T10:00:00Z",sections:[]}]}}));
   await page.goto("/joud/lebanon/");
   await expect(page.getByRole("button", { name: "All", exact: true })).toHaveCount(0);
   const item = page.locator('.news-item');
-  await item.getByRole('button', { name: 'Mark as read', exact: true }).click();
-  await expect(item).toHaveClass(/is-read/);
-  await item.getByRole('button', { name: 'Mark as unread', exact: true }).click();
-  await expect(item).not.toHaveClass(/is-read/);
+  await expect(item.getByRole('button', { name: /Mark as (un)?read/ })).toHaveCount(0);
   const width = await page.locator(".news-line").evaluate(node => node.getBoundingClientRect().width);
   expect(width).toBeLessThanOrEqual(1440);
 });

@@ -387,7 +387,7 @@ export function getBriefingPage(username: string, slug: string, editionId: strin
   return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`, { signal });
 }
 
-export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null }> {
+export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null; photos?: Array<{ url: string; source: string }> }> {
   return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}?photo=1`, { signal });
 }
 

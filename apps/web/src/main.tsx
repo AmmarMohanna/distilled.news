@@ -28,7 +28,6 @@ import {
   LockKeyhole,
   ArrowRight,
   Ellipsis,
-  Check,
   Layers,
   ChevronDown,
   ChevronLeft,
@@ -1627,7 +1626,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
+  const [readIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
     ...payload.editions.map(edition=>edition.id),
     ...(editionSource?.key===feedKey?editions.map(edition=>edition.id):[])
   ] : []);
@@ -1874,7 +1873,17 @@ function FeedPage(props: { username: string; slug: string }) {
         : <bdi>{payload.briefing.ownerUsername}</bdi>}</> : undefined}
       headingFooter={payload ? <>
         {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
-        <div className="feed-hero-controls">{feedActions}</div>
+        <div className="feed-hero-controls">{feedActions}
+          {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
+            key={JSON.stringify([account.id,props.username,props.slug])}
+            readerId={account.id}
+            summaryTarget={summaryTarget}
+            hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
+            username={props.username} slug={props.slug}
+            readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
+            contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
+          />}
+        </div>
       </> : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
@@ -1898,17 +1907,6 @@ function FeedPage(props: { username: string; slug: string }) {
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
-      <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
-        {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
-          key={JSON.stringify([account.id,props.username,props.slug])}
-          readerId={account.id}
-          summaryTarget={summaryTarget}
-          hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
-          username={props.username} slug={props.slug}
-          readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
-          contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
-        />}
-      </div>
       <div className="unread-summary-slot" ref={setSummaryTarget}/>
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
@@ -1935,8 +1933,6 @@ function FeedPage(props: { username: string; slug: string }) {
                   contentLanguage={payload?.briefing.language ?? language}
                   isLoading={editionBusyIds.has(edition.id)}
                   isRead={readIds.has(edition.id)}
-                  readProgressUnavailable={readerId===undefined}
-                  onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
                   onLoadDetail={() => loadEditionDetail(edition)}
                 />
               ))}
@@ -2043,8 +2039,6 @@ function FeedEditionRow(props: {
   contentLanguage: "en" | "ar" | "fr";
   isLoading: boolean;
   isRead: boolean;
-  onToggleRead: () => void;
-  readProgressUnavailable?: boolean;
   onLoadDetail: () => Promise<BriefingEdition | null>;
 }) {
   const { edition, language } = props;
@@ -2072,19 +2066,6 @@ function FeedEditionRow(props: {
         />)}
         renderBody={() => null}
       /></div>
-      <div className="news-foot">
-        <span />
-        <button
-          type="button"
-          className="read-button"
-          disabled={props.readProgressUnavailable}
-          aria-pressed={props.isRead}
-          onClick={props.onToggleRead}
-        >
-          <Check size={16} aria-hidden />
-          {markReadLabel(props.isRead, language)}
-        </button>
-      </div>
     </article>
   );
 }
@@ -2106,18 +2087,18 @@ function PublisherPhoto({photo}: {photo: ReturnType<typeof briefingPhotos>[numbe
     onError={event => { event.currentTarget.hidden = true; }}/>;
 }
 
-function usePublisherPhoto(username: string | undefined, slug: string | undefined, editionId: string) {
-  const [result, setResult] = useState<{key: string; photo: {url: string; source: string} | null}>();
+function usePublisherPhotos(username: string | undefined, slug: string | undefined, editionId: string) {
+  const [result, setResult] = useState<{key: string; photos: Array<{url: string; source: string}>}>();
   const key = JSON.stringify([username, slug, editionId]);
   useEffect(() => {
     if (!username || !slug) return;
     const request = new AbortController();
     void getBriefingPhoto(username, slug, editionId, request.signal)
-      .then(result => { if (!request.signal.aborted) setResult({key, photo: result.photo}); })
+      .then(result => { if (!request.signal.aborted) setResult({key, photos: result.photos ?? (result.photo ? [result.photo] : [])}); })
       .catch(() => { /* A preview is optional. */ });
     return () => request.abort();
   }, [username, slug, editionId, key]);
-  return username && result?.key === key ? result.photo ?? undefined : undefined;
+  return username && result?.key === key ? result.photos : [];
 }
 
 function BriefingDetailPage(props: { username: string; slug: string; editionId: string }) {
@@ -2127,11 +2108,19 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [readerAccount, setReaderAccount] = useState<AccountRecord | null>();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [readerSessionConfirmed, setReaderSessionConfirmed] = useState(false);
+  const readerId = readerSessionConfirmed ? readerAccount?.id ?? null : undefined;
+  const editionId = result?.edition.id;
+  const [, markRead] = useReadProgress(result?.briefing.id, readerId, editionId ? [editionId] : []);
+  useEffect(() => {
+    if (readerId === undefined || !editionId) return;
+    markRead(current => current.has(editionId) ? current : new Set([...current, editionId]));
+  }, [readerId, editionId, markRead]);
   const retainedPhotos = result ? briefingPhotos(result.edition) : [];
-  const previewPhoto = usePublisherPhoto(result?.briefing.publicFeedEnabled && !retainedPhotos.length ? props.username : undefined, props.slug, props.editionId);
+  const previewPhotos = usePublisherPhotos(result?.briefing.publicFeedEnabled && retainedPhotos.length < 3 ? props.username : undefined, props.slug, props.editionId);
   useEffect(() => {
     let active = true;
-    void getSession().then(session => { if (active) setReaderAccount(session.account ?? null); })
+    void getSession().then(session => { if (active) { setReaderAccount(session.account ?? null); setReaderSessionConfirmed(true); } })
       .catch(() => { if (active) setReaderAccount(null); });
     return () => { active = false; };
   }, []);
@@ -2156,7 +2145,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   </main>;
   const { briefing, edition } = result;
   const direction = textDirection(briefing.language);
-  const photos = retainedPhotos.length ? retainedPhotos : previewPhoto ? [previewPhoto] : [];
+  const photos = [...new Map([...retainedPhotos, ...previewPhotos].map(photo => [photo.url, photo])).values()];
   const photo = photos[photoIndex];
   const references = briefingReferences(edition);
   const renderReference = (number: number) => <CitationReference key={number} number={number} edition={edition} loadDetail={async () => edition} label={referenceButtonLabel(number, language)}/>;
@@ -2459,18 +2448,6 @@ function visibleBriefingCadence(cadence: BriefingConfig["briefingCadence"]): Exc
   return cadence === "monthly" ? "weekly" : cadence;
 }
 
-function toggleRead(
-  current: Set<string>,
-  setValue: React.Dispatch<React.SetStateAction<Set<string>>>,
-  id: string,
-  read: boolean
-) {
-  const next = new Set(current);
-  if (read) next.add(id);
-  else next.delete(id);
-  setValue(next);
-}
-
 function formatSourceIngestResult(result: SourceIngestResult): string {
   if (result.runStarted) return "source run started";
   if (result.imported === 0 && result.skipped > 0) return `checked ${result.fetched}, no new posts`;
@@ -2660,18 +2637,6 @@ function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {
   if (language === "ar") return `المقروءة · ${count}`;
   if (language === "fr") return `Lus · ${count}`;
   return `Read · ${count}`;
-}
-
-function markReadLabel(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
-  if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
-  return isRead ? "Mark as unread" : "Mark as read";
-}
-
-function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "غير مقروء" : "مقروء";
-  if (language === "fr") return isRead ? "non lu" : "lu";
-  return isRead ? "unread" : "read";
 }
 
 function readToggleTitle(isRead: boolean, language: "en" | "ar" | "fr"): string {

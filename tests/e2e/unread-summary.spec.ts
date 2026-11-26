@@ -10,6 +10,7 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith('/sketch'))return route.fulfill({status:404});
+    if(path.endsWith('/editions/one'))return route.fulfill({json:{briefing:feed,edition}});
     if(path.endsWith('/unread-summary')){calls++;expect(route.request().method()).toBe('POST');expect(route.request().postDataJSON()).toEqual({readIds:[]});return route.fulfill({json:{status:'ready',summary}});}
     return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'owner',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path==='/api/me/sources'?{sources:[]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[edition],viewerHasStarred:false,unreadSummaryAvailable:true}:{}});
   });
@@ -46,7 +47,11 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
   await page.getByRole('button',{name:'Close summary'}).click();await button.click();await expect(card).toContainText(summary);expect(calls).toBe(2);
   await page.getByRole('button',{name:'Close summary'}).click();
-  await page.locator('.read-button').click();await expect(button).toBeDisabled();
+  await page.locator('.briefing-headline-link').click();
+  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner'],'news'])))).toContain('one');
+  await page.getByRole('link',{name:'Back to feed'}).click();
+  await expect(button).toBeDisabled();
 });
 
 test('Arabic catch-up fits a narrow reader with enlarged text',async({page},info)=>{
