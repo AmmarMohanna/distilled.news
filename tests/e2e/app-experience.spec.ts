@@ -81,7 +81,7 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
 });
 test('Explore keeps its own results visible while returning from Followed', async ({ page }) => {
   await mock(page);
-  const result = { ...feed, id: 'other-feed', ownerUsername: 'other', title: 'Public science' };
+  const result = { ...feed, id: 'other-feed', ownerAccountId: 'other', ownerUsername: 'other', title: 'Public science' };
   let publicRequests = 0;
   let resume!: () => void;
   const delayed = new Promise<void>(resolve => { resume = resolve; });
@@ -95,6 +95,7 @@ test('Explore keeps its own results visible while returning from Followed', asyn
   const publicFeed = page.getByRole('link', { name: 'Public science', exact: true });
   try {
     await expect(publicFeed).toBeVisible();
+    await expect(page.getByRole('link', { name: '@other', exact: true })).toHaveAttribute('href', '/explore?channel=other');
     await nav.getByRole('button', { name: 'Followed', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'No starred feeds yet' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toBeVisible();
