@@ -21,7 +21,8 @@ import {freelyReadableResults,rememberUnavailableSearchSource} from './source-se
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress,recentProductEditions,readProductEdition} from './product-feeds';
+import {editionWindow,readerHistoryDays,readerInterval,type EditionCursor,type EditionWindow} from './reader-history';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -1637,6 +1638,35 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
+    if (c.req.query('timeline') === '1') {
+      const rawCursor=c.req.query('before');
+      const before=rawCursor===undefined?undefined:parseTimelineCursor(rawCursor);
+      if(before===null)return c.json({error:'Invalid briefing cursor.'},400);
+      const env=c.env, product=env.PRODUCT_FEEDS_ENABLED==='true';
+      const now=nowFor(), pageSize=8;
+      const minutes=await readerInterval(briefing,product?env.DB:undefined);
+      const window=editionWindow(now,readerHistoryDays(minutes),pageSize+1,before);
+      const version=product?await feedReadVersion(env.DB,briefing.id):undefined;
+      const records=await readRecentEditions(env,repo,briefing,window);
+      const visible=records.slice(0,pageSize);
+      const last=visible.at(-1);
+      const next=records.length>pageSize&&last?JSON.stringify({publishedAt:last.publishedAt,id:last.id}):null;
+      if(product&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
+      const page={
+        editions:product?visible:visible.filter(edition=>isPublicEditionVisible(edition,briefing.language)).map(edition=>publicEdition(edition,briefing,false)),
+        timelineNextCursor:next,
+        timelineSince:window.since,
+        publicationVersion:version===undefined?undefined:String(version)
+      };
+      if(before)return c.json(page);
+      const claims=await verifySession(getCookie(c,SESSION_COOKIE),env.ADMIN_SESSION_SECRET??'');
+      const [viewerHasStarred,status,diagnostics]=await Promise.all([
+        getVoterId(c).then(voter=>repo.hasBriefingStar(briefing.id,voter,claims?.sub)),
+        product?readTimelineStatus(env,briefing.id,version!):{},
+        product&&await viewerSeesSourceHealth(c,briefing.ownerAccountId)?readSourceDiagnostics(env,briefing.id,feedReadCacheEnabled(env)?version:undefined):{}
+      ]);
+      return c.json({...page,briefing:publicBriefing(briefing),viewerHasStarred,editionsComplete:false,...status,...diagnostics});
+    }
     const voterId = await getVoterId(c);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
@@ -1715,9 +1745,8 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
-      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records.filter(record => record.id === c.req.param("editionId")))[0]
-      : (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0]) : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await readProductEdition(c.env,briefing,c.req.param('editionId'))
+      : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
@@ -2009,6 +2038,10 @@ export function createApp(options: AppOptions = {}) {
       return { records, hash: fnv1a(JSON.stringify(records)) };
     });
     return value;
+  }
+  async function readTimelineStatus(env:Env,feedId:string,version:number) {
+    const read=async()=>({publicationState:await productPublicationState(env,feedId),publicationProgress:await productPublicationProgress(env,feedId)});
+    return feedReadCacheEnabled(env)?(await cachedFeedStatus(env,feedId,version,read,'timeline-status')).value:read();
   }
   function usesEditionArtifacts(env:Env) {
     return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
@@ -2511,6 +2544,19 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     nextBriefingAt: readNextBriefingAt(briefing),
     retentionDays: FIXED_RETENTION_DAYS
   };
+}
+
+function parseTimelineCursor(raw:string):EditionCursor|null {
+  if(raw.length>700)return null;
+  try {
+    const value=z.object({publishedAt:z.iso.datetime(),id:z.string().min(1).max(300)}).strict().safeParse(JSON.parse(raw));
+    return value.success?value.data:null;
+  } catch {return null;}
+}
+
+function readRecentEditions(env:Env,repo:Repository,feed:BriefingConfig,window:EditionWindow) {
+  return env.PRODUCT_FEEDS_ENABLED==='true'?recentProductEditions(env,feed,window)
+    :repo.listBriefingEditions(feed.id,true,undefined,undefined,window);
 }
 
 function publicEdition(

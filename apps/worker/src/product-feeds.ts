@@ -4,7 +4,8 @@ import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
-import {publicV1Editions} from './v1-intelligence/public-read';
+import {publicV1Edition, publicV1Editions, recentV1Editions} from './v1-intelligence/public-read';
+import type {EditionWindow} from './reader-history';
 import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {pendingWindowCollections} from './connector-publication-coverage';
@@ -153,6 +154,17 @@ export type PublishedProductEditionRecord=Awaited<ReturnType<typeof publicV1Edit
  * mutable feed settings, so it can be cached by the feed's read version. */
 export function publishedProductEditionRecords(env:Env,feedId:string,editionId?:string):Promise<PublishedProductEditionRecord[]> {
  return publicV1Editions(env.DB,feedId,editionId,env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined);
+}
+
+export async function recentProductEditions(env:Env,feed:BriefingConfig,window:EditionWindow) {
+ const bucket=env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined;
+ return presentProductEditions(feed,await recentV1Editions(env.DB,feed.id,window,bucket));
+}
+
+export async function readProductEdition(env:Env,feed:BriefingConfig,editionId:string) {
+ const bucket=env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined;
+ const record=await publicV1Edition(env.DB,editionId,bucket,feed.id);
+ return record?presentProductEditions(feed,[record])[0]:undefined;
 }
 /** Pure presentation over published records plus the feed's current cadence. It never mutates its input. */
 export function presentProductEditions(feed:BriefingConfig,publishedEditions:readonly PublishedProductEditionRecord[]):BriefingEdition[] {

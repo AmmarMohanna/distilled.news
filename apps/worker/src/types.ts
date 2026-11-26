@@ -9,6 +9,7 @@ import type {
   SourceType
 } from "@distilled/core";
 import type {AuthenticatedBrowserContainer} from "./cloudflare-container-browser";
+import type {EditionWindow} from './reader-history';
 
 export type ProcessingJobState = "queued" | "completed" | "failed";
 export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
@@ -489,7 +490,7 @@ export interface Repository {
   listFeedItems(ownerAccountId: string, slug: string, includeEvidence: boolean, now?: Date): Promise<BriefingItem[]>;
   getFeedItemEvidence(briefingId: string, itemId: string, now?: Date): Promise<BriefingEvidence[]>;
   saveBriefingEdition(edition: BriefingEdition, now?: Date): Promise<void>;
-  listBriefingEditions(briefingId: string, includeSections: boolean, now?: Date, limit?: number): Promise<BriefingEdition[]>;
+  listBriefingEditions(briefingId: string, includeSections: boolean, now?: Date, limit?: number, window?: EditionWindow): Promise<BriefingEdition[]>;
   getBriefingEdition(briefingId: string, editionId: string, now?: Date): Promise<BriefingEdition | null>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   createSourceRun(input: {

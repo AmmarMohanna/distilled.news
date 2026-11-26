@@ -1,4 +1,5 @@
 import {canonicalJson} from './v1-intake/canonical';
+import type {EditionWindow} from './reader-history';
 import {
   collapseDuplicateBriefingItems,
   defaultNextBriefingAt,
@@ -1340,8 +1341,10 @@ export class D1Repository implements Repository {
     briefingId: string,
     includeSections: boolean,
     now = new Date(),
-    limit = 50
+    limit = 50,
+    window?: EditionWindow
   ): Promise<BriefingEdition[]> {
+    const before = window?.before;
     const rows = await all<BriefingEditionRow>(
       this.db
         .prepare(
@@ -1350,10 +1353,13 @@ export class D1Repository implements Repository {
           FROM briefing_editions
           WHERE briefing_id = ?
             AND published_at <= ?
-          ORDER BY published_at DESC
+            ${window ? "AND status='published' AND published_at>=?" : ''}
+            ${before ? 'AND (published_at,id)<(?,?)' : ''}
+          ORDER BY published_at DESC${window ? ',id DESC' : ''}
           LIMIT ?`
         )
-        .bind(briefingId, now.toISOString(), limit)
+        .bind(briefingId, window?.until ?? now.toISOString(), ...(window ? [window.since] : []),
+          ...(before ? [before.publishedAt,before.id] : []), window?.limit ?? limit)
     );
     return rows.map((row) => rowToBriefingEdition(row, includeSections));
   }
@@ -2572,12 +2578,16 @@ export class InMemoryRepository implements Repository {
     briefingId: string,
     includeSections: boolean,
     now = new Date(),
-    limit = 50
+    limit = 50,
+    window?: EditionWindow
   ): Promise<BriefingEdition[]> {
+    const before = window?.before;
     return Array.from(this.editionsByBriefing.get(briefingId)?.values() ?? [])
-      .filter((edition) => new Date(edition.publishedAt).getTime() <= now.getTime())
-      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-      .slice(0, limit)
+      .filter((edition) => new Date(edition.publishedAt).getTime() <= (window ? Date.parse(window.until) : now.getTime()))
+      .filter((edition) => !window || (edition.status === 'published' && edition.publishedAt >= window.since &&
+        (!before || edition.publishedAt < before.publishedAt || (edition.publishedAt === before.publishedAt && edition.id < before.id))))
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt) || (window && left.id !== right.id ? (left.id < right.id ? 1 : -1) : 0))
+      .slice(0, window?.limit ?? limit)
       .map((edition) => includeSections ? structuredClone(edition) : { ...structuredClone(edition), sections: [] });
   }
 
