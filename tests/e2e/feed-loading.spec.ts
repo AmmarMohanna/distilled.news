@@ -21,8 +21,11 @@ test('initial errors never masquerade as empty feeds or keep claiming loading',a
 test('refresh preserves read status and loaded pages while pending and after success',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
  await mock(page,async route=>{if(delay)await pending.promise;await route.fulfill({json:{briefing:feed,editions}})});
+ await page.route('**/api/feed/reader/news/editions/1',route=>route.fulfill({json:{briefing:feed,edition:editions[0]}}));
  await page.goto('/reader/news/');const unread=page.locator('.news-item:not(.is-read)');await expect(unread).toHaveCount(20);
- await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
+ await unread.first().locator('.briefing-headline-link').click();
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['anonymous'],'loading-feed'])))).toContain('1');
+ await page.getByRole('link',{name:'Back to feed'}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
  delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-item.is-read')).toHaveCount(1);await expect(page.locator('.news-item')).toHaveCount(25);
 });

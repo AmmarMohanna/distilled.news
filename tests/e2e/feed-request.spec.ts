@@ -14,7 +14,7 @@ test("requested feed layout and language controls", async ({ page }) => {
   await page.goto("/");
   const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile");
   await expect(card.locator(".feed-tile-caption > a")).toHaveText("Personal Briefing");
-  await expect(card.locator(".feed-tile-caption > small")).toHaveText("@admin");
+  await expect(card.getByRole("link", { name: "@admin", exact: true })).toHaveAttribute("href", "/explore?channel=admin");
   await expect(card.locator(".feed-card-status")).toHaveCount(0);
   await expect(card.getByRole('link').first()).toHaveAttribute('href','/admin/personal/');
   await expect(card.locator("time")).toContainText("Updated");

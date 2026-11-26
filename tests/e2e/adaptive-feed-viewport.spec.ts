@@ -45,7 +45,7 @@ test('six tiles fit in a short pinned-sidebar window and off-center ink is cente
   const cards = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile');
   if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) await cards.last().scrollIntoViewIfNeeded();
   await expect(cards.last()).toBeInViewport({ ratio: 1 });
-  const img = cards.first().locator('img');
+  const img = cards.first().locator('.feed-tile-artwork img');
   await expect(img).toBeVisible();
   const bounds = await img.evaluate((image: HTMLImageElement) => {
     const canvas = document.createElement('canvas');
@@ -63,8 +63,8 @@ test('six tiles fit in a short pinned-sidebar window and off-center ink is cente
   expect(bounds.top + bounds.bottom).toBe(89);
   expect(bounds.right - bounds.left + 1).toBeGreaterThanOrEqual(78);
   expect(bounds.left).toBeGreaterThan(0);
-  await expect(cards.locator('img')).toHaveCount(6);
-  const inks = await cards.locator('img').evaluateAll(images => images.map(image => getComputedStyle(image).filter));
+  await expect(cards.locator('.feed-tile-artwork img')).toHaveCount(6);
+  const inks = await cards.locator('.feed-tile-artwork img').evaluateAll(images => images.map(image => getComputedStyle(image).filter));
   expect(new Set(inks).size).toBeGreaterThan(1);
 });
 

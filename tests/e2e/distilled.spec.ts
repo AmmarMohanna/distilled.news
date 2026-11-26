@@ -345,7 +345,14 @@ test("feed pages twenty editions with unread editions first and keeps read editi
   await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
 
-  await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
+  await page.route("**/api/feed/ammar-mohanna/personal/editions/" + feedEditions[0].id, route => route.fulfill({
+    json: { briefing, edition: feedEditions[0] }
+  }));
+  await visibleUnread.first().locator(".briefing-headline-link").click();
+  await expect.poll(() => page.evaluate(({ feedId, editionId }) =>
+    JSON.parse(localStorage.getItem("dn_read:v3:" + JSON.stringify([["anonymous"], feedId])) ?? "[]").includes(editionId),
+    { feedId: briefing.id, editionId: feedEditions[0].id })).toBe(true);
+  await page.getByRole("link", { name: "Back to feed" }).click();
   await expect(visibleUnread).toHaveCount(20);
   await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
   await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);
