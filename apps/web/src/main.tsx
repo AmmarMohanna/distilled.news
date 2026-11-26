@@ -2176,10 +2176,12 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       <div>
         <time dateTime={date}>{formatDayHeading(date, language)} · {formatClock(date, language)}</time>
         <h1><bdi>{edition.title || briefing.title}</bdi></h1>
-        <a className="briefing-parent-feed" href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
-        {briefing.publicFeedEnabled && <div className="feed-banner-menu briefing-detail-menu">
-          <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
-        </div>}
+        <div className="briefing-detail-feed-row">
+          <a className="briefing-parent-feed" href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
+          {briefing.publicFeedEnabled && <div className="feed-banner-menu briefing-detail-menu">
+            <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
+          </div>}
+        </div>
       </div>
     </header>
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
