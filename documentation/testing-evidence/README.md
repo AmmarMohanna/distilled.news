@@ -1,5 +1,7 @@
 # External testing results — living record
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 Last updated: 2026-09-26. Add future batches and source families here without replacing earlier findings.
 
 This file records observed results, the reasons behind their labels, and remaining work. The [execution log](../VPS_TESTING_EXECUTION_LOG.md) records setup and commands; the [testing guide](../EXTERNAL_TESTING_A_TO_Z.md) describes the wider plan.
@@ -16,15 +18,17 @@ Only top-level summaries and Python review/automation scripts are versioned here
 
 - **Latest expanded results:** [Stage 2 status](STAGE2_STATUS.md). Playwright 30 attempts, X alternatives 100 evaluated records per provider, LinkedIn 35/40 requested records now collected and reviewed for field preservation. Apify controlled charges total $0.1727. Full suite 228 passed. Earlier pending-status notes below describe their historical checkpoints; use this status page for current state.
 
+The [campaign handoff at the original revision](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/documentation/testing-evidence/CAMPAIGN_HANDOFF.md) records the intermediate checkpoints. Use the status and measurement reports above for the corrected sample size and what actually ran.
+
 ## Stage 2 review continuation ? 2026-09-26
 
-- **Unwanted text:** both extractors retain two consent/adblock instruction paragraphs in France24 targets 2 and 3. Exact publisher-DOM matches are recorded in [boilerplate review](controlled-510-v1/web-boilerplate-review.json). This is a confirmed cleanup failure, separate from paragraph completeness. Other inspected footer/navigation markers had no hits; that is not exhaustive contamination clearance.
+- **Unwanted text:** both extractors retain two consent/adblock instruction paragraphs in France24 targets 2 and 3. Exact publisher-DOM matches are recorded in boilerplate review (`controlled-510-v1/web-boilerplate-review.json`). This is a confirmed cleanup failure, separate from paragraph completeness. Other inspected footer/navigation markers had no hits; that is not exhaustive contamination clearance.
 
-- **Google News:** six matched RSS/Apify query pairs returned identical sets of ten exact URLs, 60 overlaps total. Final provider-reported Apify charge **$0.0573** (six runs at $0.00955), reconciled in the existing ledger. This is not independent completeness verification. The local report now reflects reconciliation. Evidence: [billing and overlap](controlled-510-v1/google-closeout.txt).
-- **Website body checkpoints:** 380 publisher-DOM paragraphs of at least 100 characters checked per parser across 27 accessible articles. Trafilatura preserved 380/380; Readability 378/380, missing the introductory paragraph on France24 targets 1 and 2. Matching ignores whitespace and Unicode format controls, but retains letters and diacritics. Short paragraphs, lists, headings, decks outside the inspected containers and contamination remain outside this checkpoint. No full-body gold PASS inferred. [Review](controlled-510-v1/web-paragraph-review.json).
-- **Website metadata:** both extractors match a publisher title variant for 27 accessible pages. Exact publication timestamp matches: Readability 23; Trafilatura 17. Trafilatura preserves only the day for all three DW and three Al Jazeera targets. Seven pages have no timestamp reference in the inspected metadata, including the three Le Monde challenges. Lack of a metadata reference is unverified, not a parser failure. [Checkpoints](controlled-510-v1/web-checkpoints.json).
-- **Telegram:** fixed benchmark classification of empty landing pages: RT now emits `public_preview_has_no_message_inventory`. Saved HTML replay confirms the issue with zero network requests. The code does not claim the channel is empty or that missing posts were recovered. Full VPS suite **226 passed**. Benchmark-only change; no production deployment. [Replay/tests](controlled-510-v1/telegram-preview-fix.txt).
-- Exact unresolved/fixed checkpoints are recorded in [failed-checkpoints.json](controlled-510-v1/failed-checkpoints.json). Website mismatches caused solely by invisible formatting were reviewer normalization differences, not lost content; the review was corrected accordingly.
+- **Google News:** six matched RSS/Apify query pairs returned identical sets of ten exact URLs, 60 overlaps total. Final provider-reported Apify charge **$0.0573** (six runs at $0.00955), reconciled in the existing ledger. This is not independent completeness verification. The local report now reflects reconciliation. Evidence: billing and overlap (`controlled-510-v1/google-closeout.txt`).
+- **Website body checkpoints:** 380 publisher-DOM paragraphs of at least 100 characters checked per parser across 27 accessible articles. Trafilatura preserved 380/380; Readability 378/380, missing the introductory paragraph on France24 targets 1 and 2. Matching ignores whitespace and Unicode format controls, but retains letters and diacritics. Short paragraphs, lists, headings, decks outside the inspected containers and contamination remain outside this checkpoint. No full-body gold PASS inferred. Review (`controlled-510-v1/web-paragraph-review.json`).
+- **Website metadata:** both extractors match a publisher title variant for 27 accessible pages. Exact publication timestamp matches: Readability 23; Trafilatura 17. Trafilatura preserves only the day for all three DW and three Al Jazeera targets. Seven pages have no timestamp reference in the inspected metadata, including the three Le Monde challenges. Lack of a metadata reference is unverified, not a parser failure. Checkpoints (`controlled-510-v1/web-checkpoints.json`).
+- **Telegram:** fixed benchmark classification of empty landing pages: RT now emits `public_preview_has_no_message_inventory`. Saved HTML replay confirms the issue with zero network requests. The code does not claim the channel is empty or that missing posts were recovered. Full VPS suite **226 passed**. Benchmark-only change; no production deployment. Replay/tests (`controlled-510-v1/telegram-preview-fix.txt`).
+- Exact unresolved/fixed checkpoints are recorded in failed-checkpoints.json (`controlled-510-v1/failed-checkpoints.json`). Website mismatches caused solely by invisible formatting were reviewer normalization differences, not lost content; the review was corrected accordingly.
 
 Stage 2 is **not complete**: Playwright awaits administrator firewall verification; expanded Zyte needs billing/budget reconciliation; expanded X-alternative and LinkedIn collections remain pending the documented terms/scope checkpoints; full-body reference and unwanted-text review remains incomplete. Stage 3 has not started. Existing passing preservation checks do not clear those blockers.
 
@@ -54,7 +58,7 @@ Stage 2 has started with user authorization after the usage reset. Stage 3 has n
 - Browser batch has not launched: current administrator firewall verification is pending. Zyte expanded run remains pending budget reconciliation. Server monthly cost remains unconfigured.
 - Approximately 100 independent reviews are a target, not a completed count. Five-day monitoring has not started.
 
-Evidence: [feed review](controlled-510-v1/feed-review.json), [Telegram audit](controlled-510-v1/telegram-audit.json), [website report](controlled-510-v1/web-report.json), [Google matched report](controlled-510-v1/google-matched-report.json), and the runner/log files in this directory. Preserve historical pilot results below.
+Evidence: feed review (`controlled-510-v1/feed-review.json`), Telegram audit (`controlled-510-v1/telegram-audit.json`), website report (`controlled-510-v1/web-report.json`), Google matched report (`controlled-510-v1/google-matched-report.json`), and the runner/log files in this directory. Preserve historical pilot results below.
 
 
 - Stage 2 is underway; see the controlled campaign update below. Stage 3 is not running.
@@ -79,7 +83,7 @@ Photos/videos are out of acceptance scope per the professor's direction relayed 
 
 ### LinkedIn initial functional pilot — 2026-09-26
 
-Two paid runs were submitted, with a provider-side `maxTotalChargeUsd=0.05` per run and ten requested posts per target. No retry runs, schedules, comments or reactions were requested. [Inputs](linkedin-pilot-inputs/README.md), [runner](linkedin-pilot-run.py), and [saved-response verification](linkedin-pilot-001/after-fixes.json) are recorded locally. Raw responses remain under `/home/distilled-bench/.local/share/distilled-bench/linkedin-pilot-001/` on the VPS; the initial inspection log also contains one sample per actor.
+Two paid runs were submitted, with a provider-side `maxTotalChargeUsd=0.05` per run and ten requested posts per target. No retry runs, schedules, comments or reactions were requested. Inputs (`linkedin-pilot-inputs/README.md`), [runner](linkedin-pilot-run.py), and saved-response verification (`linkedin-pilot-001/after-fixes.json`) are recorded locally. Raw responses remain under `/home/distilled-bench/.local/share/distilled-bench/linkedin-pilot-001/` on the VPS; the initial inspection log also contains one sample per actor.
 
 | Target | Actor/run | Returned | Before fix | After local fix | Provider-reported charge |
 |---|---|---:|---:|---:|---:|
@@ -90,7 +94,7 @@ Exact failed checkpoints: the existing LinkedIn normalizer did not accept `linke
 
 Offline replay against both saved responses retains 20/20 records, with zero within-target duplicate URLs and all 120 checkpoints passing: retained record, text, original author name, provider publication date, original URL and attribute links. The connector suite passes 82 tests; connector TypeScript checking passes. No further actor runs were needed. Code changes are in `packages/connectors/src/apify.ts` and its regression tests.
 
-VPS follow-up: the LinkedIn function alone was synced using an exact old-function match and a private backup, leaving other parser functions untouched. VPS replay also retains 20/20 records and passes 120/120 checkpoints; the benchmark Python suite passes all 223 tests. [Sync/replay script](sync-linkedin-fix.py) and [VPS verification](linkedin-pilot-001/vps-verification.txt) record this step. No provider API requests or additional charges were incurred. The fix is now in the benchmark VPS checkout; production is not deployed. Full replay evidence is saved privately as `linkedin-pilot-001/vps-verification.json` alongside the original responses.
+VPS follow-up: the LinkedIn function alone was synced using an exact old-function match and a private backup, leaving other parser functions untouched. VPS replay also retains 20/20 records and passes 120/120 checkpoints; the benchmark Python suite passes all 223 tests. [Sync/replay script](sync-linkedin-fix.py) and VPS verification (`linkedin-pilot-001/vps-verification.txt`) record this step. No provider API requests or additional charges were incurred. The fix is now in the benchmark VPS checkout; production is not deployed. Full replay evidence is saved privately as `linkedin-pilot-001/vps-verification.json` alongside the original responses.
 
 Billing was re-read after completion: $0.0381 total. The profile dataset has ten records but its reported charged post-event count is nine; record that provider-reported difference without assuming future free results. Account-tier post pricing is $0.002 with a $0.00005 start event, distinct from the advertised starting price for higher tiers. Initial completion metadata showed only the start charge; that initial value is superseded by the later billing read.
 
@@ -98,7 +102,7 @@ Limitations: four company records and four profile records have repost attributi
 
 ### TwitterAPI.io initial functional pilot — 2026-09-26
 
-User confirmed credits recharged and explicitly authorized testing. [Runner](twitterapi-io-pilot.py) made exactly two single-page provider requests, without retries or pagination: `/twitter/user/last_tweets` for NASA with replies excluded, and `/twitter/tweet/advanced_search` for `"James Webb telescope" -filter:retweets`, Latest. Each returned 20 records and advertised a next page, which was not followed. [Checkpoint evidence](twitterapi-io-pilot-001/verification.txt) contains counts, per-record boolean checks and raw response hashes; raw content and normalized output remain private under `/home/distilled-bench/.local/share/distilled-bench/twitterapi-io-pilot-001/` on the VPS.
+User confirmed credits recharged and explicitly authorized testing. [Runner](twitterapi-io-pilot.py) made exactly two single-page provider requests, without retries or pagination: `/twitter/user/last_tweets` for NASA with replies excluded, and `/twitter/tweet/advanced_search` for `"James Webb telescope" -filter:retweets`, Latest. Each returned 20 records and advertised a next page, which was not followed. Checkpoint evidence (`twitterapi-io-pilot-001/verification.txt`) contains counts, per-record boolean checks and raw response hashes; raw content and normalized output remain private under `/home/distilled-bench/.local/share/distilled-bench/twitterapi-io-pilot-001/` on the VPS.
 
 The existing TypeScript X normalizer was reused offline as a schema-compatibility check, not as a production TwitterAPI.io connector. All 40 records retained; zero within-page duplicate IDs; all 240 checkpoints passed for required fields, top-level text, author username, publication date, original post link and expanded entity links. The profile page includes seven nested repost objects; the search page includes two nested quoted-post objects. Their full content and attribution are not established by top-level preservation checks and remain unverified. Independent completeness, relevance, edit histories and repeated-run reliability remain untested. Media is out of scope.
 
@@ -178,7 +182,7 @@ Across five distinct inputs: Trafilatura has two PASS and three PARTIAL; Readabi
 - Trafilatura adds `| CNN Politics` to the title; title F1 remains above the threshold.
 - Required anchors, configured unwanted-text checks and final publication timestamp pass.
 - Trafilatura's native date is incorrect against the precise reference, but shared page metadata supplies the correct final timestamp. Readability's native timestamp matches.
-- Evidence: [initial article transcript](FIRST_ARTICLE_001_2026-09-16.txt), downloaded batch report, and the VPS CNN gold reference.
+- Evidence: initial article transcript (`FIRST_ARTICLE_001_2026-09-16.txt`), downloaded batch report, and the VPS CNN gold reference.
 
 ### article-002 — Al Jazeera: why both PARTIAL
 
@@ -188,7 +192,7 @@ Across five distinct inputs: Trafilatura has two PASS and three PARTIAL; Readabi
 - Both pass the title, required anchors and publication-day checks. The reference supports April 6, 2025 only; the displayed 16:50 is an update time, not independent publication-time evidence.
 - Trafilatura's day-only timestamp is a precision limitation, but it does not fail this day-precision reference.
 - Actual score blocker for both: `boilerplate: true`.
-- Evidence: [reference](article-002/article-002.gold.json), [clean text](article-002/article-002-body.cleaned.txt), [scores](article-002/local-rescore.json), [provenance](article-002/README.md).
+- Evidence: reference (`article-002/article-002.gold.json`), clean text (`article-002/article-002-body.cleaned.txt`), scores (`article-002/local-rescore.json`), provenance (`article-002/README.md`).
 
 ### article-003 — Euronews: why Trafilatura PASS and Readability PARTIAL
 
@@ -197,7 +201,7 @@ Across five distinct inputs: Trafilatura has two PASS and three PARTIAL; Readabi
 - Readability omits the introductory summary, so the first required anchor is missing. It also retains `Jean-Philippe Liabot` and `Publié le`, triggering the forbidden-text check.
 - Actual Readability blockers: `anchors_ordered: false` and `boilerplate: true`.
 - Both final timestamps match February 26, 2025 at 11:29 UTC+1 within the scorer's tolerance. Trafilatura's native date does not meet the reference precision; page metadata supplies the correct final date.
-- Evidence: [reference](article-003/article-003.gold.json), [clean text](article-003/article-003-body.cleaned.txt), [scores](article-003/local-rescore.json), [provenance](article-003/README.md).
+- Evidence: reference (`article-003/article-003.gold.json`), clean text (`article-003/article-003-body.cleaned.txt`), scores (`article-003/local-rescore.json`), provenance (`article-003/README.md`).
 
 ### article-004 — Guardian: why both PARTIAL despite clean text
 
@@ -208,7 +212,7 @@ Across five distinct inputs: Trafilatura has two PASS and three PARTIAL; Readabi
 - Actual blocker: `anchors_ordered: false`, not unwanted text or a failed download.
 - This verdict depends on the documented requirement to retain the introductory summary. Do not silently remove it from the reference to improve results.
 - Trafilatura's native date does not match the precise reference; final page metadata does.
-- Evidence: [reference](article-004/article-004.gold.json), [clean text](article-004/article-004-body.cleaned.txt), [scores](article-004/local-rescore.json), [provenance](article-004/README.md).
+- Evidence: reference (`article-004/article-004.gold.json`), clean text (`article-004/article-004-body.cleaned.txt`), scores (`article-004/local-rescore.json`), provenance (`article-004/README.md`).
 
 ### article-005 — NASA: why both PARTIAL
 
@@ -218,7 +222,7 @@ Across five distinct inputs: Trafilatura has two PASS and three PARTIAL; Readabi
 - Both titles include the site suffix `- NASA Science`; title F1 is approximately 91.7%, which passes the current threshold.
 - Both pass required anchors and the publication-day check. The copied page independently supports April 10, 2025, not the exact time. September 21, 2026 is the update date.
 - Actual score blocker for both: `boilerplate: true`. Readability's missing headings are an additional observed defect; the three selected anchors do not directly test every heading.
-- Evidence: [reference](article-005/article-005.gold.json), [clean text](article-005/article-005-body.cleaned.txt), [scores](article-005/local-rescore.json), [provenance](article-005/README.md).
+- Evidence: reference (`article-005/article-005.gold.json`), clean text (`article-005/article-005-body.cleaned.txt`), scores (`article-005/local-rescore.json`), provenance (`article-005/README.md`).
 
 ## Exact checkpoint register
 
@@ -239,7 +243,7 @@ All ten article/extractor pairs passed basic validation, the 90% body F1 thresho
 | article-005 / readability | `boilerplate` expected `false`, observed `true` | Matched: `The following sections contain links to download`, `Illustration: NASA, ESA, CSA` |
 | article-005 / trafilatura | `boilerplate` expected `false`, observed `true` | Matched: `The following sections contain links to download`, `Image: Planetary Engulfment Illustration` |
 
-Exact per-repetition evidence and score fields are saved in [checkpoint details](pilot-web-20260921T085233Z-checkpoints.json). These checkpoint details cover the four locally rescored articles; CNN remains supported by its original batch score.
+Exact per-repetition evidence and score fields are saved in checkpoint details (`pilot-web-20260921T085233Z-checkpoints.json`). These checkpoint details cover the four locally rescored articles; CNN remains supported by its original batch score.
 
 ### Diagnostic issues that do not themselves block PASS
 
@@ -272,7 +276,7 @@ The four new references come from independent publisher copies supplied by the u
 
 ## Batch: pilot-rss-20260922T095854Z ? RSS
 
-Recorded 2026-09-22 from the [VPS execution transcript](RSS_PILOT_2026-09-22.txt). Detailed report.json was subsequently inspected locally; findings follow below.
+Recorded 2026-09-22 from the VPS execution transcript (`RSS_PILOT_2026-09-22.txt`). Detailed report.json was subsequently inspected locally; findings follow below.
 
 - Scope: six configured feeds (BBC World, BBC Science, Guardian World, NASA, Le Monde and Al Jazeera), two parsers, two repetitions.
 - Preflight: both rss_baseline and rss_feedparser READY; unknown server cost WARNING.
@@ -291,7 +295,7 @@ SOURCE_UNVERIFIED is not an article PARTIAL or a verified source PASS. Independe
 
 ### Detailed local inspection ? 2026-09-22
 
-Downloaded report.json inspected. [Per-job checkpoint evidence](pilot-rss-20260922T095854Z-checkpoints.json) includes both repetitions, duplicate URLs, missing-field counts and parser comparisons.
+Downloaded report.json inspected. Per-job checkpoint evidence (`pilot-rss-20260922T095854Z-checkpoints.json`) includes both repetitions, duplicate URLs, missing-field counts and parser comparisons.
 
 | Feed | Entries per parser per repetition | Baseline HTML-containing text items | Feedparser HTML-containing text items | Baseline / feedparser items with media |
 |---|---:|---:|---:|---|
@@ -320,7 +324,7 @@ Next: retrieve the captured feed XML blobs referenced by the report. Check sourc
 
 ### Saved XML verification ? 2026-09-22
 
-The eight distinct raw snapshots were downloaded, hash-verified and independently parsed with Python's standard-library XML parser. All 24 parser/repetition results were compared against their own captured source, not a newly fetched live feed. See [verification method and snapshots](rss-pilot/README.md) and [exact checkpoint counts](rss-pilot/xml-checkpoints.json).
+The eight distinct raw snapshots were downloaded, hash-verified and independently parsed with Python's standard-library XML parser. All 24 parser/repetition results were compared against their own captured source, not a newly fetched live feed. See verification method and snapshots (`rss-pilot/README.md`) and exact checkpoint counts (`rss-pilot/xml-checkpoints.json`).
 
 | Checkpoint | Evidence from the XML | Verdict / affected scope |
 |---|---|---|
@@ -352,9 +356,9 @@ User authorized fixes after baseline review. Implemented locally; not yet applie
 
 Offline replay: 24 original parser/repetition combinations, each replayed uncapped and capped at 20, for **48 comparisons with zero failed checks**. Independent checks cover source URL multiplicity, entry counts, publication instants, presence of source Media RSS URLs and retention of source descriptions after entity/whitespace normalization. This validates the named fixes on these captures, not every possible feed schema or full article quality.
 
-Evidence: [separate post-fix outputs and checks](rss-pilot/after-fixes.json). Reproducible helper: [replay_rss_pilot.py](../../evaluation/acquisition-benchmark/scripts/replay_rss_pilot.py). It verifies input hashes, makes no network calls and refuses to overwrite an existing output file. Run it with the downloaded report, the directory containing blobs/, and a fresh --output path.
+Evidence: separate post-fix outputs and checks (`rss-pilot/after-fixes.json`). Reproducible helper: [replay_rss_pilot.py](../../evaluation/acquisition-benchmark/scripts/replay_rss_pilot.py). It verifies input hashes, makes no network calls and refuses to overwrite an existing output file. Run it with the downloaded report, the directory containing blobs/, and a fresh --output path.
 
-Validation: complete offline Python benchmark suite passed (204 tests); connector RSS/ingestion regression tests passed (61 tests); connector TypeScript type-check passed; git diff whitespace check passed. A [VPS transfer patch](rss-pilot-fixes.patch) contains the implementation fixes, regression tests and offline replay helper; reverse-apply validation succeeded locally. It has not been applied remotely.
+Validation: complete offline Python benchmark suite passed (204 tests); connector RSS/ingestion regression tests passed (61 tests); connector TypeScript type-check passed; git diff whitespace check passed. A VPS transfer patch (`rss-pilot-fixes.patch`) contains the implementation fixes, regression tests and offline replay helper; reverse-apply validation succeeded locally. It has not been applied remotely.
 
 Still open: plain-text cleanup policy, article URL deduplication policy, comprehensive source references and formal VPS rescoring. SOURCE_UNVERIFIED labels in the original report are unchanged. No LLM cleanup was added. The item cap change is in the benchmark, not a new platform ingestion cap.
 
@@ -389,7 +393,7 @@ User screenshot confirms the saved VPS file `data/live/reports/pilot-rss-2026092
 
 ## Batch: pilot-google-20260922T125352Z ? Google News RSS
 
-VPS summary received 2026-09-22; [transcript](GOOGLE_PILOT_2026-09-22.txt). Two configured queries (Lebanon electricity and James Webb telescope), two repetitions, google_rss route only. All four jobs complete, all four SOURCE_UNVERIFIED, zero verified unseen inputs and INSUFFICIENT_EVIDENCE. Reported p95 combined time 657 ms, peak process-tree RSS 124,502,016 bytes (about 119 MiB), zero capacity stops and $0 provider charges. Server cost remains unknown.
+VPS summary received 2026-09-22; transcript (`GOOGLE_PILOT_2026-09-22.txt`). Two configured queries (Lebanon electricity and James Webb telescope), two repetitions, google_rss route only. All four jobs complete, all four SOURCE_UNVERIFIED, zero verified unseen inputs and INSUFFICIENT_EVIDENCE. Reported p95 combined time 657 ms, peak process-tree RSS 124,502,016 bytes (about 119 MiB), zero capacity stops and $0 provider charges. Server cost remains unknown.
 
 Config SHA256: `ba6ac918a65e3c908d966ed059dcf009d6f5b967ff47777c60f966235a776b6b`. Code SHA256: `fe3ae1eaee97c9a7a1ba458c96fd62ddf6de34e7ce241468a27e77f22b421acb`.
 
@@ -397,7 +401,7 @@ Detailed checkpoints pending report.json and captured XML inspection: step error
 
 ### Google News captured-XML checks ? 2026-09-22
 
-Detailed report and two distinct captured XML snapshots inspected locally. SHA256 hashes match report evidence. Standard-library XML parsing was used to compare each selected entry directly with its output. [Checkpoint evidence](google-pilot/xml-checkpoints.json); XML snapshots are saved alongside it.
+Detailed report and two distinct captured XML snapshots inspected locally. SHA256 hashes match report evidence. Standard-library XML parsing was used to compare each selected entry directly with its output. Checkpoint evidence (`google-pilot/xml-checkpoints.json`); XML snapshots are saved alongside it.
 
 | Checkpoint | Observation | Result / interpretation |
 |---|---|---|
@@ -420,7 +424,7 @@ Optional future search-quality work: retain this baseline and use separately nam
 
 ### Telegram public-page pilot - 2026-09-22
 
-Run: `pilot-telegram-public-20260922T173925Z`. Downloaded report and both captured HTML blobs inspected locally. [Exact checkpoints](telegram-pilot/checkpoints.json).
+Run: `pilot-telegram-public-20260922T173925Z`. Downloaded report and both captured HTML blobs inspected locally. Exact checkpoints (`telegram-pilot/checkpoints.json`).
 
 | Checkpoint | Observation | Result |
 |---|---|---|
@@ -441,18 +445,18 @@ Original labels remain two UNSCORED and two SOURCE_UNVERIFIED. Provider charges 
 Independent standard-library HTML parsing of the two captured pages confirmed:
 
 - Al Jazeera: all 20 posts matched IDs/order, timestamps, post URLs, whitespace-normalized text, content links and media references.
-- Telegram official: all 20 posts had literal `&nbsp;` text and omitted links embedded in their message bodies. These include Telegram post/navigation links authored inside the message and Telegram blog links. Thirteen also lost their video references. Exact affected post IDs and failed fields are in [before-fixes.json](telegram-pilot/before-fixes.json).
+- Telegram official: all 20 posts had literal `&nbsp;` text and omitted links embedded in their message bodies. These include Telegram post/navigation links authored inside the message and Telegram blog links. Thirteen also lost their video references. Exact affected post IDs and failed fields are in before-fixes.json (`telegram-pilot/before-fixes.json`).
 - The three returned photo URLs matched the snapshot. Arabic text was checked from UTF-8 data; it was not treated as corrupted based on terminal display.
 
 Changes to existing platform public-page parsing (`packages/connectors/src/telegram.ts`): extract video/src and nested source URLs, retain all photo URLs, decode media entities, deduplicate media, preserve HTTP(S) links inside message text including Telegram links, exclude surrounding widget navigation by restricting link scanning to the message body, and decode nonbreaking spaces. This captures video references only, not video content or transcripts. CDN URL lifetime and media download success were not tested.
 
 [Offline replay helper](../../evaluation/acquisition-benchmark/scripts/replay_telegram_pilot.py) independently checks original or reprocessed outputs against the saved HTML, validates input hashes, and refuses to overwrite existing evidence. Text comparison normalizes whitespace; this is not a byte-for-byte formatting check. Source reference checks cover visible captured posts, not historical completeness or semantic truth.
 
-**After fixes: two captured-page comparisons / 40 posts, zero failed comparisons**, including all 13 video references. [After-fixes evidence](telegram-pilot/after-fixes.json). No network requests were made; the two original deadline failures remain failures and are excluded from parser replay, not erased.
+**After fixes: two captured-page comparisons / 40 posts, zero failed comparisons**, including all 13 video references. After-fixes evidence (`telegram-pilot/after-fixes.json`). No network requests were made; the two original deadline failures remain failures and are excluded from parser replay, not erased.
 
 Validation: six Telegram regression tests passed, connector TypeScript checking passed, and changed-file whitespace checks passed. Tests include video-only posts, nested video sources, media deduplication/entity decoding, album photos, message Telegram links, widget-navigation exclusion and unsafe media URL rejection. The full Python suite was not rerun for this connector-only change and replay helper.
 
-[Transfer patch](telegram-pilot-fixes.patch) contains only Telegram connector changes, Telegram tests and the replay helper; reverse-apply validation passed locally. **VPS application/replay and production deployment are not yet confirmed.** Original run labels remain unchanged. Next: apply and replay on VPS, then investigate live-fetch reliability separately and compare with Telethon using a matched collection window.
+Transfer patch (`telegram-pilot-fixes.patch`) contains only Telegram connector changes, Telegram tests and the replay helper; reverse-apply validation passed locally. **VPS application/replay and production deployment are not yet confirmed.** Original run labels remain unchanged. Next: apply and replay on VPS, then investigate live-fetch reliability separately and compare with Telethon using a matched collection window.
 
 
 ### VPS confirmation - Telegram fix replay - 2026-09-23
@@ -464,14 +468,14 @@ This confirms the updated parser passed the helper checks against the two saved 
 
 ### Telegram live retest - 2026-09-23
 
-Run `pilot-telegram-retest-20260923T082653Z`. [User terminal evidence](TELEGRAM_RETEST_2026-09-23.txt) shows four complete jobs, with **3 SOURCE_UNVERIFIED and 1 UNSCORED**. Reported p95 combined time is 45,010 ms. Provider charges are $0, server cost remains unknown, and no capacity stops were recorded.
+Run `pilot-telegram-retest-20260923T082653Z`. User terminal evidence (`TELEGRAM_RETEST_2026-09-23.txt`) shows four complete jobs, with **3 SOURCE_UNVERIFIED and 1 UNSCORED**. Reported p95 combined time is 45,010 ms. Provider charges are $0, server cost remains unknown, and no capacity stops were recorded.
 
 The unscored attempt and approximately 45-second timing suggest a repeated acquisition deadline, but the exact channel, step status and reason require the detailed report; this summary alone does not confirm them. Three returned source results still require checks against the newly captured pages. The successful offline replay of the earlier pages does not establish accuracy on these new captures or eliminate acquisition failures. Next: inspect this run's report.json and blobs; preserve it separately from the original run.
 
 
 ### Telegram live retest detailed verification - 2026-09-23
 
-Downloaded `pilot-telegram-retest-20260923T082653Z/report.json` and all three captured blobs inspected. The helper checked the actual saved outputs (`--original`), not a replacement local parsing result: **3 comparisons / 60 returned posts, zero failed comparisons**. IDs/order, post URLs, publication instants, whitespace-normalized text, message links and photo/video references match the captured pages. Payload hashes were verified. [Checkpoint evidence and saved normalized outputs](telegram-pilot/retest-original-checks.json). Repeated channel inputs are not independent sources; formal report labels remain SOURCE_UNVERIFIED.
+Downloaded `pilot-telegram-retest-20260923T082653Z/report.json` and all three captured blobs inspected. The helper checked the actual saved outputs (`--original`), not a replacement local parsing result: **3 comparisons / 60 returned posts, zero failed comparisons**. IDs/order, post URLs, publication instants, whitespace-normalized text, message links and photo/video references match the captured pages. Payload hashes were verified. Checkpoint evidence and saved normalized outputs (`telegram-pilot/retest-original-checks.json`). Repeated channel inputs are not independent sources; formal report labels remain SOURCE_UNVERIFIED.
 
 Exact failed checkpoint: `telegram_official`, repetition 0, acquisition status `failed`, reason `deadline`, duration 45,010 ms, queue time 0, no captured payload. Later official-channel repetition captured 20 posts in 186 ms. Al Jazeera repetitions captured 20 posts each in 94 and 76 ms; their queue waits are separate from these acquisition durations. No processing errors were recorded on captured steps.
 
@@ -511,7 +515,7 @@ Updated `bench/network.py` locally to try resolved, validated public addresses s
 
 Validation: **210 offline Python tests passed in 24.04 seconds**, including six new cases covering stalled/error/timeout fallback, total timeout, external cancellation and exhaustion of all addresses. Existing infrastructure tests cover rejection of mixed public/private DNS results. Changed-file whitespace check and patch reverse-apply validation passed.
 
-[Connection fallback transfer patch](connection-fallback.patch) contains the benchmark network change and new regression tests only. VPS application and live verification remain pending. Original acquisition failures are preserved; they are not converted into successful results by this local fix. Next: apply patch, run offline tests on VPS and launch a separately named Telegram live run.
+Connection fallback transfer patch (`connection-fallback.patch`) contains the benchmark network change and new regression tests only. VPS application and live verification remain pending. Original acquisition failures are preserved; they are not converted into successful results by this local fix. Next: apply patch, run offline tests on VPS and launch a separately named Telegram live run.
 
 
 ### VPS confirmation - connection fallback patch - 2026-09-23
@@ -521,7 +525,7 @@ User terminal output shows the first patch check/application completed without e
 
 ### Telegram live run after connection fallback - 2026-09-23
 
-Run `pilot-telegram-fallback-20260923T093257Z`. [Terminal evidence](TELEGRAM_FALLBACK_2026-09-23.txt) reports four complete jobs and **4 SOURCE_UNVERIFIED**, with no UNSCORED attempts. Reported p95 combined acquisition/processing time is **3,627 ms**, versus 45,010 ms in the preceding retest. Provider charges are $0; server cost remains unknown. No capacity stops recorded.
+Run `pilot-telegram-fallback-20260923T093257Z`. Terminal evidence (`TELEGRAM_FALLBACK_2026-09-23.txt`) reports four complete jobs and **4 SOURCE_UNVERIFIED**, with no UNSCORED attempts. Reported p95 combined acquisition/processing time is **3,627 ms**, versus 45,010 ms in the preceding retest. Provider charges are $0; server cost remains unknown. No capacity stops recorded.
 
 This small live batch supports successful acquisition after the fallback change; it does not establish long-term reliability or prove which address each request used. All four source results still need independent checks against their new captured pages; no overall quality PASS claimed. Next: run the saved-page verification helper with --original against this new report, then proceed to the Telethon comparison. Earlier failures remain preserved.
 
@@ -545,7 +549,7 @@ This establishes returned source results, not quality verification. Detailed rep
 
 ### Telethon matched-post inspection - 2026-09-23
 
-Downloaded API run `pilot-telethon-20260923T101559Z` and public-page run `pilot-telegram-fallback-20260923T093257Z` inspected locally. [Exact per-repetition checkpoints](telegram-pilot/telethon-comparison.json).
+Downloaded API run `pilot-telethon-20260923T101559Z` and public-page run `pilot-telegram-fallback-20260923T093257Z` inspected locally. Exact per-repetition checkpoints (`telegram-pilot/telethon-comparison.json`).
 
 - Four API captures contain 20 posts each: 40 distinct posts across two channels, repeated twice. All captured payload hashes match. All raw API IDs, text and publication instants are preserved in benchmark output. No posts fall outside configured windows, and no API result is capped.
 - Each API result contains exactly the same post IDs as the corresponding public-page result. Text matches after whitespace normalization and dates match as instants. Ordering differs because API history is newest-first; matching was by ID, not row position. This selected-window agreement is not a full-history recall guarantee.
@@ -579,11 +583,11 @@ Implemented in the benchmark's `bench/processing.py`, not in production ingestio
 
 [Replay helper](../../evaluation/acquisition-benchmark/scripts/replay_telethon_pilot.py) reads hash-checked saved API responses and compares the reprocessed result with the previously verified public-page outputs, matched by channel/repetition/post ID. Checks cover post IDs/counts, raw and public text, dates, post URLs, link sets, photo/video type counts, raw-media preservation, API media IDs and preview URLs. Media bytes are not downloaded or compared. Baseline API reports are preserved.
 
-**Local replay: four comparisons, zero failed comparisons** across 80 repeated observations / 40 distinct posts. All 20 official-channel posts now preserve their message links. Each official-channel repetition retains three photo references, 13 video references and four separate webpage previews. [Replay evidence](telegram-pilot/telethon-after-fixes.json).
+**Local replay: four comparisons, zero failed comparisons** across 80 repeated observations / 40 distinct posts. All 20 official-channel posts now preserve their message links. Each official-channel repetition retains three photo references, 13 video references and four separate webpage previews. Replay evidence (`telegram-pilot/telethon-after-fixes.json`).
 
 Validation: **219 offline Python tests passed in 24.25 seconds**, including nine new Telethon tests covering entity offsets/hidden links, supported media types, previews, unknown-media preservation and integration. Changed-file whitespace and patch reverse-apply checks passed.
 
-[Telethon-only transfer patch](telethon-normalization-fixes.patch) contains the conversion changes, regression tests and replay helper; it excludes earlier RSS and connection fallback changes. **VPS application/replay pending.** The public scraper still returns CDN URLs, while Telethon now returns typed API references; this removes the normalization gap for the tested fields but does not establish a media-download winner. Formal source scoring labels remain unchanged.
+Telethon-only transfer patch (`telethon-normalization-fixes.patch`) contains the conversion changes, regression tests and replay helper; it excludes earlier RSS and connection fallback changes. **VPS application/replay pending.** The public scraper still returns CDN URLs, while Telethon now returns typed API references; this removes the normalization gap for the tested fields but does not establish a media-download winner. Formal source scoring labels remain unchanged.
 
 
 ### VPS confirmation - Telethon normalization replay - 2026-09-23
@@ -595,7 +599,7 @@ The selected public-channel comparison now has matching IDs, text, dates, links 
 
 ### Zyte HTTP pilot summary - 2026-09-23
 
-Run `pilot-zyte-001`: five articles, two repetitions, ten complete jobs. [Terminal evidence](ZYTE_PILOT_2026-09-23.txt). Existing references were picked up by the run; detailed reference identity and score checks await report.json inspection.
+Run `pilot-zyte-001`: five articles, two repetitions, ten complete jobs. Terminal evidence (`ZYTE_PILOT_2026-09-23.txt`). Existing references were picked up by the run; detailed reference identity and score checks await report.json inspection.
 
 | Extractor | PASS | PARTIAL | FAIL | p95 combined ms |
 |---|---:|---:|---:|---:|
@@ -611,7 +615,7 @@ Next: download report.json and blobs, identify exact failed checkpoints, compare
 
 ### Zyte detailed comparison - 2026-09-23
 
-Downloaded report and saved artifacts inspected; all inspected evidence hashes match. [Exact checkpoints](zyte-pilot/checkpoints.json) records every extraction score, forbidden marker found, missing anchor, direct-output equality, and provider failure per repetition.
+Downloaded report and saved artifacts inspected; all inspected evidence hashes match. Exact checkpoints (`zyte-pilot/checkpoints.json`) records every extraction score, forbidden marker found, missing anchor, direct-output equality, and provider failure per repetition.
 
 | Publisher | Zyte + Trafilatura | Zyte + Readability | Comparison with direct HTTP |
 |---|---|---|---|
@@ -677,7 +681,7 @@ The preceding configuration creation raised FileExistsError and preserved the ex
 
 ### Playwright standard live pilot summary - 2026-09-23
 
-Run `pilot-playwright-001`: ten complete jobs, five article inputs with two repetitions. [Terminal evidence](PLAYWRIGHT_PILOT_2026-09-23.txt).
+Run `pilot-playwright-001`: ten complete jobs, five article inputs with two repetitions. Terminal evidence (`PLAYWRIGHT_PILOT_2026-09-23.txt`).
 
 | Extractor | PASS | PARTIAL | FAIL | p95 combined ms |
 |---|---:|---:|---:|---:|
@@ -693,7 +697,7 @@ Next: download report and blobs, identify exact failing checkpoints and compare 
 
 ### Playwright detailed comparison - 2026-09-23
 
-Downloaded `pilot-playwright-001/report.json` and saved artifacts inspected, with evidence hashes verified. [Exact checkpoints](playwright-pilot/checkpoints.json); [CNN captured error page](playwright-pilot/cnn-error.html).
+Downloaded `pilot-playwright-001/report.json` and saved artifacts inspected, with evidence hashes verified. Exact checkpoints (`playwright-pilot/checkpoints.json`); CNN captured error page (`playwright-pilot/cnn-error.html`).
 
 | Publisher | Playwright + Trafilatura | Playwright + Readability | Difference from earlier routes |
 |---|---|---|---|
@@ -714,9 +718,9 @@ This pilot supports selective browser fallback, not browser use for every site: 
 
 Reproduced the actual saved Trafilatura result: `article_validation` attempted `title + " "` with title=None and raised `TypeError: unsupported operand type(s) for +: NoneType and str`. Validator now treats null title/body as empty text. Score normalization also treats None as empty rather than the literal word "None". No error-page content or reference was changed, and browser acquisition behavior remains unchanged.
 
-Re-extracted both saved CNN HTML captures through both parsers: **four scored results, all FAIL**, each with `insufficient_body` and `missing_title`, without a scoring exception. [Replay evidence](playwright-pilot/cnn-after-scoring-fix.json). All 16 previously present non-CNN scores are unchanged under the corrected scorer. Original report is preserved. No new website requests were made locally.
+Re-extracted both saved CNN HTML captures through both parsers: **four scored results, all FAIL**, each with `insufficient_body` and `missing_title`, without a scoring exception. Replay evidence (`playwright-pilot/cnn-after-scoring-fix.json`). All 16 previously present non-CNN scores are unchanged under the corrected scorer. Original report is preserved. No new website requests were made locally.
 
-Validation: **223 offline Python tests passed in 42.03 seconds**, including four new null-field regression cases. [VPS patch](cnn-scoring-fix.patch) contains only validator/text-normalization changes, regression tests and [offline replay helper](../../evaluation/acquisition-benchmark/scripts/replay_cnn_error.py); reverse-apply check passed. VPS application and replay remain pending.
+Validation: **223 offline Python tests passed in 42.03 seconds**, including four new null-field regression cases. VPS patch (`cnn-scoring-fix.patch`) contains only validator/text-normalization changes, regression tests and [offline replay helper](../../evaluation/acquisition-benchmark/scripts/replay_cnn_error.py); reverse-apply check passed. VPS application and replay remain pending.
 
 User authorized a CNN-only live retry after repairing scoring. Planned scope: article-001 only, standard Playwright route, two repetitions, new run ID `pilot-playwright-cnn-retry-001`, existing firewall requirements, zero provider budget. Other four publishers will not be refetched in this retry. A repeat failure would confirm recurrence, not identify the cause of CNN's generic error page. No retry result yet.
 
@@ -725,7 +729,7 @@ User authorized a CNN-only live retry after repairing scoring. Planned scope: ar
 
 SSH key access was established and the authorized scoring patch applied on the VPS. Full offline suite passed **223 tests in 21.03 seconds**. Re-extracting the original saved CNN captures produced four explicit FAIL scores with `insufficient_body` and `missing_title`, without crashing. The original report was preserved.
 
-New run: `pilot-playwright-cnn-retry-001`, article-001 only, two repetitions, standard browser, zero provider charges. [Downloaded detailed report](playwright-pilot/pilot-playwright-cnn-retry-001/report.json). Both attempts captured HTTP 200 but returned the same 164-byte rendered error page containing only `Unknown Error`. Its verified SHA256, `1bd54414a9d72f3aa0b04aa53a6eadba416a8121a9a58a41ebeaf81bc8ba3102`, also matches the original browser run's error page.
+New run: `pilot-playwright-cnn-retry-001`, article-001 only, two repetitions, standard browser, zero provider charges. Downloaded detailed report (`playwright-pilot/pilot-playwright-cnn-retry-001/report.json`). Both attempts captured HTTP 200 but returned the same 164-byte rendered error page containing only `Unknown Error`. Its verified SHA256, `1bd54414a9d72f3aa0b04aa53a6eadba416a8121a9a58a41ebeaf81bc8ba3102`, also matches the original browser run's error page.
 
 Both extractors on both repetitions now have complete FAIL scores: missing title, insufficient body, text/title F1 0, missing reference anchors and incorrect/missing expected date. No processing_error remains. The scoring bug is resolved; CNN acquisition failure recurred. No specific reason for the generic returned error content has been established. There have now been four CNN browser acquisition attempts across the original and retry runs, not eight (each capture was processed by two extractors).
 
@@ -736,7 +740,7 @@ Direct HTTP and Zyte previously fetched the CNN article successfully; that remai
 
 Actor: `groupoject/google-news-scraper`. This is a manual console run, not a VPS benchmark report. Initial run screenshot showed 150 results, 7 seconds and $0.150 usage. Its input incorrectly split `Lebanon electricity` into two queries (`Lebanon`, `electricity`), plus `James Webb telescope`, with maxItemsPerQuery=50 and Apify proxy enabled. Preserve this as setup evidence, not the matched comparison.
 
-User then supplied output after instructions to use the two intended queries and 20 records each. [Original paste](google-pilot/apify-console-20260924/pasted-output.txt), [inspection copy](google-pilot/apify-console-20260924/output-repaired.json), [checks](google-pilot/apify-console-20260924/checks.json). The paste lacks the final array closing bracket; the inspection copy adds only that bracket. This is a paste-format issue, not evidence of malformed API output. Corrected run ID, actual input, duration and cost have not been provided; do not assign the initial run's $0.150/7 seconds to this output. A $0.10 run cap was instructed but not independently confirmed.
+User then supplied output after instructions to use the two intended queries and 20 records each. Original paste (`google-pilot/apify-console-20260924/pasted-output.txt`), inspection copy (`google-pilot/apify-console-20260924/output-repaired.json`), checks (`google-pilot/apify-console-20260924/checks.json`). The paste lacks the final array closing bracket; the inspection copy adds only that bracket. This is a paste-format issue, not evidence of malformed API output. Corrected run ID, actual input, duration and cost have not been provided; do not assign the initial run's $0.150/7 seconds to this output. A $0.10 run cap was instructed but not independently confirmed.
 
 | Checkpoint | Observed result | Interpretation |
 |---|---|---|
@@ -760,7 +764,7 @@ User supplied the corrected console run header: **Succeeded, 40 results, $0.040 
 
 ### Apify platform normalizer replay - 2026-09-24
 
-User identified corrected run [pxC2ZmG0qbrdjYevE](https://console.apify.com/actors/rnmRHj9TGlD8apCD6/runs/pxC2ZmG0qbrdjYevE). Replayed the supplied 40-record dataset locally through the actual `normalizeApifyDatasetItems` implementation in `packages/connectors/src/apify.ts`, kind=google_news. No network requests or new charges. [Normalized output](google-pilot/apify-console-20260924/normalized.json); [checkpoint results](google-pilot/apify-console-20260924/normalizer-checks.json).
+User identified corrected run [pxC2ZmG0qbrdjYevE](https://console.apify.com/actors/rnmRHj9TGlD8apCD6/runs/pxC2ZmG0qbrdjYevE). Replayed the supplied 40-record dataset locally through the actual `normalizeApifyDatasetItems` implementation in `packages/connectors/src/apify.ts`, kind=google_news. No network requests or new charges. Normalized output (`google-pilot/apify-console-20260924/normalized.json`); checkpoint results (`google-pilot/apify-console-20260924/normalizer-checks.json`).
 
 All 40 records retained; zero URL, publisher or timestamp mismatches against supplied actor rows. Confirmed text-quality issue: all 40 normalized messages concatenate the headline with a snippet that repeats the same headline and publisher, and retain the title's publisher suffix. Thus fields are preserved, but redundant text is not cleaned. No media were supplied and none are invented. Google links remain Google links. This is normalization preservation evidence, not independent verification of source facts or full ingestion success. Replay receivedAt is a fixed synthetic fixture (2026-09-24T00:00:00Z), not acquisition evidence; retention/queue behavior was not exercised. No implementation changes made in this check.
 
@@ -769,21 +773,21 @@ All 40 records retained; zero URL, publisher or timestamp mismatches against sup
 
 Updated `packages/connectors/src/apify.ts`: remove an exact trailing publisher suffix from the headline, then omit a snippet only if it equals the headline/raw title or headline plus publisher after whitespace normalization. Genuine summaries, including ones starting with the headline, are retained. Only the Google News normalization path changes.
 
-Six regression cases cover repeated snippets, non-breaking spaces, useful summaries, different publisher suffixes and absent publisher metadata. Full connector suite: **77 tests passed**; TypeScript typecheck passed. Saved pilot replay: **40/40 clean headlines, zero dropped records, and every non-text field unchanged**. [After-fix output](google-pilot/apify-console-20260924/normalized-after-fix.json); [checks](google-pilot/apify-console-20260924/after-fix-checks.json). No network requests or additional Apify charges. Original raw and normalized evidence preserved.
+Six regression cases cover repeated snippets, non-breaking spaces, useful summaries, different publisher suffixes and absent publisher metadata. Full connector suite: **77 tests passed**; TypeScript typecheck passed. Saved pilot replay: **40/40 clean headlines, zero dropped records, and every non-text field unchanged**. After-fix output (`google-pilot/apify-console-20260924/normalized-after-fix.json`); checks (`google-pilot/apify-console-20260924/after-fix-checks.json`). No network requests or additional Apify charges. Original raw and normalized evidence preserved.
 
-Fix is local; VPS application and production deployment are not confirmed. [Focused patch](google-news-text-fix.patch) is available for VPS transfer. Full source-fidelity validation, repeated matched acquisitions and publisher URL resolution remain pending.
+Fix is local; VPS application and production deployment are not confirmed. Focused patch (`google-news-text-fix.patch`) is available for VPS transfer. Full source-fidelity validation, repeated matched acquisitions and publisher URL resolution remain pending.
 
 
 ### Google News text fix applied and verified on VPS - 2026-09-24
 
-Applied `google-news-text-fix.patch` through the authorized SSH key. VPS replay of the same saved 40 actor rows through the actual patched TypeScript normalizer: **40/40 clean headlines; all serialized non-text fields unchanged**. Existing offline benchmark suite: **223 passed in 24.34 seconds**. [VPS replay and test evidence](google-pilot/apify-console-20260924/vps-replay-validation.txt).
+Applied `google-news-text-fix.patch` through the authorized SSH key. VPS replay of the same saved 40 actor rows through the actual patched TypeScript normalizer: **40/40 clean headlines; all serialized non-text fields unchanged**. Existing offline benchmark suite: **223 passed in 24.34 seconds**. VPS replay and test evidence (`google-pilot/apify-console-20260924/vps-replay-validation.txt`).
 
 The attempted connector Vitest command on VPS could not start because its test-runner module is not installed there; do not count it as a VPS connector-suite pass. The full 77-test connector suite and TypeScript check passed locally. No new dependencies were installed and no paid acquisition requests were made. Saved replay input files were copied to the benchmark directory as `output-repaired.json` and `normalized.json`. Production deployment remains unconfirmed. This completes the observed duplicate-text correction and VPS replay, not the full controlled RSS-versus-Apify comparison.
 
 
 ### Matched Google News pilot preparation - 2026-09-24
 
-Added `maxTotalChargeUsd` to Apify run submissions, using the route's configured cost ceiling alongside maxItems and timeout. Mock submission test checks cap and item parameters, including no duplicate submission on resume. VPS offline suite: 223 passed in 21.93 seconds. Local Python suite could not start because the local pytest installation lacked its runnable module; VPS tests provide validation. [API cap documentation](https://docs.apify.com/api/v2/actors-runs-post); [patch](apify-cost-cap.patch).
+Added `maxTotalChargeUsd` to Apify run submissions, using the route's configured cost ceiling alongside maxItems and timeout. Mock submission test checks cap and item parameters, including no duplicate submission on resume. VPS offline suite: 223 passed in 21.93 seconds. Local Python suite could not start because the local pytest installation lacked its runnable module; VPS tests provide validation. [API cap documentation](https://docs.apify.com/api/v2/actors-runs-post); patch (`apify-cost-cap.patch`).
 
 Scope: two queries (Lebanon electricity; James Webb telescope), en/US, two repetitions, max 20 per query, concurrency one. Four RSS jobs plus four Apify jobs; $0.10 provider cap per Apify job and $0.40 total. No proxy, monitoring, analysis or date filter. Actor-level ordering and deduplication may differ from RSS order, so equal settings do not imply identical returned sets.
 
@@ -792,7 +796,7 @@ First run `pilot-google-matched-20260924-001` in shared data/live acquired four 
 
 ### Matched RSS versus Apify pilot results - 2026-09-24
 
-Run `pilot-google-matched-20260924-002` in the dedicated ledger completed eight captures: four RSS and four Apify, all with 20 normalized items. [Detailed report](google-pilot/pilot-google-matched-20260924-002/report.json); [saved-payload checkpoint checks](google-pilot/pilot-google-matched-20260924-002/checkpoints.json). Payload SHA256 hashes verified locally. All eight jobs have zero title, publisher, timestamp or URL field errors against their own saved XML/JSON. RSS captures contain 100 raw entries each and retain 20; Apify datasets contain 20 and retain all 20. Corrected headline normalization works in live benchmark processing.
+Run `pilot-google-matched-20260924-002` in the dedicated ledger completed eight captures: four RSS and four Apify, all with 20 normalized items. Detailed report (`google-pilot/pilot-google-matched-20260924-002/report.json`); saved-payload checkpoint checks (`google-pilot/pilot-google-matched-20260924-002/checkpoints.json`). Payload SHA256 hashes verified locally. All eight jobs have zero title, publisher, timestamp or URL field errors against their own saved XML/JSON. RSS captures contain 100 raw entries each and retain 20; Apify datasets contain 20 and retain all 20. Corrected headline normalization works in live benchmark processing.
 
 | Comparison | Lebanon electricity | James Webb telescope |
 |---|---:|---:|
@@ -812,14 +816,14 @@ Practical pilot finding: Apify did not demonstrate richer content than RSS for t
 
 ### Matched pilot billing reconciled - 2026-09-24
 
-Read-only follow-up of all four existing actor runs now reports 20 billed article events ($0.02000) plus one actor-start event ($0.00005) each: **$0.02005/run, $0.0802 total provider usage**. [Updated provider metadata](google-pilot/pilot-google-matched-20260924-002/billing-followup.json). This confirms the initial terminal snapshots were not yet fully accounted, not that the actor returned uncharged articles. Provider metadata also confirms maxTotalChargeUsd=0.10 for every job and a common actual build ID `uf9vk53EqC5gLQe3d` (requested tag latest).
+Read-only follow-up of all four existing actor runs now reports 20 billed article events ($0.02000) plus one actor-start event ($0.00005) each: **$0.02005/run, $0.0802 total provider usage**. Updated provider metadata (`google-pilot/pilot-google-matched-20260924-002/billing-followup.json`). This confirms the initial terminal snapshots were not yet fully accounted, not that the actor returned uncharged articles. Provider metadata also confirms maxTotalChargeUsd=0.10 for every job and a common actual build ID `uf9vk53EqC5gLQe3d` (requested tag latest).
 
-Reconciled the four ledger reservations using those provider records and regenerated the report: actual provider usage $0.0802; unreconciled reservations $0. The initial report is preserved as [report-before-reconciliation.json](google-pilot/pilot-google-matched-20260924-002/report-before-reconciliation.json). No new actor runs. This is provider usage, not necessarily out-of-pocket payment after free credits; unknown VPS cost remains excluded. Formal labels and evidence gates remain unchanged.
+Reconciled the four ledger reservations using those provider records and regenerated the report: actual provider usage $0.0802; unreconciled reservations $0. The initial report is preserved as report-before-reconciliation.json (`google-pilot/pilot-google-matched-20260924-002/report-before-reconciliation.json`). No new actor runs. This is provider usage, not necessarily out-of-pocket payment after free credits; unknown VPS cost remains excluded. Formal labels and evidence gates remain unchanged.
 
 
 ### X profile Apify pilot - 2026-09-24
 
-Run `pilot-x-profile-20260924-001`, dedicated ledger `data/x-profile-20260924`: planned actor `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`, input from=NASA or BBCWorld, maxItems=20, queryType=Latest, two repetitions per account, concurrency one, 120-second runtime bound. Provider caps $0.10/job and $0.40 total. Four SUCCEEDED captures, 20 records each, 80 records including repeats; p95 combined 17485 ms. All authors matched requested handles. Payload hashes checked. [Original report](x-profile-pilot/pilot-x-profile-20260924-001/report.json), [exact checkpoints](x-profile-pilot/checkpoints-before-fix.json).
+Run `pilot-x-profile-20260924-001`, dedicated ledger `data/x-profile-20260924`: planned actor `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`, input from=NASA or BBCWorld, maxItems=20, queryType=Latest, two repetitions per account, concurrency one, 120-second runtime bound. Provider caps $0.10/job and $0.40 total. Four SUCCEEDED captures, 20 records each, 80 records including repeats; p95 combined 17485 ms. All authors matched requested handles. Payload hashes checked. Original report (`x-profile-pilot/pilot-x-profile-20260924-001/report.json`), exact checkpoints (`x-profile-pilot/checkpoints-before-fix.json`).
 
 | Checkpoint | BBCWorld, each repetition | NASA, each repetition |
 |---|---|---|
@@ -831,7 +835,7 @@ Run `pilot-x-profile-20260924-001`, dedicated ledger `data/x-profile-20260924`: 
 
 Confirmed platform issues: extractXMedia accepts arrays but this actor supplies an object containing a media array; it therefore drops supplied native photo/video references. The helper also labels all accepted entries as photos, a code-path risk for other shapes, not a demonstrated video mislabel in this run because no media survived. X normalization extracts URLs from text but ignores expanded_url entries; t.co links and post links remain, but supplied expanded destinations are omitted. BBC native-media absence does not establish whether card previews are available; card/quoted/reposted content needs separate review. No photo/video download or playback was tested. Independent comparison to the X website/API has not occurred, so formal SOURCE_UNVERIFIED labels remain appropriate.
 
-Follow-up billing confirms $0.005/run, **$0.02 total provider usage**, 20 billed events/run at $0.00025 each, with common build ID F4pzKtwGyAICrJMvo (actor default tag latest0225). [Billing evidence](x-profile-pilot/billing-followup.json). VPS ledger reconciled, no outstanding reservation. Original downloaded report predates reconciliation; [reconciliation log](x-profile-pilot/reconciliation.txt) supersedes its $0.40 reservation. Provider usage may be covered by credit and excludes VPS cost. No claims of complete timeline recall or successful official X API comparison. Next: fix media and expanded-link normalization and replay these saved captures without another paid acquisition.
+Follow-up billing confirms $0.005/run, **$0.02 total provider usage**, 20 billed events/run at $0.00025 each, with common build ID F4pzKtwGyAICrJMvo (actor default tag latest0225). Billing evidence (`x-profile-pilot/billing-followup.json`). VPS ledger reconciled, no outstanding reservation. Original downloaded report predates reconciliation; reconciliation log (`x-profile-pilot/reconciliation.txt`) supersedes its $0.40 reservation. Provider usage may be covered by credit and excludes VPS cost. No claims of complete timeline recall or successful official X API comparison. Next: fix media and expanded-link normalization and replay these saved captures without another paid acquisition.
 
 
 ### X media and expanded-link fixes - local replay verified
@@ -840,28 +844,28 @@ Updated the Google/X shared connector file's X-specific paths: expanded_url entr
 
 Full connector suite: **80 passed**, including three regression cases covering nested photo/video variants, expanded link preservation, unsafe schemes, array compatibility, deduplication, animations and unresolved video IDs. TypeScript check passed.
 
-Replayed all four saved captures through the changed platform normalizer: **80/80 records retained; zero failed checks**. Each NASA repetition now retains 10 photo references, one MP4 video reference and all 12 supplied expanded links. Each BBCWorld repetition retains all 20 supplied expanded links; no native media were supplied. Post text, date, URL and author are unchanged against actor data. [After-fix checkpoints](x-profile-pilot/after-fix-checks.json). Before-fix report/captures are preserved. This verifies reference preservation, not media downloading/playback or independent X-source accuracy. No paid calls, production deployment or VPS application occurred in this local fix step.
+Replayed all four saved captures through the changed platform normalizer: **80/80 records retained; zero failed checks**. Each NASA repetition now retains 10 photo references, one MP4 video reference and all 12 supplied expanded links. Each BBCWorld repetition retains all 20 supplied expanded links; no native media were supplied. Post text, date, URL and author are unchanged against actor data. After-fix checkpoints (`x-profile-pilot/after-fix-checks.json`). Before-fix report/captures are preserved. This verifies reference preservation, not media downloading/playback or independent X-source accuracy. No paid calls, production deployment or VPS application occurred in this local fix step.
 
 
 ### X normalization fix applied on VPS - 2026-09-24
 
-User authorized transfer/application. Read the two current VPS files first, generated a focused [X-only patch](x-normalization-fix.patch) preserving the preceding Google News fix, checked it with git apply --check and applied successfully. Saved payload hashes verified before replay. All four captures passed: 80 records retained, 20 photo references and two video references across repeated NASA captures, and 64 expanded links across all captures; zero failed field checks. These counts include repetitions, not distinct media/posts. Text, authors, post URLs and publication times still match the supplied raw actor data.
+User authorized transfer/application. Read the two current VPS files first, generated a focused X-only patch (`x-normalization-fix.patch`) preserving the preceding Google News fix, checked it with git apply --check and applied successfully. Saved payload hashes verified before replay. All four captures passed: 80 records retained, 20 photo references and two video references across repeated NASA captures, and 64 expanded links across all captures; zero failed field checks. These counts include repetitions, not distinct media/posts. Text, authors, post URLs and publication times still match the supplied raw actor data.
 
-VPS offline benchmark suite: **223 passed in 24.32 seconds**. Full connector suite and TypeScript validation had already passed locally (80 tests); the connector test runner remains absent on VPS. [VPS verification transcript](x-profile-pilot/vps-fix-verification.txt). Separate replay checks were saved on VPS at data/x-profile-20260924/reports/pilot-x-profile-20260924-001/x-fix-replay-checks.json; the original report and captures remain intact. No paid requests or production deployment. This is reference preservation, not confirmation that the image/video URLs remain downloadable or that their contents are understood.
+VPS offline benchmark suite: **223 passed in 24.32 seconds**. Full connector suite and TypeScript validation had already passed locally (80 tests); the connector test runner remains absent on VPS. VPS verification transcript (`x-profile-pilot/vps-fix-verification.txt`). Separate replay checks were saved on VPS at data/x-profile-20260924/reports/pilot-x-profile-20260924-001/x-fix-replay-checks.json; the original report and captures remain intact. No paid requests or production deployment. This is reference preservation, not confirmation that the image/video URLs remain downloadable or that their contents are understood.
 
 
 ### Proposed next pilot: X search (not dispatched)
 
-Prepared [reviewable VPS configuration](x-search-pilot/pilot-x-search.proposed.json) for the planned Kaito actor, searchTerms mode, Latest ordering. Two queries: Lebanon electricity and James Webb telescope; two repetitions; actor request and download limit 20 items/job; four jobs total. Provider cap $0.10/run, budget $0.40 total in a dedicated ledger; no new account required. Actor pagination may exceed requested output counts, so 80 retained records is an upper bound for this benchmark, not a promise of 80 unique posts or exhaustive search. No date/language filter and no official-X API comparison yet. User's explicit approval is required before starting this paid pilot, following their preference established after the X-profile run. No live requests made in preparation.
+Prepared reviewable VPS configuration (`x-search-pilot/pilot-x-search.proposed.json`) for the planned Kaito actor, searchTerms mode, Latest ordering. Two queries: Lebanon electricity and James Webb telescope; two repetitions; actor request and download limit 20 items/job; four jobs total. Provider cap $0.10/run, budget $0.40 total in a dedicated ledger; no new account required. Actor pagination may exceed requested output counts, so 80 retained records is an upper bound for this benchmark, not a promise of 80 unique posts or exhaustive search. No date/language filter and no official-X API comparison yet. User's explicit approval is required before starting this paid pilot, following their preference established after the X-profile run. No live requests made in preparation.
 
 
 ### Approved X search pilot completed
 
-User explicitly approved the prepared paid pilot. VPS run `pilot-x-search-001`, dedicated ledger `data/x-search-pilot-001`, planned Kaito actor, two queries (Lebanon electricity; James Webb telescope), Latest mode, 20 retained items/job and two repetitions; concurrency one, 120-second runtime, $0.10/job provider cap and $0.40 total budget. No date/language filter. All four remote runs succeeded and each returned 20 records. [Original report](x-search-pilot/pilot-x-search-001/report.json); [field checkpoints](x-search-pilot/checkpoints.json).
+User explicitly approved the prepared paid pilot. VPS run `pilot-x-search-001`, dedicated ledger `data/x-search-pilot-001`, planned Kaito actor, two queries (Lebanon electricity; James Webb telescope), Latest mode, 20 retained items/job and two repetitions; concurrency one, 120-second runtime, $0.10/job provider cap and $0.40 total budget. No date/language filter. All four remote runs succeeded and each returned 20 records. Original report (`x-search-pilot/pilot-x-search-001/report.json`); field checkpoints (`x-search-pilot/checkpoints.json`).
 
 All 80 records retained, with no within-job duplicate IDs. Hash-verified saved actor payloads match normalized text, post URL, author and timestamps; all supplied expanded URLs are retained. Native media references also match: Webb has 13 photos in each repetition; Lebanon has 5 photos/1 video in the first and 4 photos/1 video in the second. Total across repetitions: 35 photos and two videos, not necessarily unique media. The previously fixed X normalizer passed these live-output checks without further edits. This does not verify media downloading/playback, quoted/reposted/card content, search relevance or exhaustive recall. Formal labels remain SOURCE_UNVERIFIED; evidence gate INSUFFICIENT_EVIDENCE.
 
-p95 acquisition-plus-normalization: 25681 ms across four jobs. Read-only billing follow-up confirmed 20 charged events and $0.005 usage per run; **$0.02 total**. Provider confirms $0.10 cap on each job, common build ID F4pzKtwGyAICrJMvo and default build tag latest0225. [Billing and reconciliation evidence](x-search-pilot/billing-verification.txt). VPS ledger/report reconciled to $0.02, no outstanding reservation; original local report preserves the earlier unreconciled snapshot. Server cost remains unknown and provider usage may be covered by free credits. Official X API is still untested. No production deployment.
+p95 acquisition-plus-normalization: 25681 ms across four jobs. Read-only billing follow-up confirmed 20 charged events and $0.005 usage per run; **$0.02 total**. Provider confirms $0.10 cap on each job, common build ID F4pzKtwGyAICrJMvo and default build tag latest0225. Billing and reconciliation evidence (`x-search-pilot/billing-verification.txt`). VPS ledger/report reconciled to $0.02, no outstanding reservation; original local report preserves the earlier unreconciled snapshot. Server cost remains unknown and provider usage may be covered by free credits. Official X API is still untested. No production deployment.
 ### Current scope update — 2026-09-25
 
 ### Offline duplicate and edit ingestion checks — 2026-09-25
@@ -891,7 +895,7 @@ User relayed the professor's decision that photos and videos are not required. M
 
 User explicitly approved proceeding. One recent-search request for `"James Webb telescope" -is:retweet`, recency order, max_results 10, requesting text/date/author/link fields and long-form text without media or user expansions. Ten posts were returned and all ten were retained by the existing benchmark X API normalizer. All 50 per-post checkpoints passed: exact expected text, author ID, equivalent date, constructed original post link and expanded entity links. Two posts had long-form text, which was preserved. No partial API errors, dropped records or duplicate IDs within this sample. This checks author IDs, not display names/handles or a deployed production integration.
 
-[Verification output](x-search-functional-001/verification.txt) and [reproducible guarded runner](x-search-functional-run.py). Raw and normalized content remains private on the VPS at `/home/distilled-bench/.local/share/distilled-bench/x-search-functional-001/`. No credentials are in these artifacts. An initial SSH quoting error prevented execution; the corrected runner performed exactly one paid request, with no retries or follow-up pages. A next-page cursor was returned but intentionally not followed. Estimated post-read charge $0.05; actual billing not yet verified. No provider performance metrics were collected.
+Verification output (`x-search-functional-001/verification.txt`) and [reproducible guarded runner](x-search-functional-run.py). Raw and normalized content remains private on the VPS at `/home/distilled-bench/.local/share/distilled-bench/x-search-functional-001/`. No credentials are in these artifacts. An initial SSH quoting error prevented execution; the corrected runner performed exactly one paid request, with no retries or follow-up pages. A next-page cursor was returned but intentionally not followed. Estimated post-read charge $0.05; actual billing not yet verified. No provider performance metrics were collected.
 
 No failed checkpoints in this sample. Search completeness, relevance, edits/deletions, pagination, duplicate recovery and production ingestion remain unverified. This is a functional integration check, not provider benchmarking. No code fixes were required, and no additional requests are scheduled.
 

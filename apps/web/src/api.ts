@@ -90,17 +90,18 @@ export async function register(input: {
   username: string;
   password: string;
   turnstileToken?: string;
-}): Promise<void> {
-  await requestJson("/api/auth/register", {
+}): Promise<"code" | "link"> {
+  const payload = await requestJson<{ verificationMethod?: "code" | "link" }>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...input, language: preferredLanguage() })
   });
+  return payload.verificationMethod ?? "link";
 }
 
-export async function verifyEmail(token: string): Promise<AccountRecord> {
+export async function verifyEmail(credential: string | { email: string; code: string }): Promise<AccountRecord> {
   const payload = await requestJson<{ account: AccountRecord }>("/api/auth/verify-email", {
     method: "POST",
-    body: JSON.stringify({ token })
+    body: JSON.stringify(typeof credential === "string" ? { token: credential } : credential)
   });
   return payload.account;
 }

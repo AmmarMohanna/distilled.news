@@ -216,8 +216,8 @@ October 23 live user-flow validation completed: the approved four-publisher test
 feed published its first complete 30-minute window at 16:00:52 Beirut. Its public
 reader and source dialog were verified in Chromium, and the test feed was paused
 at 16:01:40 as authorized. The existing AI Industry Watch feed also published a
-12-section V3 briefing. See `docs/joud-briefing-user-flow.md` for fixes, tests,
-retained acquisition failures and financial authority details.
+12-section V3 briefing. The [historical user-flow check](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-briefing-user-flow.md)
+records fixes, tests, retained acquisition failures and the scope of that run.
 The user explicitly approved two model slots and a $5 total exposure ceiling for
 the current authorization period. Both amendments preserve the original expiry:
 October 23, 20:41 Beirut. These are not recurring daily authorizations. The separate
@@ -229,4 +229,5 @@ for collector operations. Prior reservations and unknown-call fences remain.
 This does not renew the separate briefing-model authority. Recommendations enable
 SOURCE_RECOMMENDATIONS_FAST_CATALOG=true and stream checked choices. The two
 CNET/ZDNET acquisition jobs were repaired from real evidence; the paused test feed
-now reports zero failed acquisitions on all four sources. See docs/joud-briefing-user-flow.md.
+reported zero failed acquisitions on all four sources in that check. See the
+[source recovery cases](../docs/acquisition-evaluation.md#recorded-recovery-cases).

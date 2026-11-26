@@ -8,9 +8,7 @@ The service worker provides an offline explanation and retry action. It does not
 
 ## Local development
 
-The local migration and key generation have been applied in this workspace. Restart `node scripts/dev.mjs` to load the new keys, refresh, and enable notifications in Settings.
-
-For a new checkout:
+For a new checkout, generate the local notification keys and apply the local migration:
 
 ```powershell
 node scripts/setup-push.mjs
@@ -23,7 +21,7 @@ Local Wrangler does not automatically fire cron events. To test delivery locally
 
 ## Production deployment prerequisites
 
-Production has NOT been changed. Before deploying the new Worker:
+Use these prerequisites when enabling notifications on a target deployment:
 
 1. Apply migration `0011_web_push.sql` using your normal remote D1 migration process.
 2. Set Worker secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` using Wrangler's interactive secret input. The subject is an operator contact URL or `mailto:` address. Store the private key only on the server.
@@ -37,3 +35,19 @@ References: [Browser installation](https://developer.mozilla.org/en-US/docs/Web/
 ## V3 headline previews
 
 V3 notifications reuse the first published story headline and, when space permits, show the number of other updates in that edition. This adds no inference call. Long, legacy or unavailable previews use the generic message. Coalesced catch-up delivery previews one eligible edition; it is not a summary of all pending feeds. The existing publication, ownership and public-feed eligibility checks still apply. Preview lookup failures do not block generic delivery. See docs/v3-reader-notification-evaluation.md for the rejected AI-message experiment and local validation; live deployment/device display must be verified separately.
+
+## Maintenance invariants
+
+- Preserve the existing responsive reader, feed editor and public/private controls. Keep Unicode usernames and aliases stable. Localize UI labels and accessibility text without translating readers' own names or feed titles. Arabic layouts mirror directional controls and retain the established action order.
+- Use separate artwork for site branding, desktop installation, mobile installation, authentication email, and push icon/badge. The Android launch background matches the white backing of the mobile icon. Installed manifest metadata can outlive a deployment.
+- Treat standalone mode, the browser's installation event, and supported related-app detection as installation signals. An accepted prompt or a saved hint can remain stale until the client observes installation. See the [PWA detection code](../apps/web/src/pwa.ts) and [manifest tests](../apps/worker/src/manifest-icons.test.ts).
+- Keep the offline illustration and language strings self-contained. Use the saved website language before the browser fallback. Authentication email follows the validated request language. Arabic email content remains RTL and the brand mark stays in its LTR layout. Preserve token lifetimes and send authorization. [Offline worker](../apps/web/public/sw.js) · [Mailer tests](../apps/worker/src/mailer.test.ts)
+- Preserve keyboard operation for dropdowns, native time-entry behavior, complete widget rows, and readable content at narrow Arabic, French, and English viewports. Distinguish active collection failures from saved item history. Scope optional health diagnostics so they cannot expose private metadata or interrupt edition delivery. [Operational regression](BRIEFING_QUALITY_FIXES_2026-11-19.md)
+
+### Historical browser and device checks
+
+| Area | Recorded check and remaining scope |
+| --- | --- |
+| Installation and branding | The installer repair passed 107 frontend and 63 app/manifest tests. Manifest checks verified the Android background and preserved app identity. Physical-device splash rendering remained untested. [Install detection](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-install-detection-2026-10-29.md) · [Android launch behavior](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-android-launch-background-2026-10-29.md) |
+| Offline reading and layout | A local service-worker test followed the saved language in all three locales with networking disabled. Browser fixtures checked layout and overflow at sampled viewports. [Branding and offline checks](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-responsive-branding-2026-10-29.md) · [Reader layout checks](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-reader-layout-followup-2026-10-29.md) |
+| Input, email and health | Local browser checks covered keyboard-accessible menus and localized authentication flows. Four component regressions distinguished saved failure records from active outages. Email checks used local fixtures. [Controls](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-feed-dropdowns-2026-10-29.md) · [Localization and email](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-reset-language-2026-10-29.md) · [Source health](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-source-health-display.md) |

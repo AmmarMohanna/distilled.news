@@ -9,6 +9,8 @@ returned HTTP 200 after Graph accepted its verification message. Inbox delivery,
 verification-link completion and password reset still require recipient checks.
 See `OUTLOOK_QA_EMAIL_SETUP.md` for the current status.
 
+The [preceding local branch check](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/documentation/BRANCH_FIXES_2026_10_09.md) recorded 1,436 workspace unit-test passes and 12 skips. All 803 Worker cases passed in the serial run after loopback-port collisions in the concurrent run. Browser checks passed 113 with one skip. Workspace typechecks, the web build, and a Worker dry run passed. The container image build and remote CI were unverified at that checkpoint.
+
 ## Changes and deployment
 
 - Merged `backend-sources-fixes` through `0ef458b` into `codex/source-execution-backend`.

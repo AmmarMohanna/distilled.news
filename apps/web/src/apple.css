@@ -742,8 +742,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-dialog .auth-submit { min-height: 44px; }
 :root.apple-ui.apple-ui .auth-dialog .login { gap: 18px; padding: 48px 28px 28px; }
 :root.apple-ui.apple-ui .auth-dialog .auth-input { min-height: 50px; }
-:root.apple-ui.apple-ui .auth-dialog .auth-brand-mark { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 4px; background: transparent; }
-:root.apple-ui.apple-ui .auth-dialog .auth-brand-mark img { display: block; width: 52px; height: 52px; object-fit: contain; }
+:root.apple-ui.apple-ui .auth-dialog .auth-brand-mark { display: grid; place-items: center; width: clamp(76px, 13vw, 104px); height: 64px; margin: 0 auto 4px; background: transparent; }
+:root.apple-ui.apple-ui .auth-dialog .auth-brand-mark .distilled-logo-symbol { width: 100%; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy { text-align: center; }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy h2 { padding-inline: 0; font-size: clamp(26px, 4vw, 34px); }
 :root.apple-ui.apple-ui .auth-dialog .auth-copy p { max-width: 38ch; margin-inline: auto; font-size: 15px !important; line-height: 1.45; }
@@ -2811,13 +2811,37 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 701px) {
  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; justify-content: center; gap: 16px; }
 }
-/* Password entry uses the same standalone layout as email verification. */
-:root.apple-ui.apple-ui .reset-password-form { display: grid; justify-items: center; width: min(100%, 400px); }
-:root.apple-ui.apple-ui .reset-password-form > label { display: grid; width: 100%; gap: 6px; font: inherit; font-size: 16px; color: var(--text); text-align: start; }
-:root.apple-ui.apple-ui .reset-password-form > .email-verification-submit { margin-block-start: var(--auth-control-gap); }
-:root.apple-ui.apple-ui .reset-password-input { display: flex; align-items: center; min-width: 0; border: 1px solid color-mix(in srgb,var(--accent) 20%,var(--surface)); border-radius: 12px; background: color-mix(in srgb,var(--accent) 4%,var(--surface)); }
+/* Keep the reset form within the shared dialog viewport. */
+:root.apple-ui.apple-ui .reset-password-dialog {
+  width: min(650px, calc(100vw - 32px));
+  border-radius: 28px;
+}
+.reset-password-page.email-verification-page {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+.reset-password-page .email-verification-panel {
+  padding: clamp(42px, 8dvh, 64px) clamp(18px, 6vw, 62px) clamp(16px, 4dvh, 36px);
+}
+.reset-password-page .email-verification-panel h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 700; }
+:root.apple-ui.apple-ui .reset-password-dialog .email-verification-description {
+  margin-block: clamp(6px, 1.4dvh, 10px) clamp(18px, 3.5dvh, 28px);
+  color: var(--muted);
+  font-size: clamp(16px, 2.2vw, 19px);
+}
+:root.apple-ui.apple-ui .reset-password-form { display: grid; justify-items: center; width: min(100%, 524px); }
+.reset-password-field { display: grid; width: 100%; gap: 8px; font-size: 16px; text-align: start; }
+.reset-password-field > label { color: var(--text); font-weight: 600; }
+.reset-password-field + .reset-password-field { margin-block-start: clamp(12px, 2.8dvh, 24px); }
+:root.apple-ui.apple-ui .reset-password-dialog .reset-password-hint { justify-self: stretch; margin: 6px 0 0; font-size: 14px; color: var(--muted); text-align: start; }
+:root.apple-ui.apple-ui .reset-password-form > button.email-verification-submit { width: min(100%, 432px); margin-block-start: clamp(18px, 4dvh, 32px); }
+:root.apple-ui.apple-ui .reset-password-input { display: flex; align-items: center; min-width: 0; border: 1px solid color-mix(in srgb,var(--accent) 26%,var(--surface)); border-radius: 14px; background: color-mix(in srgb,var(--accent) 4%,var(--surface)); }
+:root.apple-ui.apple-ui .reset-password-input:has(input[aria-invalid="true"]) { border-color: var(--danger); }
 :root.apple-ui.apple-ui .reset-password-input:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reset-password-lock { flex: none; margin-inline-start: 16px; color: var(--muted); }
 :root.apple-ui.apple-ui .reset-password-input input { width: 0; flex: 1; min-width: 0; min-height: 48px; padding: 12px 14px; font: inherit; color: var(--text); background: transparent; border: 0; outline: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .reset-password-input input::placeholder { color: var(--muted); }
 :root.apple-ui.apple-ui .reset-password-input > button { flex: 0 0 44px; min-width: 44px; min-height: 44px; margin-inline-end: 4px; padding: 8px; border: 0; background: transparent; color: var(--muted); box-shadow: none; }
 /* Shrink the card contents together when the available height calls for it. */
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-fit="compact"] > .topic-card { padding: 6px 8px !important; column-gap: 6px; row-gap: 2px; border-radius: 20px; }
@@ -3158,6 +3182,121 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); border-color: var(--accent); color: var(--accent); }
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:disabled { opacity: .5; cursor: default; }
+
+/* One native field supports paste, selection and one-time-code autofill. */
+:root.apple-ui.apple-ui .auth-dialog:has(:is(.auth-code-step, .auth-welcome-step)) {
+  --verification-dialog-min-height: min(clamp(420px, 70dvh, 496px), calc(100dvh - 32px));
+  width: min(640px, calc(100vw - 32px));
+  border-radius: 26px;
+}
+:root.apple-ui.apple-ui .auth-dialog:has(:is(.auth-code-step, .auth-welcome-step)) .screen-page-viewport {
+  max-height: calc(100dvh - 34px);
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) {
+  --verification-controls-width: min(100%, 396px);
+  min-height: calc(var(--verification-dialog-min-height) - 2px);
+  align-content: center;
+  justify-items: center;
+  gap: clamp(10px, 2.7vmin, 22px);
+  padding-block: clamp(34px, 6dvh, 48px) clamp(16px, 4dvh, 28px);
+  padding-inline: clamp(16px, 5vw, 44px);
+}
+:root.apple-ui.apple-ui .auth-dialog .auth-code-step:has(.auth-feedback:not(:empty)) {
+  row-gap: clamp(8px, 2vmin, 14px);
+}
+:root.apple-ui.apple-ui .auth-dialog .auth-code-step .auth-feedback {
+  width: var(--verification-controls-width);
+  text-align: center;
+}
+:root.apple-ui.apple-ui .auth-dialog .auth-welcome-step {
+  row-gap: clamp(20px, 4.5vmin, 34px);
+  padding-block: clamp(24px, 5dvh, 36px);
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) .auth-copy {
+  gap: clamp(4px, 1dvh, 8px);
+  text-align: center;
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) .auth-copy h2 {
+  font-size: clamp(24px, 4.6vw, 34px);
+  font-weight: 700;
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) .auth-copy p {
+  font-size: clamp(14px, 2.4vw, 17px) !important;
+}
+.auth-code-step .auth-email-address {
+  display: block;
+  margin-block-start: clamp(4px, 1dvh, 8px);
+  color: var(--text);
+  font-size: clamp(16px, 2.8vw, 20px);
+}
+.auth-code-input {
+  position: relative;
+  display: block;
+  width: var(--verification-controls-width);
+  margin-block: clamp(0px, calc(2dvh - 8px), 6px);
+}
+:root.apple-ui.apple-ui .auth-dialog .auth-code-input input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: text;
+}
+.auth-code-cells {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(4px, 1.5vw, 10px);
+}
+.auth-code-cells > span {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  height: clamp(44px, 8.5vmin, 62px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  color: var(--text);
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.auth-code-input:focus-within .auth-code-cells > span[data-current="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) .auth-submit {
+  width: var(--verification-controls-width);
+  min-height: clamp(48px, 7vmin, 52px);
+  font-size: clamp(16px, 2.5vw, 18px);
+}
+:root.apple-ui.apple-ui .auth-code-step .auth-verification-actions > button.button-link {
+  flex: none;
+  display: inline-grid;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--accent-ink, var(--accent));
+  background: transparent;
+  font-size: clamp(14px, 2.5vw, 16px);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root.apple-ui.apple-ui .auth-dialog :is(.auth-code-step, .auth-welcome-step) .auth-submit:is(:hover, :active):not(:disabled) {
+  background: var(--accent-fill);
+  color: #fff;
+  opacity: 1;
+}
+.auth-step-logo.distilled-logo-symbol {
+  width: clamp(64px, 11vw, 86px);
+}
+.auth-welcome-step .auth-step-logo.distilled-logo-symbol {
+  width: clamp(76px, 13vw, 104px);
+}
 
 /* Error messages share the same accessible red in every UI surface. */
 :root.apple-ui.apple-ui :is(.auth-error, .error, .source-error, [role="alert"], [data-severity="error"]) { color: var(--danger) !important; }

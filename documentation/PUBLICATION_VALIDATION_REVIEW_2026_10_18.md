@@ -1,12 +1,14 @@
 # Validation-contract review - revision 3
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 **Status: refinement only; specification and execution NOT approved.** Branch: `backend-validation-contract`, based on audit commit `de902aa07b9af523631434c6090a973fa718b3c8`. No application code, inference, deployment, budget or remote data has changed.
 
 The first review was AI-assisted, unblinded and based on incomplete attachments (24 aggregate controls; saved cases unreviewed). The later revision-2 review reports full bundle inspection and case-specific saved outcomes of **17 positive / 4 negative / 4 unresolved**, with controls **11 positive / 12 negative / 1 unresolved**. It remains AI-assisted, not independent human gold or execution approval. The [review receipt](PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md) records the supplied outcomes and exact local checks. Both complete witness-label files were subsequently supplied by exact Downloads paths and locally verified: R2 has 235 exact witnesses/113 scope hashes and R3 has 243/113, with zero mismatches. Their reported file hashes and case outcomes reproduce. The [completed verification](PUBLICATION_VALIDATION_R2_REVIEW_RECEIPT_2026_10_18.md#completed-local-verification-from-the-supplied-downloads-paths) records the four new requirements and mapped optional-proposition ID changes. No labels or semantic verdicts were reconstructed. Previous owner-confirmed pairs remain a separate assisted subset.
 
 **Delivery correction:** the specification and plan previously shared the same basename in different directories. Local content was distinct, but that naming made an attachment mix-up possible. Revision 2 gives them unique filenames and packages all required files together.
 
-Read the [49-case packet](../.local-reports/briefing-latency/validation-contract-review/REVIEW.md). It contains 25 saved rejection groups and 24 controlled cases without proposed labels, with [four full drafts](../.local-reports/briefing-latency/validation-contract-review/drafts.md) and [13 retained source revisions](../.local-reports/briefing-latency/validation-contract-review/sources.md). These private files stay local; public repository clones do not contain article bodies.
+Read the 49-case packet (`../.local-reports/briefing-latency/validation-contract-review/REVIEW.md`). It contains 25 saved rejection groups and 24 controlled cases without proposed labels, with four full drafts (`../.local-reports/briefing-latency/validation-contract-review/drafts.md`) and 13 retained source revisions (`../.local-reports/briefing-latency/validation-contract-review/sources.md`). These private files stay local; public repository clones do not contain article bodies.
 
 The original packet and blank template are preserved unchanged. Use [label contract revision 3](../docs/superpowers/specs/publication-validation-label-contract-v2.md) for new answers:
 
@@ -18,7 +20,7 @@ The new blank v2 template is supplied in the complete revision-2 bundle. Keep un
 
 The three inferred calendar dates and `320+` boundary remain unsettled on the saved evidence. T09 is additionally unresolved for an unsupported newspaper identification; keep its earlier positive fixture and the new disagreement separate. Case-specific positives do not certify entire stories or editions; preserve draft-specific failures before regression aggregation. S03 and S05 require separate essential and optional propositions within their shared source spans. The prior five owner-reviewed pairs remain a separate assisted subset. Existing investigator labels will not be renamed as human labels.
 
-The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](../docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) address the original nine review requests and the later refinements:
+The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) address the original nine review requests and the later refinements:
 
 | Request | Refinement |
 |---|---|

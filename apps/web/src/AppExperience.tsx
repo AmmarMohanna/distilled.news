@@ -52,6 +52,7 @@ export function AppExperience(props: {
   onRetryBriefings?: () => Promise<void>;
   onAccount: () => void; onFeedSettings?: () => void; onCreate?: () => void;
   onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: UiMessage; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
+  pageTitle?: string;
 }) {
   const [tab, setTab] = useState<ExperienceTab>(() => props.initialTab ?? tabFromLocation());
   const [query, setQuery] = useState("");
@@ -140,7 +141,7 @@ export function AppExperience(props: {
     window.addEventListener(EXPLORE_CHANGED_EVENT, loadChannel);
     return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
   }, [tab, channelName, voteScope]);
-  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
+  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.pageTitle ?? (props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."); }, [tab, language, props.account, props.pageTitle]);
   useLayoutEffect(() => {
     let active = true;
     const scope = JSON.stringify([voteScope, channelName, tab === "followed"]);

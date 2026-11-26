@@ -406,6 +406,8 @@ export interface Repository {
   getAuthToken(tokenHash: string, purpose: AuthTokenPurpose): Promise<AuthTokenRecord | null>;
   completeAccountAuthWithToken(tokenHash: string, now: Date, action: AccountAuthAction): Promise<AccountRecord | null>;
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
+  replaceEmailVerificationCode(input: { accountId: string; tokenHash: string; expiresAt: string }): Promise<boolean>;
+  claimAuthAttempt(input: { key: string; action: string; since: string; limit: number }, now: Date): Promise<boolean>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;

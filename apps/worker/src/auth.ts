@@ -172,6 +172,19 @@ export function randomToken(byteLength = 32): string {
   return toBase64Url(bytes);
 }
 
+export const emailCodeLifetimeMinutes = 15;
+
+export function randomEmailCode(): string {
+  const sample = new Uint32Array(1);
+  const limit = Math.floor(2 ** 32 / 1_000_000) * 1_000_000;
+  do { crypto.getRandomValues(sample); } while (sample[0] >= limit);
+  return String(sample[0] % 1_000_000).padStart(6, "0");
+}
+
+export function hashEmailCode(email: string, code: string, secret: string): Promise<string> {
+  return sign(JSON.stringify(["email-code-v2", email, code]), secret);
+}
+
 export async function hashToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
   return toBase64Url(new Uint8Array(digest));

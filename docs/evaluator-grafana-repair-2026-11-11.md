@@ -99,3 +99,9 @@ the same protocol's evidence checks and does not automatically re-pay every
 previously failed current-protocol job. Backlog review follows existing admission.
 
 Private numerical evidence is in `.local-reports/evaluator-repair-20261111/`.
+
+## November 14 staging follow-up
+
+A retained case from an earlier false-positive report was used to qualify the grounded inventory. Both invented developments were rejected, and the rerun marked both published stories covered. A political-criticism omission remained an automated importance judgment. The saved **2/3** coverage applies to partial retained evidence. The v2 report and its paid receipts remained available, and the corrected v3 assessment was appended.
+
+The archived checks recorded **104 evaluator, 25 citation/identity, and 13 source-enrollment passes**, along with successful Grafana export and feed-read checks. Authorized source names were verified on retained artifacts. Public reads returned HTTP 200 and anonymous private reads returned HTTP 404 in that staging sample. The case establishes specific regressions and a deployment check. Broader judge accuracy remains unmeasured by this sample. [Sanitized qualification data](../benchmarks/evaluator-grounding/qualification-2026-11-14.json) · [Staging record](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/grounded-evaluator-and-source-names-2026-11-14.md)

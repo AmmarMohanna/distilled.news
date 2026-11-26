@@ -8,6 +8,7 @@ async function mockGuest(page: Page) {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/auth/login") authenticated = true;
     const body = path === "/api/auth/session" ? { authenticated, setupRequired: false, account: authenticated ? { id: "joud", username: "joud", email: "joud@example.test", role: "user" } : null }
+      : path === "/api/auth/register" ? { ok: true, verificationMethod: "code" }
       : path === "/api/explore/feeds" ? { feeds: [feed] }
       : path === "/api/feed/joud/lebanon" ? { briefing: feed, editions: [], viewerHasStarred: false }
       : path === "/api/me/briefings" ? { briefings: [feed] }
@@ -54,8 +55,8 @@ test("create feed opens login and signup with outside, inside, and Escape behavi
   const registered = page.waitForRequest(request => request.url().endsWith("/api/auth/register"));
   await dialog.getByRole("button", { name: "Create Account", exact: true }).click();
   expect((await registered).postDataJSON()).toMatchObject({ username: "joud", email: "joud@example.test" });
-  await expect(dialog.locator(".auth-message")).toHaveText("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
-  await expect(dialog.getByRole("button", { name: "Resend verification email", exact: true })).toBeEnabled();
+  await expect(dialog.getByRole("heading", {name: "Enter your verification code"})).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Request a new code", exact: true })).toBeEnabled();
   await page.screenshot({ path: "test-results/auth-popup-" + test.info().project.name + ".png" });
   await page.mouse.click(4, 4);
   await expect(dialog).toHaveCount(0);

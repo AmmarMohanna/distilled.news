@@ -1,11 +1,13 @@
 import {expect,it,vi} from 'vitest';
 import {createApp} from './app';
-import {InMemoryRepository} from './repository';
-import {hashPassword,hashToken} from './auth';
-import type {Env} from './types';
+import {D1Repository,InMemoryRepository} from './repository';
+import {readFileSync} from 'node:fs';
+import {DatabaseSync, type SQLInputValue} from 'node:sqlite';
+import {hashEmailCode,hashPassword,hashToken} from './auth';
+import type {Env,Repository} from './types';
 
-function fixture(){
- const repo=new InMemoryRepository(),app=createApp({repository:repo});
+function fixture(repo: Repository = new InMemoryRepository()){
+ const app=createApp({repository:repo});
  const messages:Array<{to:string;subject:string;text:string}>=[];
  const config={ADMIN_SESSION_SECRET:'test-session',EMAIL_FROM:'Distilled.news <sender@example.invalid>',PUBLIC_WEB_BASE_URL:'https://distilled.news',EMAIL:{send:async(m:{to:string;subject:string;text:string})=>{messages.push(m)}}} as unknown as Env;
  const post=(path:string,body:unknown)=>app.request(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},config);
@@ -17,24 +19,79 @@ it('resends verification for a normalized pending account without changing its i
  const r=await x.post('/api/auth/verification/resend',{email:' PENDING@EXAMPLE.INVALID ',language:'fr'});
  expect(r.status).toBe(200);expect(await r.json()).toEqual({ok:true});expect(r.headers.get('set-cookie')).toBeNull();
  expect(x.messages).toHaveLength(1);
- const url = new URL(x.messages[0].text.match(/https:\/\/\S+/)![0]);
- expect(url.pathname).toBe('/verify-email');
- expect(url.searchParams.get('lang')).toBe('fr');
- const token = url.searchParams.get('token')!;
- const record = await x.repo.getAuthToken(await hashToken(token), 'email_verification');
- expect(Date.parse(record!.expiresAt) - Date.parse(record!.createdAt)).toBeCloseTo(24 * 60 * 60 * 1000, -3);
+ const code = x.messages[0].text.match(/^([0-9]{6})$/m)![1];
+ expect(x.messages[0].text).toContain('Valable 15 minutes.');
+ expect(x.messages[0].text).not.toContain('https://');
+ const record = await x.repo.getAuthToken(await hashEmailCode(before.email, code, x.config.ADMIN_SESSION_SECRET!), 'email_verification');
+ expect(Date.parse(record!.expiresAt) - Date.parse(record!.createdAt)).toBeCloseTo(15 * 60 * 1000, -3);
  expect(await x.repo.getAccountById(before.id)).toEqual(before);
- const login=await x.post('/api/auth/login',{email:before.email,password:'original-password'});expect(login.status).toBe(403);expect(await login.json()).toEqual({error:'verify your email before logging in'});
- await x.app.request(url.toString(), {}, x.config);
- expect((await x.repo.getAccountById(before.id))?.emailVerifiedAt).toBeUndefined();
- const first=await x.post('/api/auth/verify-email',{token});
+ const login=await x.post('/api/auth/login',{email:before.email,password:'original-password'});expect(login.status).toBe(403);expect(await login.json()).toEqual({error:'email verification code required'});
+ const first=await x.post('/api/auth/verify-email',{email:before.email,code});
  expect(first.status).toBe(200);expect(first.headers.get('set-cookie')).toBeNull();
  expect((await x.repo.getAccountById(before.id))?.emailVerifiedAt).toBeDefined();
  expect(await (await x.app.request('/api/auth/session',{},x.config)).json()).toMatchObject({authenticated:false});
- const replay=await x.post('/api/auth/verify-email',{token});
+ const replay=await x.post('/api/auth/verify-email',{email:before.email,code});
  expect(replay.status).toBe(400);expect(replay.headers.get('set-cookie')).toBeNull();
  expect((await x.post('/api/auth/login',{email:before.email,password:'original-password'})).status).toBe(200);
 });
+it('rotates a code on resend and bounds parallel guesses per normalized address', async () => {
+ const x=fixture(), account=await x.add();
+ const resend=()=>x.post('/api/auth/verification/resend',{email:account.email});
+ const codeFrom=(index:number)=>x.messages[index].text.match(/^([0-9]{6})$/m)![1];
+ await resend();
+ await resend();
+ const previousCode=codeFrom(0), activeCode=codeFrom(1);
+ expect(activeCode).not.toBe(previousCode);
+ expect((await x.post('/api/auth/verify-email',{email:'other@example.invalid',code:activeCode})).status).toBe(400);
+ expect((await x.post('/api/auth/verify-email',{email:account.email,code:previousCode})).status).toBe(400);
+ const guesses=await Promise.all(Array.from({length:6},()=>x.post('/api/auth/verify-email',{
+  email:account.email.toUpperCase(),code:previousCode
+ })));
+ expect(guesses.filter(response=>response.status===400)).toHaveLength(4);
+ expect(guesses.filter(response=>response.status===429)).toHaveLength(2);
+ expect((await x.post('/api/auth/verify-email',{email:account.email,code:activeCode})).status).toBe(429);
+ expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeUndefined();
+});
+
+it('enforces expiry and single-use consumption against the D1 repository', async () => {
+ const sqlite=new DatabaseSync(':memory:');
+ try{
+  const migration=readFileSync(new URL('../migrations/0006_accounts.sql',import.meta.url),'utf8');
+  sqlite.exec(migration.slice(migration.indexOf('CREATE TABLE IF NOT EXISTS accounts'),migration.indexOf('CREATE TABLE briefings_next')));
+  const db={
+   prepare:(sql:string)=>({bind:(...args:SQLInputValue[])=>({
+    first:()=>sqlite.prepare(sql).get(...args)??null,
+    all:()=>({results:sqlite.prepare(sql).all(...args)}),
+    run:()=>({meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}})
+   })}),
+   batch:(statements:Array<{all:()=>unknown}>)=>{
+    sqlite.exec('BEGIN');
+    try{
+     const results=statements.map(statement=>statement.all());
+     sqlite.exec('COMMIT');
+     return results;
+    }catch(error){
+     sqlite.exec('ROLLBACK');
+     throw error;
+    }
+   }
+  } as unknown as D1Database;
+  const x=fixture(new D1Repository(db)), account=await x.add();
+  const code='012345', tokenHash=await hashEmailCode(account.email,code,x.config.ADMIN_SESSION_SECRET!);
+  const verify=(code:string)=>x.post('/api/auth/verify-email',{email:account.email,code});
+  expect(await x.repo.replaceEmailVerificationCode({accountId:account.id,tokenHash,expiresAt:new Date(0).toISOString()})).toBe(true);
+  expect((await verify(code)).status).toBe(400);
+  const newCode='543210';
+  const newHash=await hashEmailCode(account.email,newCode,x.config.ADMIN_SESSION_SECRET!);
+  expect(await x.repo.replaceEmailVerificationCode({
+   accountId:account.id,tokenHash:newHash,expiresAt:new Date(Date.now()+60_000).toISOString()
+  })).toBe(true);
+  const responses=await Promise.all([verify(newCode),verify(newCode)]);
+  expect(responses.map(response=>response.status).sort()).toEqual([200,400]);
+  expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeDefined();
+ }finally{sqlite.close();}
+});
+
 it('still accepts an already-issued code only for its associated address and only once', async () => {
  const x = fixture(), account = await x.add(), code = 'ABCD-EFGH-JKLM-NPQR';
  await x.repo.createAuthToken({accountId: account.id, purpose: 'email_verification', tokenHash: await hashToken('code-v1:ABCDEFGHJKLMNPQR'), expiresAt: new Date(Date.now() + 60_000).toISOString()});
@@ -96,11 +153,28 @@ it('recognizes verified addresses immediately on registration without changing t
  expect(response.headers.get('set-cookie')).toBeNull();expect(x.messages).toHaveLength(0);
  expect(await x.repo.getAccountById(account.id)).toEqual(account);
 });
-it('keeps pending accounts eligible for verification recovery after registration is rejected',async()=>{
+it('reports pending verification when a signup retry uses a different password',async()=>{
  const x=fixture(),account=await x.add();
  const response=await x.post('/api/auth/register',{email:account.email,username:'another-name',password:'another-password'});
- expect(response.status).toBe(409);expect(await response.json()).toEqual({error:'email is already registered'});
+ expect(response.status).toBe(409);expect(await response.json()).toEqual({error:'email verification is pending'});
+ expect(response.headers.get('set-cookie')).toBeNull();
  expect(x.messages).toHaveLength(0);expect(await x.repo.getAccountById(account.id)).toEqual(account);
+});
+it('resumes an unfinished signup with the original password and still accepts the emailed code',async()=>{
+ const x=fixture();
+ const signup={email:'pending@example.invalid',username:'pending',password:'original-password'};
+ expect((await x.post('/api/auth/register',signup)).status).toBe(200);
+ const original=await x.repo.getAccountByEmail(signup.email);
+ const code=x.messages[0].text.match(/^([0-9]{6})$/m)![1];
+
+ const retry=await x.post('/api/auth/register',{...signup,email:'PENDING@EXAMPLE.INVALID',username:'different-username'});
+ expect(retry.status).toBe(200);
+ expect(await retry.json()).toEqual({ok:true,verificationMethod:'code'});
+ expect(retry.headers.get('set-cookie')).toBeNull();
+ expect(x.messages).toHaveLength(1);
+ expect(await x.repo.getAccountByEmail(signup.email)).toEqual(original);
+ expect((await x.post('/api/auth/verify-email',{email:signup.email,code})).status).toBe(200);
+ expect((await x.post('/api/auth/register',signup)).status).toBe(409);
 });
 it('shares verification resend throttling with password recovery and never bypasses it by changing route',async()=>{
  const x=fixture(),a=await x.add();for(let i=0;i<5;i++)expect((await x.post(i%2?'/api/auth/password/forgot':'/api/auth/verification/resend',{email:a.email})).status).toBe(200);

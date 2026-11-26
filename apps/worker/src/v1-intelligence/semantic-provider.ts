@@ -33,7 +33,7 @@ export function wireQuestions(questions:Record<string,SemanticQuestion>):Record<
  }));
 }
 export function parseSemanticAnswers(raw:unknown,questions:Record<string,SemanticQuestion>):Record<string,SemanticAnswer> {
- const answers:z.infer<ReturnType<typeof z.record>>=z.record(z.unknown()).parse(raw);
+ const answers=z.record(z.string(),z.unknown()).parse(raw);
  if(Object.keys(answers).length!==Object.keys(questions).length)throw Error('INVALID_EXPERIMENT_RESULT');
  const result:Record<string,SemanticAnswer>={};
  for(const [key,q] of Object.entries(questions)){
@@ -44,7 +44,7 @@ export function parseSemanticAnswers(raw:unknown,questions:Record<string,Semanti
    const a=z.object({type:z.literal('choice'),choice:z.enum(keys as [string,...string[]]),confidence:unit,probabilities}).strict().parse(answers[key]);
    result[key]={kind:'CHOICE',choice:a.choice,confidence:a.confidence,probabilities:roundedDistribution(a.probabilities)};
   }else{
-   const a=z.object({type:z.literal('score'),score:z.number().finite().min(0).max(q.levels.length-1),confidence:unit,probabilities,legend:z.record(z.string()).optional()}).strict().parse(answers[key]);
+   const a=z.object({type:z.literal('score'),score:z.number().finite().min(0).max(q.levels.length-1),confidence:unit,probabilities,legend:z.record(z.string(),z.string()).optional()}).strict().parse(answers[key]);
    const distribution=roundedDistribution(a.probabilities,a.score);
    const mean=Object.entries(distribution).reduce((sum,[key,n])=>sum+Number(key)*n,0);
    result[key]={kind:'SCORE',value:mean/(q.levels.length-1),confidence:a.confidence,probabilities:distribution};

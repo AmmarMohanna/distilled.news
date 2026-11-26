@@ -69,19 +69,22 @@ import {
   adminAuth,
   clearSessionCookie,
   createSession,
+  emailCodeLifetimeMinutes,
   getOrCreateVoterId,
   getVoterId,
+  hashEmailCode,
   hashPassword,
   hashToken,
   normalizeEmail,
   normalizeUsername,
+  randomEmailCode,
   randomToken,
   SESSION_COOKIE,
   setSessionCookie,
   verifyPassword,
   verifySession
 } from "./auth";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
+import { sendPasswordResetEmail, sendVerificationEmail, usesCampaignVerificationLink } from "./mailer";
 import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
@@ -138,11 +141,11 @@ const loginInputSchema = z.object({
   turnstileToken: z.string().optional()
 });
 
-const verificationCodePattern=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}$/;
+const emailCodePattern = /^[0-9]{6}$/;
 const tokenInputSchema = z.union([
   z.object({token:z.string().min(1).max(256).refine(value=>!value.startsWith("code-v1:"))}).strict(),
   z.object({email:z.string().trim().email(),code:z.string().max(40).transform(value=>value.replace(/[\s-]/g,'').toUpperCase())
-    .pipe(z.string().regex(verificationCodePattern))}).strict()
+    .pipe(z.string().regex(/^(?:[0-9]{6}|[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16})$/))}).strict()
 ]);
 
 const passwordResetRequestSchema = z.object({
@@ -634,6 +637,7 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(repo, `register:${email}`, "register", 5, 60 * 60 * 1000);
     if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ error: "verification failed" }, 400);
 
+    const verificationMethod = usesCampaignVerificationLink(c.env) ? "link" : "code";
     let account: AccountRecord;
     try {
       account = await createAccountOrError(repo, {
@@ -644,6 +648,13 @@ export function createApp(options: AppOptions = {}) {
         verified: false
       });
     } catch (error) {
+      const existing = await repo.getAccountByEmail(email);
+      if (existing?.role === "user" && !existing.disabledAt && !existing.emailVerifiedAt) {
+        if (await verifyPassword(input.password, existing.passwordHash)) {
+          return c.json({ ok: true, verificationMethod });
+        }
+        return c.json({ error: "email verification is pending" }, 409);
+      }
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
     try {
@@ -653,17 +664,26 @@ export function createApp(options: AppOptions = {}) {
       await repo.deleteAccount(account.id);
       return c.json({ error: "could not send verification email" }, 502);
     }
-    return c.json({ ok: true });
+    return c.json({ ok: true, verificationMethod });
   });
 
   app.post("/api/auth/verify-email", async (c) => {
     const repo = repoFor(c);
     const input = tokenInputSchema.parse(await c.req.json().catch(() => ({})));
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    const token = "code" in input ? "code-v1:" + input.code : input.token;
-    const verified = await repo.completeAccountAuthWithToken(await hashToken(token), new Date(), {
-      purpose: "email_verification", email: "code" in input ? normalizeEmail(input.email) : undefined
-    });
+    const now = new Date();
+    const email = "code" in input ? normalizeEmail(input.email) : undefined;
+    let tokenHash: string;
+    if ("code" in input && email && emailCodePattern.test(input.code)) {
+      const since = new Date(now.getTime() - emailCodeLifetimeMinutes * 60_000).toISOString();
+      if (!await repo.claimAuthAttempt({ key: email, action: "verify_email_code", since, limit: 5 }, now)) {
+        return c.json({ error: "too many attempts" }, 429);
+      }
+      tokenHash = await hashEmailCode(email, input.code, c.env.ADMIN_SESSION_SECRET);
+    } else {
+      tokenHash = await hashToken("code" in input ? "code-v1:" + input.code : input.token);
+    }
+    const verified = await repo.completeAccountAuthWithToken(tokenHash, now, { purpose: "email_verification", email });
     if (!verified) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
     // Verification confirms the address; signing in still requires credentials.
     return c.json({ account: publicAccount(verified) });
@@ -681,7 +701,10 @@ export function createApp(options: AppOptions = {}) {
     if (!account || account.disabledAt || !(await verifyPassword(input.password, account.passwordHash))) {
       return c.json({ error: "invalid email or password" }, 401);
     }
-    if (!account.emailVerifiedAt) return c.json({ error: "verify your email before logging in" }, 403);
+    if (!account.emailVerifiedAt) {
+      const error = usesCampaignVerificationLink(c.env) ? "verify your email before logging in" : "email verification code required";
+      return c.json({ error }, 403);
+    }
     setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, account));
     return c.json({ account: publicAccount(account) });
   });
@@ -2006,6 +2029,20 @@ async function createAccountOrError(
 }
 
 async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
+  if (!usesCampaignVerificationLink(env)) {
+    if (!env.ADMIN_SESSION_SECRET) throw new Error("Verification secret is not configured");
+    const expiresAt = new Date(Date.now() + emailCodeLifetimeMinutes * 60_000).toISOString();
+    let code: string, issued: boolean;
+    do {
+      code = randomEmailCode();
+      issued = await repo.replaceEmailVerificationCode({
+        accountId: account.id, tokenHash: await hashEmailCode(normalizeEmail(account.email), code, env.ADMIN_SESSION_SECRET), expiresAt
+      });
+    } while (!issued);
+    await sendVerificationEmail(env, account, code, language);
+    return;
+  }
+
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({

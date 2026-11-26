@@ -4,6 +4,8 @@ Production is deployed separately at https://distilled-news-production.distilled
 
 ## Deployment configuration
 
+The checked-in staging and production configurations explicitly enable `CUTOFF_EDITIONS_ENABLED`. Preserve that setting when reproducing their cutoff-based scheduling. The private source-execution helper has its own release and version. A Worker rollout alone does not update or verify the helper.
+
 Run from the repository root, after installing dependencies and building the web application:
 
 ```powershell
