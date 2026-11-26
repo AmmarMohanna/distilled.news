@@ -79,6 +79,30 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
   await nav.getByRole('button', { name: 'Followed' }).click();
   await expect(nav.getByRole('button', { name: 'Followed' })).toHaveAttribute('aria-current', 'page');
 });
+test('Explore keeps its own results visible while returning from Followed', async ({ page }) => {
+  await mock(page);
+  const result = { ...feed, id: 'other-feed', ownerUsername: 'other', title: 'Public science' };
+  let publicRequests = 0;
+  let resume!: () => void;
+  const delayed = new Promise<void>(resolve => { resume = resolve; });
+  await page.route('**/api/explore/feeds?**', async route => {
+    const followed = new URL(route.request().url()).searchParams.has('followed');
+    if (!followed && ++publicRequests > 1) await delayed;
+    await route.fulfill({ json: { feeds: followed ? [] : [result] } });
+  });
+  await page.goto('/explore');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  const publicFeed = page.getByRole('link', { name: 'Public science', exact: true });
+  try {
+    await expect(publicFeed).toBeVisible();
+    await nav.getByRole('button', { name: 'Followed', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'No starred feeds yet' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toBeVisible();
+    await expect(publicFeed).toHaveCount(0);
+    await nav.getByRole('button', { name: 'Explore', exact: true }).click();
+    await expect(publicFeed).toBeVisible();
+  } finally { resume(); }
+});
 test('uploads a profile picture and restores it after a reload', async ({ page }) => {
   await mock(page);
   let picture: Buffer | null = null;

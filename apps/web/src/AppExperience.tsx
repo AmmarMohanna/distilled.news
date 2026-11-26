@@ -1,5 +1,5 @@
 import {ApiError,toUiError, type UiMessage} from './api-errors';
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
@@ -65,6 +65,7 @@ export function AppExperience(props: {
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
   const [catalogReady, setCatalogReady] = useState(false);
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
+  const channelSnapshots = useRef(new Map<string, ExploreChannel[]>());
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
   const [channel, setChannel] = useState<ExploreChannel>();
   const [channelFailed, setChannelFailed] = useState(false);
@@ -74,6 +75,7 @@ export function AppExperience(props: {
   const [archiveError, setArchiveError] = useState<UiMessage>("");
   const [archiveStatus, setArchiveStatus] = useState("");
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; viewerFollowsChannel?: boolean; latestUpdatedAt?: string }>>([]);
+  const feedSnapshots = useRef(new Map<string, typeof feeds>());
   const currentFeeds=useRef(feeds);currentFeeds.current=feeds;
   const confirmedVotes=useRef(new Map<string,FeedStarResult>());
   const voteScope=JSON.stringify(props.account?['account',props.account.id??props.account.username]:['anonymous']);
@@ -93,8 +95,10 @@ export function AppExperience(props: {
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (tab !== "explore" && tab !== "followed") return;
+    const scope = JSON.stringify([voteScope, tab]);
+    setChannels(channelSnapshots.current.get(scope) ?? []);
     let active: AbortController | undefined;
     const loadChannel = () => {
       active?.abort();
@@ -116,7 +120,10 @@ export function AppExperience(props: {
         request.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true });
         void Promise.allSettled([
           getExploreChannels(request.signal, tab === "followed").then(result => {
-            if (!request.signal.aborted) setChannels(result);
+            if (!request.signal.aborted) {
+              channelSnapshots.current.set(scope, result);
+              setChannels(result);
+            }
           }),
           getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
             if (!request.signal.aborted) setHighlights({ trending, newest });
@@ -134,8 +141,9 @@ export function AppExperience(props: {
     return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
   }, [tab, channelName, voteScope]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     let active = true;
+    const scope = JSON.stringify([voteScope, channelName, tab === "followed"]);
     let version = 0;
     let inFlight = false;
     let refreshRequested = false;
@@ -167,7 +175,9 @@ export function AppExperience(props: {
           if(feed.viewerHasStarred===confirmed.viewerHasStarred){confirmedVotes.current.delete(key);return feed;}
           return {...feed,...confirmed};
         });
-        setFeeds(current => offset === 0 ? page : [...new Map([...current, ...page].map(feed => [feed.id, feed])).values()]);
+        const snapshot = offset === 0 ? page : [...new Map([...(feedSnapshots.current.get(scope) ?? []), ...page].map(feed => [feed.id, feed])).values()];
+        feedSnapshots.current.set(scope, snapshot);
+        setFeeds(snapshot);
         setNextOffset(result.nextOffset);
       } catch (cause) {
         if (active && version === request) {
@@ -193,7 +203,7 @@ export function AppExperience(props: {
       version++;setNextOffset(null);
       if(inFlight)refreshRequested=true;else void load();
     };
-    setFeeds([]);
+    setFeeds(feedSnapshots.current.get(scope) ?? []);
     setNextOffset(null);
     void load();
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
@@ -233,7 +243,8 @@ export function AppExperience(props: {
   function changeTab(next: typeof tab) {
     const url = next === "home" ? "/" : next === "explore" ? "/explore" : `/?view=${next}`;
     if(window.location.pathname + window.location.search !== url) window.history.pushState(null, "", url);
-    setTab(next); setCatalogView(undefined); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
+    setTab(next); setCatalogView(undefined); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null);
+    document.querySelector(".app-pages > .screen-page-viewport")?.scrollTo({ top: 0 });
   }
   useEffect(() => {
     const restore = () => { setTab(props.account ? tabFromLocation() : "explore"); setCatalogView(catalogViewFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
