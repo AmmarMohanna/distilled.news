@@ -10,7 +10,11 @@ import {migrationStatements} from './test-migrations';
 let mf:Miniflare,db:D1Database;
 const now=Date.parse('2026-10-26T12:00:00Z');
 const since=new Date(now-86_400_000).toISOString();
-const edition=(id:string,hours:number,text='Officials announced a new electricity schedule.')=>({id,status:'published',publishedAt:new Date(now-hours*3600000).toISOString(),sections:[{title:'',summary:text,evidence:[]}]} as BriefingEdition);
+const edition=(id:string,hours:number,text='Officials announced a new electricity schedule.'):BriefingEdition=>{
+  const at=new Date(now-hours*3600000).toISOString();
+  return {id,briefingId:'feed',title:'News',cadence:'hourly',status:'published',publishedAt:at,
+    windowStart:at,windowEnd:at,createdAt:at,updatedAt:at,summary:text,sections:[{title:'',summary:text,evidence:[]}]};
+};
 const input=()=>prepareCatchUpSummary([edition('one',1)],'en',since,now);
 const response={text:'{"summary":"Officials announced a new electricity schedule."}',inputTokens:100,outputTokens:20,costUsd:.0001};
 const port=()=>({complete:vi.fn(async()=>response)});
@@ -85,11 +89,17 @@ it('supplies repeats, later corrections, names and qualifiers without altering t
   const report=edition('original',3,'The utility said power could return at 8 p.m. if repairs succeed.');
   const repeat=edition('repeat',2,report.sections[0].summary);
   const correction=edition('correction',1,'The utility corrected its estimate to after 10 p.m., subject to testing.');
+  correction.sections[0].relation='correction';
+  correction.sections[0].updatesId='original';
   const separate=edition('other',1,'The water authority said water service might resume by 8 p.m.');
   const request=catchUpSummaryRequest(prepareCatchUpSummary([correction,separate,repeat,report],'fr',since,now));
   const evidence=JSON.parse(request.user);
   expect(evidence.language).toBe('fr');
-  expect(evidence.briefings).toEqual([report,repeat,correction,separate].map((item)=>({id:item.id,publishedAt:item.publishedAt,text:item.sections[0].summary})));
+  expect(evidence.briefings.map((item:{id:string})=>item.id)).toEqual(['original','repeat','correction','other']);
+  expect(evidence.briefings[0].text).toBe(report.sections[0].summary);
+  expect(evidence.briefings[1].text).toBe(report.sections[0].summary);
+  expect(evidence.briefings[2].text).toBe(`Relation: correction (updates original)\n${correction.sections[0].summary}`);
+  expect(evidence.briefings[3].text).toBe(separate.sections[0].summary);
   expect(request.system).toContain('Count repeat reports of the same development once');
   expect(request.system).toContain('Apply an explicit correction');
   expect(request.system).toContain('Never present an allegation, estimate, proposal, denial or forecast as a confirmed fact.');
