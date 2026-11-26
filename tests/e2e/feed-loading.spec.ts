@@ -18,22 +18,43 @@ test('initial errors never masquerade as empty feeds or keep claiming loading',a
  await page.goto('/reader/news/');await expect(page.getByRole('alert')).toContainText(requestFailed);await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-tools')).toBeHidden();
  await expect(page.getByText('Feed read temporarily failed.')).toHaveCount(0);
 });
-test('refresh preserves read status and loaded pages while pending and after success',async({page})=>{
- let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
- await mock(page,async route=>{if(delay)await pending.promise;await route.fulfill({json:{briefing:feed,editions}})});
- await page.route('**/api/feed/reader/news/editions/1',route=>route.fulfill({json:{briefing:feed,edition:editions[0]}}));
- await page.goto('/reader/news/');const unread=page.locator('.news-item:not(.is-read)');await expect(unread).toHaveCount(20);
- await unread.first().locator('.briefing-headline-link').click();
- await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['anonymous'],'loading-feed'])))).toContain('1');
- await page.getByRole('link',{name:'Back to feed'}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
- delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
- const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-item.is-read')).toHaveCount(1);await expect(page.locator('.news-item')).toHaveCount(25);
+test('keeps the loaded page while a refresh of the same timeline is pending and after it succeeds',async({page})=>{
+ let delay=false;const pending=gate();const editions=Array.from({length:10},(_,i)=>({...edition(String(i+1)),publishedAt:new Date(Date.now()-i*60_000).toISOString()}));
+ const timelineSince=new Date(Date.now()-24*3600_000).toISOString();
+ await mock(page,async route=>{
+  const older=new URL(route.request().url()).searchParams.has('before');
+  if(delay)await pending.promise;
+  await route.fulfill({json:{briefing:feed,editions:older?editions.slice(8):editions.slice(0,8),timelineNextCursor:older?null:'8',publicationVersion:'7',timelineSince}});
+ });
+ await page.goto('/reader/news/');const rows=page.locator('.news-item');await expect(rows).toHaveCount(8);
+ await page.getByRole('button',{name:'Load more',exact:true}).click();await expect(rows).toHaveCount(10);
+ delay=true;await refreshFeed(page);await expect(rows).toHaveCount(10);
+ const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;
+ await expect(rows).toHaveCount(10);await expect(rows.last()).toContainText('Development 10');
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;
  const refresh=page.waitForResponse(response=>new URL(response.url()).pathname===path&&response.status()===503);
  await refreshFeed(page);await refresh;await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+});
+test('quiet feeds can search older published briefings without extending the timeline',async({page})=>{
+ await mock(page,route=>route.fulfill({json:{briefing:feed,editions:[],hasPublishedBriefings:true,timelineNextCursor:null,publicationVersion:'5'}}));
+ await page.route('**/api/feed/reader/news/search?*',route=>{
+  expect(new URL(route.request().url()).searchParams.get('q')).toBe('coastal');
+  return route.fulfill({json:{editions:[edition('coastal road')]}});
+ });
+ await page.goto('/reader/news/');
+ await expect(page.getByRole('heading',{name:'No recent briefings'})).toBeVisible();
+ const search=page.getByRole('button',{name:'Search briefings',exact:true});
+ await search.click();
+ const field=page.getByRole('searchbox',{name:'Search briefings'});
+ await expect(field).toBeFocused();
+ await field.fill('coastal');
+ await expect(page.locator('.news-item')).toContainText('Development coastal road');
+ await field.press('Escape');
+ await expect(search).toBeFocused();
+ await expect(page.locator('.news-item')).toHaveCount(0);
 });
 test('concurrent focus refreshes coalesce and a later refresh retrieves newer data',async({page})=>{
  const pending=gate();let calls=0;await mock(page,async route=>{const call=++calls;if(call===2)await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition(call===2?'stale':call>=3?'latest':'initial')]}})});

@@ -1628,11 +1628,11 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
     c.header('Cache-Control','private, no-store');
-    c.header('Vary','Cookie');
+    c.header('Vary','Cookie, X-Distilled-Reader-Timeline');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    if (c.req.query('timeline') === '1') {
+    if (c.req.query('timeline') === '1' || c.req.header('X-Distilled-Reader-Timeline') === '1') {
       const rawCursor=c.req.query('before');
       const before=rawCursor===undefined?undefined:parseTimelineCursor(rawCursor);
       if(before===null)return c.json({error:'Invalid briefing cursor.'},400);
@@ -1654,13 +1654,14 @@ export function createApp(options: AppOptions = {}) {
       };
       if(before)return c.json(page);
       const claims=await verifySession(getCookie(c,SESSION_COOKIE),env.ADMIN_SESSION_SECRET??'');
-      const [viewerHasStarred,status,diagnostics]=await Promise.all([
+      const [viewerHasStarred,status,diagnostics,hasPublishedBriefings]=await Promise.all([
         getVoterId(c).then(voter=>repo.hasBriefingStar(briefing.id,voter,claims?.sub)),
         product?readTimelineStatus(env,briefing.id,version!):{},
-        product&&await viewerSeesSourceHealth(c,briefing.ownerAccountId)?readSourceDiagnostics(env,briefing.id,feedReadCacheEnabled(env)?version:undefined):{}
+        product&&await viewerSeesSourceHealth(c,briefing.ownerAccountId)?readSourceDiagnostics(env,briefing.id,feedReadCacheEnabled(env)?version:undefined):{},
+        page.editions.length>0||hasRetainedPublication(env,repo,briefing.id,now)
       ]);
       return c.json({...page,briefing:publicBriefing(briefing),viewerHasStarred,editionsComplete:false,
-        catchUpAvailable:catchUpEnabled(env),readerIntervalMinutes:minutes,...status,...diagnostics});
+        catchUpAvailable:catchUpEnabled(env),readerIntervalMinutes:minutes,hasPublishedBriefings,...status,...diagnostics});
     }
     const voterId = await getVoterId(c);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
@@ -2561,6 +2562,13 @@ function parseTimelineCursor(raw:string):EditionCursor|null {
 function readRecentEditions(env:Env,repo:Repository,feed:BriefingConfig,window:EditionWindow) {
   return env.PRODUCT_FEEDS_ENABLED==='true'?recentProductEditions(env,feed,window)
     :repo.listBriefingEditions(feed.id,true,undefined,undefined,window);
+}
+
+async function hasRetainedPublication(env:Env,repo:Repository,feedId:string,now:Date) {
+  if(env.PRODUCT_FEEDS_ENABLED==='true')return Boolean(await env.DB.prepare(`SELECT 1 FROM v1_feed_documents
+    WHERE kind='publication_status' AND feed_id=? AND json_extract(json,'$.status')='PUBLISHED'
+    AND json_extract(json,'$.publishedAt')<=? LIMIT 1`).bind(feedId,now.toISOString()).first());
+  return (await repo.listBriefingEditions(feedId,false,now,1,{since:'',until:now.toISOString(),limit:1})).length>0;
 }
 
 function catchUpEnabled(env:Env) {
