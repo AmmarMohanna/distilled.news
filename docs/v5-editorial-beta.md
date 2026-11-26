@@ -1,6 +1,6 @@
 # V5 editor-assisted beta
 
-The beta has two controls. Automated V5 always ends in private review. An editor saves a revision, approves the exact saved digest, then explicitly publishes it. The publication transaction uses the existing V3 edition, reader memory and delivery outbox. One approved edition can create one delivery job.
+In the editor-assisted beta, V5 ends in private review. An editor saves a revision, approves the exact saved digest, then explicitly publishes it. The publication transaction uses the existing V3 edition, reader memory and delivery outbox. One approved edition can create one delivery job. Deployments that explicitly opt new feeds into automatic publication use the separate policy described in [V5 generation](v5-generation.md).
 
 ## Isolated setup
 

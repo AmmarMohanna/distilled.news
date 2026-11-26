@@ -32,7 +32,7 @@ const POLICY='v3-fixed-window-editor-verifier-v1';
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
-export interface V3WindowInput {noveltyWirePolicy?:'consistent-links-v2';editorSelectionPolicy?:'preserve-selected-developments-v1';noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1'|'isolate-unaccounted-sources-v2';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
+export interface V3WindowInput {v5PublicationPolicy?:'verified-automatic-v1';noveltyWirePolicy?:'consistent-links-v2';editorSelectionPolicy?:'preserve-selected-developments-v1';noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1'|'isolate-unaccounted-sources-v2';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 export interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3VerificationInputPolicy=(env:Pick<Env,'BRIEFING_COMPACT_VERIFICATION_ENABLED'|'BRIEFING_SOURCE_BINDINGS_ENABLED'>):BriefingInput['feed']['verificationInputPolicy']=>env.BRIEFING_COMPACT_VERIFICATION_ENABLED==='true'&&env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'reader-unit-context-v1':undefined;
@@ -43,15 +43,27 @@ export function productV3PromptVersion(env:Pick<Env,'BRIEFING_PROMPT_VERSION'>):
  if(env.BRIEFING_PROMPT_VERSION==='6')return 6;
  throw Error('INVALID_BRIEFING_PROMPT_VERSION');
 }
-export function productV3Models(env: Env): BriefingModels {
- const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
- if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
- if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
- return {
+export function productV3Models(env: Env, createdAt?: string): BriefingModels {
+ const base = {
   editor: env.BRIEFING_EDITOR_MODEL ?? 'openai/gpt-4.1',
   verifier: env.BRIEFING_SOURCE_BINDINGS_ENABLED === 'true'
    ? env.BRIEFING_SOURCE_BINDINGS_MODEL ?? 'openai/gpt-4.1'
    : env.BRIEFING_VERIFIER_MODEL ?? 'openai/gpt-4.1-mini',
+ };
+ const cutoff = env.BRIEFING_V5_FEEDS_CREATED_FROM;
+ if (cutoff !== undefined) {
+  const instant = Date.parse(cutoff);
+  if (!Number.isFinite(instant) || new Date(instant).toISOString() !== cutoff) {
+   throw Error('INVALID_BRIEFING_V5_FEEDS_CREATED_FROM');
+  }
+  const created = Date.parse(createdAt ?? '');
+  if (!Number.isFinite(created) || created < instant) return base;
+ }
+ const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
+ if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
+ if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
+ return {
+  ...base,
   ...(generation ? { generation } : {}),
   ...v5StageRouting(env.BRIEFING_V5_STAGE_ROUTES_JSON),
  };
@@ -59,7 +71,7 @@ export function productV3Models(env: Env): BriefingModels {
 
 /** Read-through preparation is mechanical. The window is frozen only at close,
  * so arrivals during preparation are included without paying twice. */
-export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy']):Promise<V3WindowInput>{
+export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels|((createdAt:string)=>BriefingModels)={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy'],v5PublicationPolicy?:V3WindowInput['v5PublicationPolicy']):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
@@ -95,7 +107,8 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
  const input:BriefingInput={feed:{...(verificationInputPolicy?{verificationInputPolicy}:{}),...(editorSelectionPolicy?{verificationOutputPolicy:'reader-load-batches-v1' as const}:{}),...(identityFidelityPolicy?{identityFidelityPolicy}:{}),...(verificationRecoveryPolicy?{verificationRecoveryPolicy}:{}),...(topicSelectionPolicy?{topicSelectionPolicy}:{}),...(wordingFidelityPolicy?{wordingFidelityPolicy}:{}),interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const selectedModels=typeof models==='function'?models(feed.createdAt):models;
+ const value={...(selectedModels.generation&&v5PublicationPolicy?{v5PublicationPolicy}:{}),...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models:selectedModels,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
@@ -179,7 +192,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env));snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),createdAt=>productV3Models(env,createdAt),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env),env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED==='true'&&env.BRIEFING_V5_FEEDS_CREATED_FROM?'verified-automatic-v1':undefined);snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;
@@ -190,7 +203,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   if(snapshot.cutoffPolicy){
    if(!await cutoffEvidenceAuthorized(store,snapshot))throw new HandoffError('SCOPE_DENIED');
   }else if(snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
-   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy,snapshot.input.feed.wordingFidelityPolicy,snapshot.input.feed.verificationRecoveryPolicy,snapshot.input.feed.identityFidelityPolicy,snapshot.editorSelectionPolicy,snapshot.input.feed.verificationInputPolicy),priorSnapshot=snapshot;
+   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy,snapshot.input.feed.wordingFidelityPolicy,snapshot.input.feed.verificationRecoveryPolicy,snapshot.input.feed.identityFidelityPolicy,snapshot.editorSelectionPolicy,snapshot.input.feed.verificationInputPolicy,snapshot.v5PublicationPolicy),priorSnapshot=snapshot;
    if(prepared.feedRevision!==priorSnapshot.feedRevision)throw new HandoffError('SCOPE_DENIED');
    for(const ref of priorSnapshot.evidenceRevisionIds.filter(ref=>!activeIds.has(ref))){
     const revision=await store.revision(feedId,ref);
@@ -211,7 +224,9 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
-  const editorialReview=Boolean(frozen.models.generation)&&env.BRIEFING_V5_EDITOR_REVIEW_ENABLED==='true';
+  const automaticV5=frozen.models.generation?.prompt==='v5-source-first-v5'&&frozen.v5PublicationPolicy==='verified-automatic-v1';
+  if(automaticV5&&env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED!=='true')return undefined;
+  const editorialReview=Boolean(frozen.models.generation)&&!automaticV5&&env.BRIEFING_V5_EDITOR_REVIEW_ENABLED==='true';
   let blocked:{code:string;operationIds:string[]}|undefined;
   if(!saved){
    const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);
@@ -247,9 +262,8 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     blocked={code:reason?.match(/^[A-Z][A-Z_]+(?=:|$)/)?.[0]??'STAGE_FAILED',operationIds:[...operations].sort()};
    }
   }
-  // Automated V5 always stops in private shadow. The separate editor action
-  // is the only path that can project an approved edition.
-  if(frozen.models.generation){
+  // Preserve shadow and editorial windows frozen before automatic publication.
+  if(frozen.models.generation&&!automaticV5){
    await feedTransact(store,feedId,async tx=>{
     const request=await tx.read<BriefingRequest>('briefing_requests',id);
     if(!request||request.state!=='PENDING'||request.engine!=='v3'||(request.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
@@ -291,7 +305,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   return feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
-   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.state!=='PENDING'||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.state!=='PENDING'||request.engine!=='v3'||(request.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:true,now:now(),start:window.start,deferIntake:frozen.cutoffPolicy===CUTOFF_EDITION_POLICY,deferAcquisition:completed.result.status==='published'&&Boolean(window.scheduledFor)&&Date.parse(now())>=Date.parse(window.scheduledFor!)});if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
     const collection=await pendingWindowCollections(env.DB,feedId,window.end,true,{scheduledFor:window.scheduledFor,now:Date.parse(now())});
@@ -343,7 +357,9 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
  const inputId=edition.v3InputId??edition.id;
  const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');
- if(input.models.generation)throw new HandoffError('SCOPE_DENIED');
+ if(input.models.generation&&(input.v5PublicationPolicy!=='verified-automatic-v1'||
+    input.models.generation.prompt!=='v5-source-first-v5'||input.input.feed.identityFidelityPolicy!=='source-bound-claims-v3'||
+    !saved.result.items.length||saved.result.items.some(item=>!item.sourceIds.length)))throw new HandoffError('SCOPE_DENIED');
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
  else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}
