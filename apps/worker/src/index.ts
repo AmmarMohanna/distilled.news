@@ -3,6 +3,9 @@ import {readRouteDatabase} from './d1-read-routes';
 import {backfillEditionArtifacts,editionArtifactBackfillEnabled} from './edition-artifact-backfill';
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
+import {compactIntakeHandoffs} from './intake-storage-maintenance';
+import {expireCompletedConnectorBatches} from './connector-batch-expiry';
+import {sweepConnectorBatchUploads} from './connector-batch-uploads';
 import {sweepVerifiedArchiveOrphans} from './verified-archives';
 import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
@@ -350,6 +353,14 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   catch(error){console.error(JSON.stringify({event:'edition_artifact_backfill_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
   await runModelPublicationMaintenance(env);
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {
+    const result=await compactIntakeHandoffs(env.DB);
+    if(result.scanned) console.info(JSON.stringify({event:'intake_handoff_compaction',...result}));
+  } catch { console.warn('Intake handoff compaction deferred'); }
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {await expireCompletedConnectorBatches(env)}
+  catch {console.warn('Completed connector batch expiry deferred');}
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {await sweepConnectorBatchUploads(env)}
+  catch {console.warn('Connector upload cleanup deferred');}
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
   try {await dispatchDueFeedSketches(env)} catch {console.warn('Could not recover feed illustration jobs')}
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){

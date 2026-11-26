@@ -5,6 +5,7 @@ import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,Unrea
 import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
+import {authorizeConnectorStorageCanary} from './connector-storage-recovery';
 import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
@@ -587,6 +588,18 @@ export function createApp(options: AppOptions = {}) {
       .bind(requestId).first<{request_id:string;state:string;outcome:string|null;result_json:string|null;failure_class:string|null;created_at:string;started_at:string|null;completed_at:string|null}>();
     if(!row)return c.json({error:"not_found"},404);
     return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
+  });
+
+  app.get("/api/health/release", async (c) => {
+    c.header("Cache-Control", "no-store");
+    if (!c.env.RELEASE_SHA) return c.json({ status: "unavailable" }, 503);
+    // Check that the account schema is readable without returning account data.
+    await c.env.DB.prepare("SELECT 1 FROM accounts LIMIT 1").first();
+    return c.json({
+      status: "ok",
+      sha: c.env.RELEASE_SHA,
+      readOnly: c.env.CI_STAGING_READ_ONLY === "true"
+    });
   });
 
   app.get("/api/auth/session", async (c) => {
@@ -1741,6 +1754,14 @@ export function createApp(options: AppOptions = {}) {
       return object?new Response(object.body,{headers:{'content-type':'application/json','cache-control':'private, no-store'}}):c.json({error:'archive not found or expired'},404);
     }
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json(await storageMaintenanceStatus(c.env));
+    if(c.req.param('action')==='collection-canary'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true'&&c.env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+      const input=z.object({feedId:z.string().min(1).max(256),sourceId:z.string().min(1).max(256)}).strict()
+        .safeParse(await c.req.json().catch(()=>null));
+      if(!input.success)return c.json({error:'invalid canary scope'},400);
+      const {feedId,sourceId}=input.data;
+      const admitted=await authorizeConnectorStorageCanary(c.env.DB,feedId,sourceId);
+      return c.json({admitted},admitted?202:409);
+    }
     if(c.req.param('action')==='run'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true')return c.json(await runStorageMaintenance(c.env));
     return c.json({error:'not found'},404);
   });

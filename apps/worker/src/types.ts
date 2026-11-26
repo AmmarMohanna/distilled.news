@@ -62,6 +62,8 @@ export interface ProcessingJobRecord {
 }
 
 export interface Env extends Cloudflare.Env {
+  RELEASE_SHA?: string;
+  CI_STAGING_READ_ONLY?: string;
   AGENTOPS_ENABLED?: string;
   MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
   VERIFICATION_MAIL_TRANSPORT?: "GMAIL_API" | "CLOUDFLARE" | "OUTLOOK_GRAPH";

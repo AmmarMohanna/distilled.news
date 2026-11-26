@@ -1,5 +1,5 @@
 import { sha256, connectorHandoffRequestSchema, validateHandoffResponse, HandoffError } from '@distilled/contracts';
-import type { ConnectorHandoffResponse } from '@distilled/contracts';
+import type { ConnectorHandoffRequest, ConnectorHandoffResponse } from '@distilled/contracts';
 import type { FetchRun, ImmutablePayloadStore, RssCheckpoint, SourceRepository, SourceScope, StoredRssBatch } from './ports';
 
 // Structural ports accept D1/R2 bindings without coupling connectors to a Worker entry point.
@@ -55,15 +55,61 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const BATCH_PAYLOAD_THRESHOLD = 2048;
+
+/** The inline metadata serves health queries without hydrating full batches. */
+export class ConnectorBatchArchive {
+  constructor(private readonly payloads: ImmutablePayloadStore) {}
+
+  async store(handoff: ConnectorHandoffRequest, data: string, providerId?: string): Promise<string> {
+    const bytes = new TextEncoder().encode(data);
+    if (bytes.length < BATCH_PAYLOAD_THRESHOLD) return data;
+    const {feedId,feedSourceId} = handoff.coverage;
+    const {ref,hash} = await this.payloads.put(batchArchiveScope(feedId,feedSourceId),bytes,'application/json');
+    return canonical({archiveRef:ref,archiveDigest:hash,providerId,request:{coverage:handoff.coverage},
+      observationCount:handoff.observations.length,proposalCount:handoff.proposals.length});
+  }
+
+  async read<T>(scope: SourceScope, ref: string): Promise<T> {
+    const bytes = await this.payloads.get(batchArchiveScope(scope.feedId,scope.feedSourceId),ref);
+    return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)) as T;
+  }
+}
+
+function batchArchiveScope(feedId:string,feedSourceId:string):SourceScope {
+  return {feedId,feedSourceId,sourceId:feedSourceId};
+}
+
+export const CONNECTOR_BATCH_ARCHIVE_NAMESPACE = 'connector-batches/v1';
+export const TRACKED_CONNECTOR_BATCH_NAMESPACE = 'connector-batches/v2';
+
+// A retry can create a different upload key for the same bytes. Keep the
+// first committed reference and compare the full canonical payload digest.
+export function matchingBatchData(column:string) {
+  return `${column} IN (excluded.data,?) OR (
+    json_extract(excluded.data,'$.archiveDigest') IS NOT NULL AND
+    (json_extract(${column},'$.archiveDigest')=json_extract(excluded.data,'$.archiveDigest') OR
+    (json_extract(${column},'$.archiveRef') LIKE 'connector-batches/v1/%' AND
+     substr(json_extract(${column},'$.archiveRef'),-64)=json_extract(excluded.data,'$.archiveDigest'))))`;
+}
+
 export class D1SourceRepository implements SourceRepository {
-  constructor(private readonly db: SqlDatabase) {}
+  constructor(private readonly db: SqlDatabase, protected readonly batchArchive?: ConnectorBatchArchive) {}
+
+  protected async decodeBatch<T>(scope:SourceScope,data:string):Promise<T> {
+    const parsed = JSON.parse(data) as {archiveRef?:string;expired?:boolean};
+    if (parsed.expired) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+    if (parsed.archiveRef === undefined) return parsed as T;
+    if (!this.batchArchive || typeof parsed.archiveRef !== 'string') throw new Error('CONNECTOR_BATCH_ARCHIVE_UNAVAILABLE');
+    return this.batchArchive.read<T>(scope,parsed.archiveRef);
+  }
   async loadCollectionState(scope:SourceScope,runId:string,handoffId:string):Promise<{run?:FetchRun;batch?:StoredRssBatch}> {
     const row=await this.db.prepare(`SELECT
       (SELECT data FROM connector_batches WHERE feed_id=? AND feed_source_id=? AND handoff_id=?) AS batch,
       (SELECT json_object('source_id',source_id,'sequence',sequence,'started_at',started_at,'configuration_key',configuration_key)
         FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? AND run_id=?) AS run`)
       .bind(scope.feedId,scope.feedSourceId,handoffId,scope.feedId,scope.feedSourceId,runId).first<{batch:string|null;run:string|null}>();
-    const batch=row?.batch?JSON.parse(row.batch) as StoredRssBatch:undefined;
+    const batch=row?.batch?await this.decodeBatch<StoredRssBatch>(scope,row.batch):undefined;
     const stored=row?.run?JSON.parse(row.run) as {source_id:string;sequence:number;started_at:string;configuration_key:string}:undefined;
     if(stored&&stored.source_id!==scope.sourceId||batch?.request.observations.some(o=>o.sourceId!==scope.sourceId))throw new HandoffError('SCOPE_DENIED');
     return {batch,run:stored?{...scope,id:runId,sequence:stored.sequence,startedAt:stored.started_at,configurationKey:stored.configuration_key}:undefined};
@@ -134,17 +180,18 @@ export class D1SourceRepository implements SourceRepository {
     connectorHandoffRequestSchema.parse(batch.request);
     const { feedId, feedSourceId } = batch.request.coverage;
     const data = canonical(batch);
+    const stored = await this.batchArchive?.store(batch.request,data) ?? data;
     const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES(?,?,?,?)
       ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET data=connector_batches.data
-      WHERE connector_batches.data=excluded.data RETURNING handoff_id`)
-      .bind(feedId,feedSourceId,batch.request.handoffId,data).first();
+      WHERE ${matchingBatchData('connector_batches.data')} RETURNING handoff_id`)
+      .bind(feedId,feedSourceId,batch.request.handoffId,stored,data).first();
     if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadBatch(scope: SourceScope, id: string): Promise<StoredRssBatch | undefined> {
     const row = await this.db.prepare('SELECT data FROM connector_batches WHERE feed_id=? AND feed_source_id=? AND handoff_id=?')
       .bind(scope.feedId, scope.feedSourceId, id).first<{data:string}>();
     if (!row) return undefined;
-    const batch: StoredRssBatch = JSON.parse(row.data);
+    const batch = await this.decodeBatch<StoredRssBatch>(scope,row.data);
     if (batch.request.observations.some(o => o.sourceId !== scope.sourceId)) throw new HandoffError('SCOPE_DENIED');
     return batch;
   }
@@ -152,10 +199,20 @@ export class D1SourceRepository implements SourceRepository {
     validateHandoffResponse(batch.request, response);
     connectorHandoffRequestSchema.parse(batch.request);
     const c = batch.request.coverage;
+    const data = canonical(batch);
+    const digest = await sha256(data);
+    // The collector saves the batch before handing it to intake. Reuse the
+    // existing object for receipt writes rather than staging another upload.
+    const updated = await this.db.prepare(`UPDATE connector_batches SET receipts=? WHERE feed_id=? AND feed_source_id=? AND handoff_id=? AND
+      (data=? OR json_extract(data,'$.archiveDigest')=? OR
+      (json_extract(data,'$.archiveRef') LIKE 'connector-batches/v1/%' AND substr(json_extract(data,'$.archiveRef'),-64)=?)) RETURNING handoff_id`)
+      .bind(canonical(response),c.feedId,c.feedSourceId,batch.request.handoffId,data,digest,digest).first();
+    if(updated)return;
+    const stored = await this.batchArchive?.store(batch.request,data) ?? data;
     const row=await this.db.prepare(`INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data,receipts) VALUES(?,?,?,?,?)
       ON CONFLICT(feed_id,feed_source_id,handoff_id) DO UPDATE SET receipts=excluded.receipts
-      WHERE connector_batches.data=excluded.data RETURNING handoff_id`)
-      .bind(c.feedId,c.feedSourceId,batch.request.handoffId,canonical(batch),canonical(response)).first();
+      WHERE ${matchingBatchData('connector_batches.data')} RETURNING handoff_id`)
+      .bind(c.feedId,c.feedSourceId,batch.request.handoffId,stored,canonical(response),data).first();
     if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async commitCheckpoint(scope: SourceScope, expectedVersion: number, checkpoint: Omit<RssCheckpoint,'version'>): Promise<boolean> {
@@ -170,8 +227,8 @@ export class D1SourceRepository implements SourceRepository {
 }
 
 export class R2SourcePayloadStore implements ImmutablePayloadStore {
-  constructor(private readonly bucket: ObjectBucket) {}
-  private async prefix(scope: SourceScope) { return 'source-payloads/' + await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId])) + '/'; }
+  constructor(private readonly bucket: ObjectBucket, private readonly namespace = 'source-payloads') {}
+  private async prefix(scope: SourceScope) { return this.namespace + '/' + await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId])) + '/'; }
   async put(scope: SourceScope, bytes: Uint8Array, contentType: string) {
     const hash = await sha256(bytes), ref = await this.prefix(scope) + hash;
     const stored = await this.bucket.put(ref, bytes, { onlyIf: { etagDoesNotMatch: '*' }, httpMetadata: { contentType }, sha256: hash });

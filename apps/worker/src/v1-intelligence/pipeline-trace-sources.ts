@@ -1,4 +1,4 @@
-import { connectorCollectionAlerts, type CollectionHistory } from '../connector-health';
+import { batchObservationCountSql, batchProposalCountSql, connectorCollectionAlerts, type CollectionHistory } from '../connector-health';
 type Row = Record<string, any>;
 /** SELECT-only metadata reads; missing connector tables are explicit, not zero polls. */
 export async function traceSourceCollection(db: D1Database, feedId: string, sourceId: string, tables: Set<string>, window?: {
@@ -15,14 +15,14 @@ export async function traceSourceCollection(db: D1Database, feedId: string, sour
             reads.push({ kind: 'jobs', statement: db.prepare(`SELECT job_id AS id,state,due_at AS dueAt,lease_until AS leaseUntil,attempts,last_error AS lastError${table === 'connector_provider_poll_jobs' ? ',provider_order AS providerOrder' : ''} FROM ${table} WHERE json_extract(request,'$.scope.feedId')=? AND json_extract(request,'$.scope.feedSourceId')=? ORDER BY due_at DESC LIMIT 1`).bind(feedId, sourceId) });
     for (const [table, batchId] of [['connector_provider_batches', 'batch_key'], ['connector_batches', 'handoff_id']])
         if (tables.has(table))
-            reads.push({ kind: 'batches', statement: db.prepare(`SELECT ${batchId} AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.request.coverage') AS coverage,json_array_length(json_extract(data,'$.request.observations')) AS observations,json_array_length(json_extract(data,'$.request.proposals')) AS proposals,receipts IS NOT NULL AS accepted FROM ${table} WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.request.coverage.fetchStartSequence') DESC LIMIT 1`).bind(feedId, sourceId) });
+            reads.push({ kind: 'batches', statement: db.prepare(`SELECT ${batchId} AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.request.coverage') AS coverage,${batchObservationCountSql} AS observations,${batchProposalCountSql} AS proposals,receipts IS NOT NULL AS accepted FROM ${table} WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.request.coverage.fetchStartSequence') DESC LIMIT 1`).bind(feedId, sourceId) });
     if (tables.has('connector_provider_attempts'))
         reads.push({ kind: 'attempts', statement: db.prepare("SELECT run_id AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence,json_extract(data,'$.diagnostic.detail') AS detail,json_extract(data,'$.diagnostic.httpStatus') AS httpStatus FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1").bind(feedId, sourceId) });
     if (tables.has('connector_fetch_runs'))
         reads.push({ kind: 'history_runs', statement: db.prepare('SELECT MIN(started_at) AS first,MAX(started_at) AS last,COUNT(*) AS checks FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=?').bind(feedId, sourceId) });
     for (const table of ['connector_provider_batches', 'connector_batches'])
         if (tables.has(table))
-            reads.push({ kind: 'history_batches', statement: db.prepare(`SELECT MAX(CASE WHEN receipts IS NOT NULL THEN json_extract(data,'$.request.coverage.createdAt') END) AS accepted,COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations FROM ${table} WHERE feed_id=? AND feed_source_id=?`).bind(feedId, sourceId) });
+            reads.push({ kind: 'history_batches', statement: db.prepare(`SELECT MAX(CASE WHEN receipts IS NOT NULL THEN json_extract(data,'$.request.coverage.createdAt') END) AS accepted,COALESCE(SUM(${batchObservationCountSql}),0) AS observations FROM ${table} WHERE feed_id=? AND feed_source_id=?`).bind(feedId, sourceId) });
     if (tables.has('connector_fetch_runs'))
         reads.push({ kind: 'runs', statement: db.prepare('SELECT run_id AS id,started_at AS startedAt,sequence FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId, sourceId) });
     const results = reads.length ? await db.batch<Row>(reads.map(r => r.statement)) : [];
