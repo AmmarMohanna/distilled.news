@@ -14,7 +14,7 @@
       "timezone": "Asia/Beirut",
       "public": true,
       "sources": [
-        "https://t.me/lebanonnews2"
+        "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml"
       ]
     },
     {
@@ -24,7 +24,6 @@
       "timezone": "Asia/Beirut",
       "public": false,
       "sources": [
-        "https://t.me/lebanonnews2",
         "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml"
       ]
     }
