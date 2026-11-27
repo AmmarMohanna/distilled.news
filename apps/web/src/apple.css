@@ -4326,6 +4326,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 :root.apple-ui.apple-ui .feed-shell .news-item,
 :root.apple-ui.apple-ui .briefing-detail-page { position: relative; width: 100%; padding: 0 clamp(28px, 4vw, 64px) 36px; }
+:root.apple-ui.apple-ui .briefing-detail-menu .feed-options-popover {
+  background: var(--surface);
+  backdrop-filter: none;
+}
 :root.apple-ui.apple-ui .briefing-detail-menu .feed-more > summary {
   display: grid;
   place-items: center;

@@ -117,6 +117,9 @@ test("published headlines open retained briefing evidence and preserve read-only
   const menuBounds = (await menu.boundingBox())!;
   expect(menuBounds.x).toBeGreaterThan(titleBounds.x + titleBounds.width);
   expect(menuBounds.y + menuBounds.height / 2).toBeCloseTo(titleBounds.y + titleBounds.height / 2, 0);
+  await menu.click();
+  await expect(page.locator('.briefing-detail-menu .feed-options-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await menu.press('Escape');
   await page.evaluate(() => document.documentElement.lang = 'ar');
   await expect(page.locator('.briefing-detail-hero h1')).toHaveCSS('direction', 'ltr');
   await expect(page.locator('.briefing-detail-body .news-summary')).toHaveCSS('direction', 'ltr');
