@@ -135,6 +135,8 @@ export interface BriefingResult {
 export interface BriefingModels {
   editor: string;
   verifier: string;
+  /** Frozen two-provider policy for received, invalid output only. */
+  recoveryRoutes?: [BriefingRoute, BriefingRoute];
   /** Frozen opt-in for the initial editorial pass only. */
   generation?: BriefingGeneration;
   stageRoutes?: BriefingStageRoutes;

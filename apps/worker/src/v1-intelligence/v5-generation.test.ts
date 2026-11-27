@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { modelStage, type ModelRequest, type BriefingRoute } from '@distilled/briefing';
 import { productV3Models } from './v3-window';
-import { v5StageRouting } from './v5-generation';
+import { flashPairModels, frozenRouteError, v5StageRouting } from './v5-generation';
 import type { Env } from '../types';
 
 describe('V5 stage routing', () => {
@@ -59,4 +59,20 @@ describe('V5 stage routing', () => {
     expect(() => stage.complete({ ...request, maxTokens: 101 })).toThrow('BRIEFING_STAGE_OUTPUT_CAPACITY');
     expect(calls).toHaveLength(1);
   });
+});
+
+it('pins every Flash-only stage and its recovery to frozen routes', () => {
+  const models = flashPairModels();
+  const [deepseek, gemini] = models.recoveryRoutes!;
+  expect(models.generation?.provider).toBe('wafer/us');
+  expect(models.stageRoutes?.factualReview).toEqual(gemini);
+  expect(models.stageRoutes?.readerInventory).toEqual(deepseek);
+  expect(models.languageStageRoutes?.ar?.correction).toEqual(gemini);
+  for (const route of [gemini, deepseek]) {
+    const request: ModelRequest = {model:route.model, system:'', user:'', maxTokens:2000, stageRoute:{stage:'factualReview',route}};
+    expect(frozenRouteError(models, 'en', request)).toBeUndefined();
+    expect(frozenRouteError(models, 'en', {...request, model:'openai/gpt-4.1'})).toBeTruthy();
+    expect(frozenRouteError(models, 'en', {...request, maxTokens:route.maxOutputTokens+1})).toBeTruthy();
+  }
+  expect(frozenRouteError(models,'en',{model:'openai/gpt-4.1',system:'',user:'',maxTokens:1})).toBeTruthy();
 });

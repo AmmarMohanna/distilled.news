@@ -24,6 +24,7 @@ export interface ModelResponse {
 
 /** The only thing the engine knows about model providers. */
 export interface ModelPort {
+  recoverInvalid?(request: ModelRequest): Promise<ModelResponse>;
   complete(request: ModelRequest): Promise<ModelResponse>;
 }
 
@@ -31,6 +32,7 @@ export function modelStage(port: ModelPort, routes: BriefingStageRoutes | undefi
   const route = routes?.[stage];
   if (!route) return port;
   return {
+    ...(port.recoverInvalid ? { recoverInvalid: (r: ModelRequest) => port.recoverInvalid!({ ...r, model: route.model, stageRoute: { stage, route } }) } : {}),
     complete(request) {
       if (request.maxTokens > route.maxOutputTokens) throw new BriefingBudgetError('BRIEFING_STAGE_OUTPUT_CAPACITY');
       return port.complete({ ...request, model: route.model, stageRoute: { stage, route } });
@@ -250,13 +252,15 @@ export async function callJson<T>(
   let problem = "";
   let lastReply = "";
   let validationFailure:string|undefined;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < (port.recoverInvalid ? 3 : 2); attempt += 1) {
     validationFailure=undefined;
     const user =
       attempt === 0
         ? request.user
         : `${request.user}\n\nYour previous reply could not be used (${problem}). Reply again with only the corrected JSON object.`;
-    const response = await port.complete({ ...request, user });
+    const response = attempt === 2 && port.recoverInvalid
+      ? await port.recoverInvalid({ ...request, user })
+      : await port.complete({ ...request, user });
     meter.add(response);
     lastReply = response.text;
     if (response.finishReason === "length") {

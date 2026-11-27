@@ -21,7 +21,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
-import {frozenRouteError,v5Generation,v5StageRouting} from './v5-generation';
+import {flashPairModels,frozenRouteError,v5Generation,v5StageRouting} from './v5-generation';
 import {validateEditorApprovedEdition,type V5ReviewCase} from './v5-review-contract';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
@@ -64,6 +64,10 @@ export function productV3Models(env: Env, createdAt?: string): BriefingModels {
   }
   const created = Date.parse(createdAt ?? '');
   if (!Number.isFinite(created) || created < instant) return base;
+ }
+ if (env.BRIEFING_V5_GENERATION_PROFILE === 'flash-pair') {
+  if (env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true' || env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('INVALID_FLASH_PAIR_CONFIGURATION');
+  return flashPairModels();
  }
  const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
  if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');

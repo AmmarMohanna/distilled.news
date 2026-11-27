@@ -85,3 +85,30 @@ describe("callJson", () => {
     expect(meter.usage.calls).toBe(2);
   });
 });
+
+it('uses a single alternate only after two received invalid responses, with the failed validation as feedback', async () => {
+  const users: string[] = [];
+  const reply = (text: string) => ({text, inputTokens: 1, outputTokens: 1});
+  const meter = new UsageMeter();
+  const parse = (v: unknown) => {
+    if (v !== true) throw Error('missing evidence for F1');
+    return v;
+  };
+  const result = await callJson({
+    complete: async r => { users.push(r.user); return reply('{"valid":false}'); },
+    recoverInvalid: async r => { users.push(r.user); return reply('{"valid":true}'); },
+  }, meter, {model:'primary', system:'', user:'item A', maxTokens:100}, raw => parse((raw as {valid:boolean}).valid));
+  expect(result).toBe(true);
+  expect(meter.usage.calls).toBe(3);
+  expect(users[0]).toBe('item A');
+  expect(users.slice(1).every(user => user.includes('missing evidence for F1'))).toBe(true);
+});
+
+it('propagates a transport failure without dispatching an alternate model', async () => {
+  let switched = false;
+  await expect(callJson({
+    complete: async () => { throw Error('transport'); },
+    recoverInvalid: async () => { switched=true; throw Error('unexpected alternate'); },
+  }, new UsageMeter(), {model:'primary',system:'',user:'item',maxTokens:100}, x=>x)).rejects.toThrow('transport');
+  expect(switched).toBe(false);
+});

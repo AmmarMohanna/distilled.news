@@ -64,7 +64,7 @@ export async function occurrenceNovelty(port:ModelPort,meter:UsageMeter,model:st
   for(const row of rows){
    if(!Number.isInteger(row.i)||row.i<0||row.i>=drafts.length||seen.has(row.i)||typeof row.redundant!=='boolean'||typeof row.delta!=='string'||!row.delta.trim()||!Array.isArray(row.priorIds)||row.priorIds.some(id=>!priorIds.has(id))||typeof row.sameOccurrence!=='string')throw Error('INVALID_OCCURRENCE_DECISION');
    if(row.redundant&&(!row.priorIds.length||!row.sameOccurrence.trim()||row.delta.trim().toLowerCase()!=='none'))throw Error('UNPROVEN_DUPLICATE_OCCURRENCE');
-   if(!row.redundant&&row.delta.trim().toLowerCase()==='none')throw Error('MISSING_OCCURRENCE_DELTA');
+   if(!row.redundant&&row.delta.trim().toLowerCase()==='none')throw Error('MISSING_OCCURRENCE_DELTA: retained draft '+row.i+' requires a concrete new fact or unresolved occurrence identity. For a proven repeat use redundant=true with the matched prior ID and same-occurrence explanation.');
    if(explicitLinks){
     if(!['new','update','correction','repeat'].includes(row.relation??'')||(row.relation==='repeat')!==row.redundant)throw Error('INVALID_OCCURRENCE_RELATION');
     if(['update','correction'].includes(row.relation!)&&(!row.priorIds.length||!row.sameOccurrence.trim()))throw Error('UNLINKED_OCCURRENCE_UPDATE');

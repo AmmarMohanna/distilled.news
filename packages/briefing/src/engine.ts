@@ -482,7 +482,7 @@ async function verify(
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
-  const batches = batchesBySourceSize(indices, drafts, byRef, maxChars,input.feed.verificationOutputPolicy==='reader-load-batches-v1');
+  const batches = models.recoveryRoutes ? indices.map(index => [index]) : batchesBySourceSize(indices, drafts, byRef, maxChars,input.feed.verificationOutputPolicy==='reader-load-batches-v1');
   await Promise.all(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
@@ -652,6 +652,23 @@ export async function generateBriefing(
     }
     models = { ...models, stageRoutes: { ...models.stageRoutes, ...models.languageStageRoutes?.[input.feed.language] } };
   }
+  if (models.recoveryRoutes) {
+    const upstream = port;
+    const routes = models.recoveryRoutes;
+    port = {
+      complete: request => upstream.complete(request),
+      recoverInvalid(request) {
+        const route = routes.find(candidate => candidate.model !== request.model);
+        if (!route || request.maxTokens > route.maxOutputTokens) throw Error('INVALID_FLASH_RECOVERY_ROUTE');
+        if (request.generation) {
+          const generation = { ...route, prompt: request.generation.prompt };
+          return upstream.complete({ ...request, model: route.model, generation });
+        }
+        if (!request.stageRoute) throw Error('UNROUTED_FLASH_RECOVERY');
+        return upstream.complete({ ...request, model: route.model, stageRoute: { stage: request.stageRoute.stage, route } });
+      },
+    };
+  }
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
   if(input.feed.wordingFidelityPolicy&&options.architecture)throw Error('WORDING_FIDELITY_ARCHITECTURE_UNQUALIFIED');
@@ -797,19 +814,29 @@ export async function generateBriefing(
     const memory=verificationMemory(input.prior??[],drafts,options.now());
     const redundant=options.noveltyPolicy?await timed('novelty',async()=>{
       // Reuse evidence-size batching; every draft and its complete cited evidence is retained.
-      const decisions=(await Promise.all(batchesBySourceSize(drafts.map((_,i)=>i),drafts,byRef,options.maxVerifyChars).map(async batch=>{
+      const indices=drafts.map((_,i)=>i);
+      const batches=models.recoveryRoutes?indices.map(i=>[i]):batchesBySourceSize(indices,drafts,byRef,options.maxVerifyChars);
+      const unavailable=new Set<number>();
+      const decisions=(await Promise.all(batches.map(async batch=>{
         const selected=batch.map(i=>drafts[i]);
-        const rows=await occurrenceNovelty(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),reliabilityRevision(models)?'compact-history-v1':options.noveltyWirePolicy);
-        return rows.map(row=>({...row,i:batch[row.i]}));
+        try {
+          const rows=await occurrenceNovelty(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),reliabilityRevision(models)?'compact-history-v1':options.noveltyWirePolicy);
+          return rows.map(row=>({...row,i:batch[row.i]}));
+        } catch(error) {
+          if (!models.recoveryRoutes || !(error instanceof BriefingOutputError) || error.uncertain) throw error;
+          unavailable.add(batch[0]);
+          editorialFailures.push({headline:selected[0].headline,reason:'Unresolved novelty: '+(error.validationFailure ?? error.message.split('; last reply began:')[0]),carry:true,sourceIds:sourceIdsOfRefs(selected[0].refs)});
+          return [];
+        }
       }))).flat();
       for(const d of decisions)if(d.redundant)repeatReasons.set(drafts[d.i],`Same occurrence already covered in ${d.priorIds.join(', ')}: ${d.sameOccurrence}`);
       if(options.editorSelectionPolicy)for(const d of decisions)if(!d.redundant&&d.relation&&d.relation!=='repeat'){
         drafts[d.i].relation=d.relation;
         drafts[d.i].updatesId=d.relation==='new'?undefined:d.priorIds[0];
       }
-      return new Set(decisions.filter(d=>d.redundant).map(d=>d.i));
+      return new Set([...unavailable,...decisions.filter(d=>d.redundant).map(d=>d.i)]);
     }):await timed('novelty',()=>redundantDrafts(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,drafts,memory));
-    exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
+    exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)&&(!models.recoveryRoutes||repeatReasons.has(drafts[i]))));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
   if (review && exactRepeats.length) await checkpoint("novelty_excluded",exactRepeats,exactRepeats.map(d=>({
@@ -848,7 +875,7 @@ export async function generateBriefing(
     const refs=await timed('source_coverage',()=>completeStorySources(modelStage(port,models.stageRoutes,'citationCoverage'),meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
-  const sourceInventoryCache:SourceInventoryCache|undefined = models.generation && options.reuseSourceInventory==='per-window-v1' ? new Map() : undefined;
+  const sourceInventoryCache:SourceInventoryCache|undefined = models.generation && (models.recoveryRoutes || options.reuseSourceInventory==='per-window-v1') ? new Map() : undefined;
   const accepted = new Set<number>();
   const acceptedProofs = new Map<number, string[]>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
@@ -890,7 +917,17 @@ export async function generateBriefing(
         [...flagged].map(([index,issues])=>({headline:drafts[index].headline,reason:issues.join(' | '),
           sourceIds:sourceIdsOfRefs(drafts[index].refs),carry:true})));
       for(const [index,issues]of flagged)repairHistory.set(index,[...(repairHistory.get(index)??[]),{headline:drafts[index].headline,body:drafts[index].body,issues:[...issues]}]);
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy,repairHistory,round===options.maxRepairs-1));
+      const groups = models.recoveryRoutes ? [...flagged].map(entry => new Map([entry])) : [flagged];
+      const fixes = new Map((await timed("repair", () => Promise.all(groups.map(async group => {
+        try {
+          const repaired = await repair(port, meter, models, input, drafts, group, byRef, options.promptVersion >= 4,
+            options.promptVersion, options.noveltyPolicy, repairHistory, round === options.maxRepairs - 1);
+          return [...repaired];
+        } catch (error) {
+          if (models.recoveryRoutes && error instanceof BriefingOutputError && !error.uncertain) return [];
+          throw error;
+        }
+      })))).flat());
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {
@@ -908,7 +945,7 @@ export async function generateBriefing(
 
   if(input.feed.verificationRecoveryPolicy==='supported-core-v2'){
     const repaired=[...accepted].filter(index=>repairHistory.has(index));
-    for(const batch of batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
+    for(const batch of models.recoveryRoutes?repaired.map(i=>[i]):batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
       const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
       let issues:Map<number,string>;
       try{

@@ -54,6 +54,16 @@ export function v5StageRouting(json: string | undefined): {
   };
 }
 
+export function flashPairModels(): BriefingModels {
+  const deepseek = profiles['deepseek-flash-wafer'];
+  const gemini = profiles['gemini-ai-studio-flex'];
+  const stageRoutes: BriefingStageRoutes = Object.fromEntries(BRIEFING_MODEL_STAGES.map(stage => [
+    stage, ['readerInventory', 'correction'].includes(stage) ? deepseek : gemini,
+  ]));
+  return {editor:deepseek.model, verifier:gemini.model, generation:v5Generation('deepseek-flash-wafer'),
+    recoveryRoutes:[deepseek,gemini], stageRoutes, languageStageRoutes:{ar:{correction:gemini}}};
+}
+
 export function v5Generation(profile: string | undefined): BriefingGeneration | undefined {
   if (profile === undefined) return undefined;
   if (!Object.hasOwn(sources, profile)) throw Error('INVALID_BRIEFING_V5_GENERATION_PROFILE');
@@ -70,13 +80,16 @@ export function frozenRouteError(models: BriefingModels, language: FeedSpec['lan
   const {generation, stageRoute} = request;
   if (stageRoute) {
     const expected = models.languageStageRoutes?.[language]?.[stageRoute.stage] ?? models.stageRoutes?.[stageRoute.stage];
-    if (generation || !models.generation || !expected || request.model !== expected.model ||
-      !(request.maxTokens <= expected.maxOutputTokens) || canonicalJson(stageRoute.route) !== canonicalJson(expected)) {
+    const recovery = models.recoveryRoutes?.some(route => canonicalJson(stageRoute.route) === canonicalJson(route));
+    if (generation || !models.generation || !expected || request.model !== stageRoute.route.model ||
+      !(request.maxTokens <= stageRoute.route.maxOutputTokens) || (!recovery && canonicalJson(stageRoute.route) !== canonicalJson(expected))) {
       return 'V5_STAGE_SCOPE_MISMATCH';
     }
   }
-  if (generation && (!models.generation || request.model !== models.generation.model ||
-    !(request.maxTokens <= models.generation.maxOutputTokens) || canonicalJson(generation) !== canonicalJson(models.generation))) {
+  if (models.recoveryRoutes && !generation && !stageRoute) return 'UNROUTED_FLASH_REQUEST';
+  const writerRecovery = generation && models.recoveryRoutes?.some(route => canonicalJson({...route,prompt:models.generation?.prompt}) === canonicalJson(generation));
+  if (generation && (!models.generation || request.model !== generation.model ||
+    !(request.maxTokens <= generation.maxOutputTokens) || (!writerRecovery && canonicalJson(generation) !== canonicalJson(models.generation)))) {
     return 'V5_GENERATION_SCOPE_MISMATCH';
   }
 }

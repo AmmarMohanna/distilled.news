@@ -24,6 +24,12 @@ The final factual verifier remains independent from the correction request. Gemi
 
 The editor prioritizes current events before using history to check novelty. New windows use prompt revision `v5-source-first-v6`. Earlier frozen windows keep their original prompts and selection rules when resumed. For new windows, the schedule sets an advisory reading target for headlines. ICU word segmentation counts the combined headlines in the output language. The writer is asked to keep optional details concise. Verified details are retained regardless of their word count. Exceeding the headline target alone never blocks publication. Repairs still require re-verification. Exhausted editor and consolidation contract failures retain affected evidence for a later window.
 
+## Flash-only replay profile
+
+Set `BRIEFING_V5_GENERATION_PROFILE=flash-pair` on an isolated worker with source bindings enabled. Leave `BRIEFING_V5_STAGE_ROUTES_JSON` unset for this profile. The worker freezes both pinned endpoints into each new window. Existing frozen windows resume with their original routes.
+
+DeepSeek Flash on Wafer writes, inventories reader claims and repairs English and French copy. Gemini Flash on AI Studio Flex handles Arabic repairs and the other stages, including novelty, source inventory, final verification and repair coverage. After a received invalid output, the engine gives the same endpoint one correction with the validation error. A second invalid output triggers one attempt on the other frozen Flash endpoint. Provider and accounting errors propagate through the normal recovery path. Novelty, verification, repair and recovery audit use item-sized requests; source extraction uses one source per request and reuses validated entries when they cover the required identities. Exhausted item-local checks cannot authorize publication. Writing and consolidation retain their existing joint editorial contracts.
+
 ## Shadow pilot and review procedure
 
 Use frozen, authorized sources and reader history with the local V5 qualification runner. Use Gemini Flex for English or Arabic development checks, and DeepSeek Flash on Wafer for the French pilot. These are explicit trial selections. Any future Worker pilot must use a dedicated test database and archive with reader-facing integrations and credentials absent.
