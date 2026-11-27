@@ -377,7 +377,7 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   await expect(page.locator('.briefing-detail-summary')).toContainText(edition.summary);
   await expect(page.getByRole('heading', {name:'Screening details'})).toBeVisible();
   await expect(page.locator('.briefing-detail-body')).toContainText(edition.sections[0].summary);
-  await expect(page.locator('.briefing-parent-feed')).toHaveAttribute('href','/joud/lebanon/');
+  await expect(reader.locator('.briefing-detail-hero a[href="/joud/lebanon/"]')).toHaveCount(0);
   await reader.getByRole('button', { name: 'Close dialog' }).click();
   await expect(reader).toHaveCount(0);
 });
