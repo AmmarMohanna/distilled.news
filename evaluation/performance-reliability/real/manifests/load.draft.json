@@ -67,7 +67,7 @@
   "modelConfiguration": {
     "provider": "openrouter",
     "editor": "openai/gpt-4.1",
-    "verifier": "openai/gpt-4.1-mini",
+    "verifier": "openai/gpt-4.1",
     "repair": "openai/gpt-4.1"
   }
 }

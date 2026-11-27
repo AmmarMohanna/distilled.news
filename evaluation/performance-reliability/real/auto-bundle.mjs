@@ -245,6 +245,12 @@ export async function buildAutoBundle(env, {fetcher = fetch, now = Date.now, ada
   if (pf.status !== 'READY' || !live.ready) {
     const blockers = [...new Set([...pf.blockers, ...(live.blockers ?? [])])];
     console.error('Campaign preflight blocked: ' + blockers.join(', '));
+    // Root causes first: everything else in the list is derived from these.
+    const failedLive = Object.entries(live.checks ?? {}).filter(([, ok]) => ok !== true).map(([name]) => name);
+    console.error('Live checks failed: ' + (failedLive.join(', ') || 'none') +
+      ` | admin session: ${adminReady ? 'ok' : 'NOT ADMIN OR EXPIRED (refresh CAMPAIGN_ADMIN_COOKIE)'}` +
+      ` | Grafana: ${grafana ? 'ok' : 'REJECTED'} | pricing: ${pricing ? 'ok' : 'UNAVAILABLE'}` +
+      ` | queues isolated: ${resourceFacts.isolatedQueues} | bucket isolated: ${resourceFacts.isolatedBucket}`);
     fail('AUTO_PREFLIGHT_BLOCKED');
   }
   const approval = buildApproval({manifest, preflight: pf, env, now: now()});
