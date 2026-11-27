@@ -45,8 +45,30 @@ test('landing pencil artwork uses the inline dark filter on reload', async ({ pa
   const art = page.locator('.feed-tile .transparent-cover-image').first();
   await expect(art).toBeVisible();
   await page.reload();
-  await expect(art).toHaveCSS('filter', 'url("#dark-pencil-ink")');
-  await expect(page.locator('#dark-pencil-ink feColorMatrix')).toHaveCount(1);
+  await expect(art).toHaveCSS('filter', 'url("#dark-card-pencil-ink")');
+  await expect(page.locator('#dark-card-pencil-ink feComponentTransfer')).toHaveCount(1);
+});
+test('an opaque panoramic cover fills its square card', async ({ page }) => {
+  await mock(page, false);
+  const cover = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 80;
+    const drawing = canvas.getContext('2d')!;
+    drawing.fillStyle = '#685db4';
+    drawing.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg').split(',')[1];
+  }), 'base64');
+  await page.route('**/api/feed/joud/lebanon/sketch*', route => route.fulfill({
+    body: cover,
+    contentType: 'image/jpeg',
+    headers: { 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+  }));
+  await page.goto('/');
+  const coverImage = page.locator('.feed-tile-artwork .panoramic-cover-image').first();
+  await expect(coverImage).toBeVisible();
+  await expect(coverImage).not.toHaveClass(/transparent-cover-image/);
+  await expect(coverImage).toHaveCSS('object-fit', 'cover');
 });
 test('home has one creation entry and no decorative globe or briefing card',async({page})=>{
  await mock(page); await page.goto('/');
