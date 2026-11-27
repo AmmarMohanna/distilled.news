@@ -3,7 +3,7 @@ import {generateBriefing} from '../src/engine';
 import {occurrenceNovelty} from '../src/novelty';
 import {UsageMeter} from '../src/model';
 import {frenchQualificationIssues} from '../src/qualification-scope';
-import {selectWithinReaderBudget} from '../src/reader-budget-selection';
+import {headlineWordCount} from '../src/prompts';
 import type {BriefingModels,PriorItem} from '../src/types';
 import {FEED,FUND,GENESIS,MODELS,WINDOW,article,scripted} from './helpers';
 
@@ -49,26 +49,25 @@ describe('V5 reliability revision',()=>{
     expect(rows[0]).toMatchObject({priorIds:[prior[1].id],relation:'repeat'});
   });
 
-  it('drops a whole lower-priority story after consolidation and verifies the intact lead',async()=>{
+  it('verifies both selected stories even when their headlines exceed the target',async()=>{
     const low={...draft,headline:'A separate research report '.repeat(32).trim(),body:'More detail about that report.',
       sources:['S2'],importance:3 as const};
     const {port,calls}=scripted({edit:[{items:[draft]},{items:[low]}],
-      consolidate:[{items:[{...draft,from:[0],importance:3},{...low,from:[1]}],cut:[]}],verify:[ok]});
+      consolidate:[{items:[{...draft,from:[0],importance:3},{...low,from:[1]}],cut:[]}],verify:[{results:[...ok.results,{...ok.results[0],i:1}]}]});
     const result=await generateBriefing({...start,articles:[article('a-lead',FUND),article('b-later',GENESIS)]},
       port,models,{maxEditorChars:10,editorSelectionPolicy:'preserve-selected-developments-v1'});
     expect(result.status).toBe('published');
-    expect(result.items).toEqual([expect.objectContaining({body:draft.body,importance:1,sourceIds:['a-lead']})]);
-    expect(result.omitted).toContainEqual(expect.objectContaining({sourceIds:['b-later'],reason:expect.stringContaining('Excluded whole')}));
+    expect(result.items.map(item=>item.body)).toEqual([draft.body,low.body]);
     expect(calls.map(call=>call.stage)).toEqual(['edit','edit','consolidate','verify']);
     expect(calls.at(-1)?.request.user).toContain(draft.body);
-    expect(calls.at(-1)?.request.user).not.toContain(low.headline);
+    expect(calls.at(-1)?.request.user).toContain(low.headline);
   });
 
-  it('holds when the minimum lead set cannot fit and counts multilingual prose',()=>{
+  it('counts only headline words across languages',()=>{
     const ar={headline:'وزير المالية',body:'انخفض السعر ١٬٠٠٠ ليرة.',importance:1 as const};
     const fr={headline:'L’Union l’approuve.',body:'L’Union l’approuve.',importance:1 as const};
-    expect(selectWithinReaderBudget('ar',[ar],1)).toEqual({fits:false,requiredWords:2});
-    expect(selectWithinReaderBudget('fr',[fr],2)).toEqual({fits:true,retained:[fr],excluded:[]});
+    expect(headlineWordCount('ar',[ar])).toBe(2);
+    expect(headlineWordCount('fr',[fr])).toBe(2);
   });
 
   it('overrides a French false approval and verifies the actual corrected copy',async()=>{
@@ -135,18 +134,6 @@ describe('V5 reliability revision',()=>{
     expect(result.status).toBe('published');
     expect(result.items[0].body).toBe(body);
     expect(calls.at(-1)?.request.user).toContain(body);
-  });
-
-  it('keeps an editorial capacity failure and its complete lead available for review',async()=>{
-    const oversized={...draft,headline:'Subject to shareholder approval. '.repeat(45).trim()};
-    const {port}=scripted({edit:[{items:[oversized]}]});
-    const events:import('../src/types').BriefingReviewEvent[]=[];
-    const result=await generateBriefing({...start,articles:[article('current',FUND)]},port,models,{
-      reviewCheckpoint:async event=>{events.push(event);},
-    });
-    expect(result.dropped[0].reason).toContain('V5_EDITORIAL_CAPACITY');
-    expect(events).toContainEqual(expect.objectContaining({stage:'writer',
-      candidates:[expect.objectContaining({body:oversized.body,sourceIds:['current']})]}));
   });
 
   it('allows useful evidence-backed research synthesis without requiring an original experiment',async()=>{

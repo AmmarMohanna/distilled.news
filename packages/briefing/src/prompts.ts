@@ -62,7 +62,7 @@ export function describeArticles(articles: PreparedArticle[]): string {
 export function readingBudget(windowMinutes: number, headlinesOnly = false): string {
   const seconds = Math.min(420, 30 + windowMinutes * 0.1);
   const words = readingBudgetWords(windowMinutes);
-  if (headlinesOnly) return `at most ${words} words across all headlines combined. Keep optional details concise; their length is outside this budget`;
+  if (headlinesOnly) return `aim for roughly ${words} words across all headlines combined; exceed the target when warranted. Keep optional details concise; their length is outside this budget`;
   return `about ${seconds < 90 ? Math.round(seconds) + " seconds" : Math.round(seconds / 30) / 2 + " minutes"} of reading, roughly ${words} words in total across all items`;
 }
 

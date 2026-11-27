@@ -1,6 +1,5 @@
 import {editorAccountingSchema,normalizeEditorAccounting,STRUCTURED_ACCOUNTING_CONTRACT} from './structured-accounting';
 import {historyReferences} from './history-references';
-import {selectWithinReaderBudget} from './reader-budget-selection';
 import {frenchQualificationIssues} from './qualification-scope';
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
@@ -31,8 +30,6 @@ import {
   editorUser,
   repairUser,
   verifyUser,
-  headlineWordCount,
-  readingBudgetWords,
   type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
@@ -245,9 +242,7 @@ async function edit(
   researchSynthesisPolicy?:EngineOptions['researchSynthesisPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const generation = models.generation;
-  const ceiling = readingBudgetWords(input.feed.windowMinutes);
-  const draftTarget = Math.floor(ceiling * 0.85);
-  const writerRules = generation ? `\n\nCURRENT EVIDENCE: Establish each occurrence from current article bodies before deciding whether it updates reader history. History can establish repetition or identify an update, and cannot support a current fact. Preserve approval conditions, benchmark or licensing scope, and the difference between an announcement date and the date an action takes effect. Aim for ${draftTarget} words across all headlines combined, with a hard limit of ${ceiling} headline words. Keep optional details concise and preserve necessary qualifications. Leave room for verification corrections.` : '';
+  const writerRules = generation ? `\n\nCURRENT EVIDENCE: Establish each occurrence from current article bodies before deciding whether it updates reader history. History can establish repetition or identify an update, and cannot support a current fact. Preserve approval conditions, benchmark or licensing scope, and the difference between an announcement date and the date an action takes effect. Use the headline reading target as guidance. Keep consequential developments even if their headlines exceed the target. Keep optional details concise and preserve necessary qualifications.` : '';
   const revised = proofBackedV5(models);
   const additionalRules = generation?.prompt === 'v5-source-first-v2' || revised ? '\nFor each selected event, make its strongest supported action clear. A proposal, trial, preliminary result or disputed claim needs its governing condition in the reader copy when it changes the meaning. A short, precise item is sufficient when it carries the whole change.' : '';
   const qualificationRules = revised ? '\nKeep the headline independently accurate. Distinguish what is decided from what is still pending, and an expected timetable from a committed one. Include timing, approval and applicability conditions alongside the assertion they limit. Attach a report only if it supports at least one factual statement about this development as written; the same speaker, meeting or general subject is insufficient.' : '';
@@ -274,10 +269,6 @@ async function edit(
       recovery.value=undefined;
       const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
       if (reliability) for (const draft of drafts) draft.updatesId=history.originalId(draft.updatesId);
-      if (generation && !reliability && !partial && headlineWordCount(input.feed.language, drafts) > ceiling) {
-        const recovery = spaceRules ? ` Aim for ${draftTarget} headline words. Preserve the lead's governing conditions.` : '';
-        throw Error(`READER_WORD_BUDGET: return an edition with at most ${ceiling} words across its headlines, retaining material facts and conditions. Select fewer developments where necessary.`+recovery);
-      }
       if(accountingPolicy==='complete-source-decisions-v3')raw=normalizeEditorAccounting(raw,articles.map(a=>a.ref));
       if(accountingPolicy){
         try{assertCompleteEditorAccounting(raw,articles,accountingPolicy!=='complete-source-decisions-v1');}
@@ -320,7 +311,6 @@ async function consolidate(
   const history = historyReferences(prior,reliability);
   const priorIds = new Set(history.items.map(p=>p.id));
   const revised = proofBackedV5(models);
-  const ceiling = readingBudgetWords(input.feed.windowMinutes);
   const object = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
   const from = { type: 'array', minItems: 1, items: { type: 'integer', enum: drafts.map((_, index) => index) } };
   const string = { type: 'string' };
@@ -332,7 +322,7 @@ async function consolidate(
     }) },
     ...(!reliability?{cut:{type:'array',items:object({from,why:string})}}:{}),
   }) : undefined;
-  const budgetRule = reliability ? '\nConsolidate equivalent developments across chunks before applying the final space limit. Do not shorten a retained development to fit the edition. Preserve exact attribution, timing, scope, and governing conditions. Return only items; the engine selects complete stories for space after novelty.' : revised ? `\nAll headlines together must fit ${ceiling} words. Body details are outside the budget. Aim below it to allow corrections. Use each supplied draft index at most once. If distinct developments cannot all fit with exact attribution, approval and timing conditions, explicitly cut a lower-priority development and state why. Keep lead stories. Do not weaken facts, conditions or uncertainty to fit.` : '';
+  const budgetRule = reliability ? '\nConsolidate equivalent developments across chunks. Do not shorten a retained development to fit the edition. Preserve exact attribution, timing, scope, and governing conditions. Return only items; rank developments by consequence for the reader.' : revised ? `\nUse the combined headline target as guidance. Body details are outside the budget. Use each supplied draft index at most once. Explain any editorial cuts. Preserve material developments even when their headlines exceed the target. Keep lead stories. Do not weaken facts, conditions or uncertainty to fit.` : '';
   const emptyCuts = models.generation?.prompt === 'v5-source-first-v4' ? '\nReturn cut:[] if everything fits. No draft may be in both cut and items.' : '';
   return callJson(
     modelStage(port, models.stageRoutes, 'consolidation'),
@@ -415,9 +405,6 @@ async function consolidate(
         else omitted.push({ stage: "consolidation", reason: "dropped by consolidation without a reason", headline: draft.headline, sourceIds: idsOfRefs(draft.refs) });
       });
       const retained=[...restored,...out];
-      if (revised && !reliability && headlineWordCount(input.feed.language, retained) > ceiling) {
-        throw Error(`READER_WORD_BUDGET: fit the edition's headlines in ${ceiling} words with material qualifications intact`);
-      }
       return { drafts: selectionPolicy?retained.sort((a,b)=>order.get(a)!-order.get(b)!):retained, omitted };
     }
   );
@@ -813,29 +800,6 @@ export async function generateBriefing(
 
   // 2. Verify, repair what is repairable once, drop what is not.
   const dropped: DroppedItem[] = [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:repeatReasons.get(d)??'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))];
-  if (reliabilityRevision(models)) {
-    const ceiling = readingBudgetWords(input.feed.windowMinutes);
-    const selection = selectWithinReaderBudget(input.feed.language,drafts,ceiling);
-    if (selection.fits === false) {
-      return finish({status:'rejected',items:[],skipped,dropped:[
-        ...dropped,
-        ...drafts.map(draft=>({headline:draft.headline,sourceIds:sourceIdsOfRefs(draft.refs),carry:true,
-          reason: `V5_EDITORIAL_CAPACITY: minimum complete selection requires ${selection.requiredWords} headline words; ceiling ${ceiling}`})),
-      ]});
-    }
-    for (const draft of selection.excluded) {
-      omittedStories.push({stage:'consolidation',headline:draft.headline,sourceIds:sourceIdsOfRefs(draft.refs),
-        reason: `Excluded whole lower-priority development to fit ${ceiling} headline words with the retained evidence and qualifications intact`});
-    }
-    drafts = selection.retained;
-  }
-  if (proofBackedV5(models) &&
-      headlineWordCount(input.feed.language, drafts) > readingBudgetWords(input.feed.windowMinutes)) {
-    return finish({ status: 'rejected', items: [], skipped, dropped: [
-      ...dropped,
-      ...drafts.map(draft => ({ headline: draft.headline, sourceIds: sourceIdsOfRefs(draft.refs), carry: true, reason: 'V5_READER_WORD_BUDGET: draft exceeds the ceiling before factual verification' })),
-    ] });
-  }
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
   if(options.citationCoverage){
     const refs=await timed('source_coverage',()=>completeStorySources(modelStage(port,models.stageRoutes,'citationCoverage'),meter,models.editor,drafts,prepared,options.maxEditorChars));
@@ -934,9 +898,5 @@ export async function generateBriefing(
         ...(d.updatesId && priorIds.has(d.updatesId) ? { updatesId: d.updatesId } : {})
       };
     });
-  if (models.generation && headlineWordCount(input.feed.language, items) > readingBudgetWords(input.feed.windowMinutes)) {
-    const overBudget = items.map(item => ({ headline: item.headline, sourceIds: item.sourceIds, carry: true, reason: 'V5_READER_WORD_BUDGET: final verified headlines exceed the headline word budget' }));
-    return finish({ status: 'rejected', items: [], skipped, dropped: [...dropped, ...overBudget] });
-  }
   return finish({ status: items.length ? "published" : "rejected", items, skipped, dropped });
 }

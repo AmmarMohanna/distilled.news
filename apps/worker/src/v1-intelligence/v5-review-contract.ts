@@ -71,7 +71,7 @@ export async function validateReviewCopy(tx:FeedTransaction,input:V3WindowInput,
   const words=headlineWordCount(input.input.feed.language,stories),ceiling=readingBudgetWords(input.input.feed.windowMinutes);
   // Reader rendering deduplicates an identical expansion. Require the editor
   // to save the exact displayed form instead of relying on that transformation.
-  if(words>ceiling||stories.some(item=>item.body===item.headline))throw new V5ReviewError('READER_WORD_BUDGET_OR_DUPLICATED_HEADLINE',400);
+  if(stories.some(item=>item.body===item.headline))throw new V5ReviewError('READER_WORD_BUDGET_OR_DUPLICATED_HEADLINE',400);
   const seen=new Set<string>(),priorIds=new Set(prior.map(item=>item.id));
   const previousText=new Set(prior.flatMap(item=>[normalized(item.headline),normalized(item.body),normalized(item.headline+'\n'+item.body)]));
   const refs=[...new Set(stories.flatMap(item=>item.support.map(binding=>binding.evidenceRevisionId)))];

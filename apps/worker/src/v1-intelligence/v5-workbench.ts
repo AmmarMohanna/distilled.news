@@ -68,8 +68,8 @@ function readStories(){
 }
 function count(){
   const segmenter=new Intl.Segmenter(view.language,{granularity:'word'});
-  const words=readStories().reduce((sum,story)=>sum+[...segmenter.segment(story.headline===story.body?story.headline:story.headline+'\n'+story.body)].filter(x=>x.isWordLike).length,0);
-  byId('words').textContent=words+' / '+view.ceiling+' words';
+  const words=readStories().reduce((sum,story)=>sum+[...segmenter.segment(story.headline)].filter(x=>x.isWordLike).length,0);
+  byId('words').textContent=words+' headline words (target '+view.ceiling+')';
 }
 function addStory(story={}){
   const box=node('fieldset'),title=field('input',story.headline),body=field('textarea',story.body);
