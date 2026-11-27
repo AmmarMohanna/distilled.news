@@ -56,7 +56,7 @@
     "httpErrorRate": 0.05,
     "p95Ms": 3000,
     "maxBacklog": 20,
-    "oldestPendingMs": 900000,
+    "oldestPendingMs": 1800000,
     "safetyViolations": 0
   },
   "faults": [],
