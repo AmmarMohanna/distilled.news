@@ -1556,7 +1556,7 @@ export function createApp(options: AppOptions = {}) {
     const viewer = c.get("account")!;
     const repo = c.get("repo");
     const owner = await channelOwner(repo, c.req.param("username"));
-    if (!owner || !(await repo.listExploreChannels(1, owner.id)).length) return c.json({ error: "Channel not found" }, 404);
+    if (!owner || (!owner.emailVerifiedAt && !(await repo.listExploreChannels(1, owner.id)).length)) return c.json({ error: "Channel not found" }, 404);
     if (owner.id === viewer.id) return c.json({ error: "You can’t follow your own channel" }, 400);
     const { following } = z.object({ following: z.boolean() }).parse(await c.req.json());
     await repo.setChannelFollow(owner.id, viewer.id, following);
@@ -1569,7 +1569,7 @@ export function createApp(options: AppOptions = {}) {
     c.header("Cache-Control", "no-store");
     const repo = repoFor(c);
     const owner = await channelOwner(repo, username);
-    if (!owner || !(await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id)).length) return c.body(null, 404);
+    if (!owner || (!owner.emailVerifiedAt && !(await repo.listExploreChannels(1, owner.id)).length)) return c.body(null, 404);
     const avatar = await c.env.RAW_ARCHIVE?.get(cover ? channelCoverKey(owner.id) : accountAvatarKey(owner.id));
     if (avatar?.customMetadata?.channel !== "public") return c.body(null, 404);
     return c.body(avatar.body, 200, {

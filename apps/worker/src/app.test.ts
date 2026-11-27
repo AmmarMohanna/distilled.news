@@ -88,7 +88,7 @@ describe("worker app accounts", () => {
     const owner = await createVerifiedUser(app, repo, "channel-follow-owner@example.invalid", "Channel Follow Owner");
     const reader = await createVerifiedUser(app, repo, "channel-follower@example.invalid", "Channel Follower");
     const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
-    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false, paused: false });
     const username = encodeURIComponent(owner.account.username);
     const follow = (following: boolean, cookie = "") => app.request(`/api/me/channels/${username}/follow`, {
       method: "PUT",
@@ -97,14 +97,20 @@ describe("worker app accounts", () => {
     }, env());
     expect((await follow(true)).status).toBe(401);
     expect((await follow(true, owner.cookie)).status).toBe(400);
-    expect(await (await follow(true, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, followerCount: 1 } });
+    expect(await (await follow(true, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, followerCount: 1, publicFeedCount: 0 } });
     const profile = (cookie: string) => app.request(`/api/explore/channels/${username}`, { headers: { cookie } }, env());
-    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true } });
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, publicFeedCount: 0 } });
     expect(await (await profile(owner.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false } });
+    expect(await (await app.request('/api/explore/channels', { headers: { cookie: reader.cookie } }, env())).json()).toEqual({ channels: [] });
+    expect(await (await app.request(`/api/explore/feeds?channel=${username}`, {}, env())).json()).toMatchObject({ feeds: [] });
+    expect(await (await app.request('/api/explore/channels?followed=1', { headers: { cookie: reader.cookie } }, env())).json())
+      .toMatchObject({ channels: [{ username: owner.account.username, publicFeedCount: 0 }] });
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, publicFeedCount: 1 } });
     expect(await (await follow(false, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false, followerCount: 0 } });
   });
 
-  it("serves an uploaded channel cover only while the owner has an active public feed", async () => {
+  it("serves a public channel cover regardless of the number of active public feeds", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const owner = await createVerifiedUser(app, repo, "cover-owner@example.invalid", "Cover Owner");
@@ -129,7 +135,7 @@ describe("worker app accounts", () => {
     await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
     expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
     await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
-    expect((await app.request(cover, {}, runtime)).status).toBe(404);
+    expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
   });
 
   it("stores a replacement avatar privately for the signed-in account", async () => {
