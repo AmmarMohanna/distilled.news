@@ -47,7 +47,7 @@ describe("generateBriefing", () => {
 
   it("does not verify a V5 edition that still exceeds the ceiling after bounded consolidation", async () => {
     const revised: BriefingModels = { ...candidate, generation: { ...candidate.generation!, prompt: 'v5-source-first-v3' } };
-    const long = fund({body: 'Approval is still required. '.repeat(28)});
+    const long = fund({headline: 'Approval is still required. '.repeat(28)});
     const another = fund({headline: 'Research funding', sources: ['S2']});
     const merged = {items: [{...long,from:[0]},{...another,from:[1]}],cut:[]};
     const {port, calls} = scripted({
@@ -80,7 +80,7 @@ describe("generateBriefing", () => {
   });
 
   it("withholds a V5 draft after bounded budget correction and retains the source", async () => {
-    const long = fund({ body: "Material approval condition. ".repeat(40) });
+    const long = fund({ headline: "Material approval condition. ".repeat(40) });
     const { port, calls } = scripted({ edit: [{ items: [long] }, { items: [long] }] });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
     expect(result.status).toBe("rejected");
@@ -98,7 +98,7 @@ describe("generateBriefing", () => {
         { results: [{ i: 0, verdict: "fix", issues: ["Preserve the condition."] }] },
         { results: [{ i: 0, verdict: "ok", issues: [] }] },
       ],
-      repair: [{ items: [{ i: 0, headline: fund().headline, body: long, drop: false }] }],
+      repair: [{ items: [{ i: 0, headline: long, body: fund().body, drop: false }] }],
     });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
     expect(result.status).toBe("rejected");

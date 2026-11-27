@@ -1,4 +1,4 @@
-import {readingBudgetWords,readerWordCount,priorMemoryCutoff,type BriefingReviewEvent,type PriorItem} from '@distilled/briefing';
+import {readingBudgetWords,headlineWordCount,priorMemoryCutoff,type BriefingReviewEvent,type PriorItem} from '@distilled/briefing';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {z} from 'zod';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -68,7 +68,7 @@ const normalized=(value:string)=>value.normalize('NFKC').replace(/\s+/gu,' ').tr
 export async function validateReviewCopy(tx:FeedTransaction,input:V3WindowInput,stories:ReviewStory[],prior:PriorItem[]) {
   const parsed=z.array(story).min(1).max(30).safeParse(stories);
   if(!parsed.success)throw new V5ReviewError('INVALID_REVIEW_STORIES',400);
-  const words=readerWordCount(input.input.feed.language,stories),ceiling=readingBudgetWords(input.input.feed.windowMinutes);
+  const words=headlineWordCount(input.input.feed.language,stories),ceiling=readingBudgetWords(input.input.feed.windowMinutes);
   // Reader rendering deduplicates an identical expansion. Require the editor
   // to save the exact displayed form instead of relying on that transformation.
   if(words>ceiling||stories.some(item=>item.body===item.headline))throw new V5ReviewError('READER_WORD_BUDGET_OR_DUPLICATED_HEADLINE',400);

@@ -50,7 +50,7 @@ describe('V5 reliability revision',()=>{
   });
 
   it('drops a whole lower-priority story after consolidation and verifies the intact lead',async()=>{
-    const low={...draft,headline:'A separate research report',body:'More detail about that report. '.repeat(32),
+    const low={...draft,headline:'A separate research report '.repeat(32).trim(),body:'More detail about that report.',
       sources:['S2'],importance:3 as const};
     const {port,calls}=scripted({edit:[{items:[draft]},{items:[low]}],
       consolidate:[{items:[{...draft,from:[0],importance:3},{...low,from:[1]}],cut:[]}],verify:[ok]});
@@ -67,7 +67,7 @@ describe('V5 reliability revision',()=>{
   it('holds when the minimum lead set cannot fit and counts multilingual prose',()=>{
     const ar={headline:'وزير المالية',body:'انخفض السعر ١٬٠٠٠ ليرة.',importance:1 as const};
     const fr={headline:'L’Union l’approuve.',body:'L’Union l’approuve.',importance:1 as const};
-    expect(selectWithinReaderBudget('ar',[ar],5)).toEqual({fits:false,requiredWords:6});
+    expect(selectWithinReaderBudget('ar',[ar],1)).toEqual({fits:false,requiredWords:2});
     expect(selectWithinReaderBudget('fr',[fr],2)).toEqual({fits:true,retained:[fr],excluded:[]});
   });
 
@@ -128,8 +128,17 @@ describe('V5 reliability revision',()=>{
       reasons:[expect.objectContaining({reason:expect.stringContaining(past.id)})]}));
   });
 
+  it('publishes the entire verified body when the headlines fit',async()=>{
+    const body='Subject to shareholder approval. '.repeat(45).trim();
+    const {port,calls}=scripted({edit:[{items:[{...draft,body}]}],verify:[ok]});
+    const result=await generateBriefing({...start,articles:[article('current',FUND)]},port,models,{});
+    expect(result.status).toBe('published');
+    expect(result.items[0].body).toBe(body);
+    expect(calls.at(-1)?.request.user).toContain(body);
+  });
+
   it('keeps an editorial capacity failure and its complete lead available for review',async()=>{
-    const oversized={...draft,body:'Subject to shareholder approval. '.repeat(45).trim()};
+    const oversized={...draft,headline:'Subject to shareholder approval. '.repeat(45).trim()};
     const {port}=scripted({edit:[{items:[oversized]}]});
     const events:import('../src/types').BriefingReviewEvent[]=[];
     const result=await generateBriefing({...start,articles:[article('current',FUND)]},port,models,{

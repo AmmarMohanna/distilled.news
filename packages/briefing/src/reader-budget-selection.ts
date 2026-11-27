@@ -1,4 +1,4 @@
-import { readerWordCount } from './prompts';
+import { headlineWordCount } from './prompts';
 import type { FeedSpec } from './types';
 
 interface BudgetStory {
@@ -11,7 +11,7 @@ interface BudgetStory {
 export function selectWithinReaderBudget<T extends BudgetStory>(
   language: FeedSpec['language'], drafts: readonly T[], ceiling: number,
 ): {fits:true;retained:T[];excluded:T[]} | {fits:false;requiredWords:number} {
-  const measured = drafts.map(draft=>({ draft, words:readerWordCount(language,[draft]) }));
+  const measured = drafts.map(draft=>({ draft, words:headlineWordCount(language,[draft]) }));
   const requiredWords = measured.reduce((sum,{draft,words})=>sum+(draft.importance===1?words:0),0);
   if (requiredWords>ceiling) return {fits:false,requiredWords};
 
