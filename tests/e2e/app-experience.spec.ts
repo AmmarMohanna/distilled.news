@@ -318,13 +318,15 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   const shelf = page.getByRole('region', {name:'Trending briefings',exact:true}).last();
   await expect(shelf).toHaveCSS('overflow-x', 'auto');
   await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
-  await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);
-  await expect(page.getByRole('heading', {name:edition.title})).toBeVisible();
+  const reader = page.getByRole('dialog', { name: 'Briefing' });
+  await expect(page).toHaveURL(/\/$/);
+  await expect(reader.getByRole('heading', {name:edition.title})).toBeVisible();
   await expect(page.locator('.briefing-detail-summary')).toContainText(edition.summary);
   await expect(page.getByRole('heading', {name:'Screening details'})).toBeVisible();
   await expect(page.locator('.briefing-detail-body')).toContainText(edition.sections[0].summary);
   await expect(page.locator('.briefing-parent-feed')).toHaveAttribute('href','/joud/lebanon/');
-  await expect(page.getByRole('link', {name:'Back to feed'})).toHaveAttribute('href','/joud/lebanon/');
+  await reader.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(reader).toHaveCount(0);
 });
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');

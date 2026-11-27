@@ -50,7 +50,7 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await page.locator('.briefing-headline-link').click();
   await expect(page.locator('.briefing-detail-hero')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner'],'news'])))).toContain('one');
-  await page.getByRole('link',{name:'Back to feed'}).click();
+  await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
   await expect(button).toBeDisabled();
 });
 

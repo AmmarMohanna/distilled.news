@@ -113,7 +113,7 @@ import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { accountInitials, AccountAvatar, refreshAccountAvatar, AppExperience, AppHeader, BrandMark, channelUrl, editionUrl, PublicNavigation } from "./AppExperience";
+import { accountInitials, AccountAvatar, refreshAccountAvatar, AppExperience, AppHeader, BrandMark, BriefingLink, BriefingNavigation, channelUrl, editionUrl, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import {FeedSettingsSelect} from './FeedLanguageSelect';
@@ -159,14 +159,38 @@ declare global {
   }
 }
 
+function briefingRoute(path: string) {
+  const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/briefing\/([^/]+)\/?$/);
+  if (!match) return;
+  try { return {username: decodeURIComponent(match[1]), slug: decodeURIComponent(match[2]), editionId: decodeURIComponent(match[3])}; }
+  catch { return undefined; }
+}
+
 function App() {
+  const { t } = useLanguage();
+  const [briefing, setBriefing] = useState<ReturnType<typeof briefingRoute>>();
+  const close = () => setBriefing(undefined);
+  return <BriefingNavigation.Provider value={href => {
+    const route = briefingRoute(href);
+    if (!route) return false;
+    setBriefing(route);
+    return true;
+  }}>
+    <AppRoute/>
+    {briefing && <Dialog label={t("Briefing")} className="briefing-reader-dialog" onClose={close}>
+      <BriefingDetailPage {...briefing} onClose={close}/>
+    </Dialog>}
+  </BriefingNavigation.Provider>;
+}
+
+function AppRoute() {
   usePageMagnification();
   const path = window.location.pathname;
   if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
-  const editionMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/briefing\/([^/]+)\/?$/);
-  if (editionMatch) return <BriefingDetailPage username={decodeURIComponent(editionMatch[1])} slug={decodeURIComponent(editionMatch[2])} editionId={decodeURIComponent(editionMatch[3])}/>;
+  const briefing = briefingRoute(path);
+  if (briefing) return <BriefingDetailPage {...briefing}/>;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (feedMatch && !["api", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
@@ -2179,7 +2203,7 @@ function FeedEditionRow(props: {
         hideBody
         summary={edition.summary}
         fallbackHeadline={headline}
-        renderHeadline={title => <a className="briefing-headline-link" href={props.destination}><bdi dir={textDir}>{title}</bdi></a>}
+        renderHeadline={title => <BriefingLink className="briefing-headline-link" href={props.destination}><bdi dir={textDir}>{title}</bdi></BriefingLink>}
         sections={edition.sections}
         direction={textDir}
         renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
@@ -2222,7 +2246,7 @@ function usePublisherPhotos(username: string | undefined, slug: string | undefin
   return username && result?.key === key ? result.photos : [];
 }
 
-function BriefingDetailPage(props: { username: string; slug: string; editionId: string }) {
+function BriefingDetailPage(props: { username: string; slug: string; editionId: string; onClose?: () => void }) {
   const { t, language } = useLanguage();
   const [result, setResult] = useState<Awaited<ReturnType<typeof getBriefingPage>>>();
   const [error, setError] = useState<UiMessage>("");
@@ -2253,14 +2277,18 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       .catch(cause => { if (!request.signal.aborted) setError(toUiError(cause)); });
     return () => request.abort();
   }, [props.username, props.slug, props.editionId]);
+  const inDialog = Boolean(props.onClose);
   useEffect(() => {
+    if (inDialog) return;
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
     document.title = result?.edition.title || t("Briefing");
-  }, [result, language, t]);
+  }, [result, language, t, inDialog]);
   const href = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
   const back = <FeedBackLink isOwnFeed={false} language={language} destination={href} accessibleLabel={t("Back to feed")}/>;
-  const header = <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back} onAccount={() => setProfileOpen(true)}/>;
+  const header = props.onClose
+    ? <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={props.onClose}><X size={22} aria-hidden/></button>
+    : <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back} onAccount={() => setProfileOpen(true)}/>;
   if (!result) return <main className="briefing-detail-page">
     {header}
     {error ? <p role="alert">{t(error)}</p> : <FeedLoadingSkeleton label={loadingFeedLabel(language)}/>}
@@ -2290,7 +2318,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
         <div className="briefing-detail-feed-row">
           <a className="briefing-parent-feed" dir={direction} href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
           {briefing.publicFeedEnabled && <div className="feed-banner-menu briefing-detail-menu" dir={textDirection(language)}>
-            <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
+            <ReaderShareMenu title={edition.title || briefing.title} url={new URL(editionUrl({ownerUsername: props.username, slug: props.slug}, props.editionId), window.location.origin).href} onError={() => setError("Could not copy URL")}/>
           </div>}
         </div>
       </div>
@@ -2430,10 +2458,9 @@ function FeedMoreMenu(props: { label: string; children: (close: () => void) => R
   );
 }
 
-function ReaderShareMenu({ title, onError }: { title: string; onError: () => void }) {
+function ReaderShareMenu({ title, url = window.location.origin + window.location.pathname, onError }: { title: string; url?: string; onError: () => void }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
-  const url = window.location.origin + window.location.pathname;
   async function copy() {
     try { await navigator.clipboard.writeText(url); setCopied(true); }
     catch { onError(); }

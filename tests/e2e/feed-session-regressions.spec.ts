@@ -46,7 +46,7 @@ test('renaming the owner follows its canonical feed URL and retains editor contr
  await fixture(page);await page.goto('/owner/news/');await page.locator('.briefing-headline-link').click();
  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id'])))).toContain('stable-edition');
- await page.getByRole('link',{name:'Back to feed'}).click();
+ await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
  await rename(page);await expect(page).toHaveURL(/\/renamed-owner\/news\/$/);
  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
  await expect(page.locator('.news-item')).toHaveClass(/is-read/);
@@ -80,7 +80,7 @@ test('two tabs synchronize read progress when a briefing is opened',async({page,
  await page.locator('.briefing-headline-link').click();
  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
  await expect(other.locator('.news-item')).toHaveClass(/is-read/);
- await page.getByRole('link',{name:'Back to feed'}).click();
+ await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
  await expect(page.locator('.news-item')).toHaveClass(/is-read/);
 });
 

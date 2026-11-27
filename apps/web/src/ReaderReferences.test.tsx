@@ -5,10 +5,6 @@ import type { BriefingEdition } from '@distilled/core';
 import { CitationReference } from './CitationReference';
 import { BriefingReadMore } from './BriefingReadMore';
 
-vi.mock('./Dialog', () => ({
-  Dialog: ({children, label}: {children: React.ReactNode; label: string}) => <div role="dialog" aria-label={label}>{children}</div>
-}));
-
 const edition = { id: 'edition', summary: 'Headline\nRetained detail. [1]', sections: [{ title: '', summary: 'Headline\nRetained detail.', evidence: [{ sourceId: 'bbc', sourceTitle: 'BBC', sourceUrl: 'https://www.bbc.co.uk/rss', links: ['https://www.bbc.co.uk/news/article'], media: [], text: 'Full source evidence must not become the briefing.' }] }] } as unknown as BriefingEdition;
 async function render(node: React.ReactNode, check: (host: HTMLDivElement) => void | Promise<void>) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -73,14 +69,23 @@ it('omits empty read-more controls for headline-only stories', async () => {
     expect(host.querySelector('button, details')).toBeNull();
   });
 });
-it('opens retained evidence and a separate article link', async () => {
+it('leaves the known article link to the browser without a source dialog', async () => {
   await render(<CitationReference number={1} edition={edition} loadDetail={async () => edition} label="Source 1"/>, async host => {
     const link = host.querySelector('a')!;
     link.addEventListener('click', event => event.preventDefault());
     await act(async () => link.click());
     expect(host.querySelector('[role="tooltip"]')).toBeNull();
-    const preview = document.body.querySelector('[role="dialog"]');
-    expect(preview?.textContent).toContain('Full source evidence');
-    expect(preview?.querySelector('a')?.href).toBe('https://www.bbc.co.uk/news/article');
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    expect(link.href).toBe('https://www.bbc.co.uk/news/article');
+  });
+});
+it('opens the article when a citation is clicked before its details are loaded', async () => {
+  const replace = vi.fn();
+  const tab = { opener: window, closed: false, location: { replace }, close: vi.fn() };
+  await render(<CitationReference number={1} edition={{ ...edition, sections: [] }} loadDetail={async () => edition} label="Source 1"/>, async host => {
+    vi.stubGlobal('open', vi.fn(() => tab));
+    await act(async () => host.querySelector('a')!.click());
+    expect(tab.opener).toBeNull();
+    expect(replace).toHaveBeenCalledWith('https://www.bbc.co.uk/news/article');
   });
 });

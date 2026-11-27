@@ -109,7 +109,15 @@ test("published headlines open retained briefing evidence and preserve read-only
   const feedLogin = (await login.boundingBox())!;
   const backLabel = page.locator(".experience-header .feed-nav-back > span");
   const feedBackLabel = await backLabel.boundingBox();
-  await page.locator(".briefing-headline-link").click();
+  const headline = page.locator(".briefing-headline-link");
+  const detailHref = (await headline.getAttribute('href'))!;
+  await headline.click();
+  const reader = page.getByRole('dialog', { name: 'Briefing' });
+  await expect(reader).toContainText('The full briefing ends here');
+  await expect(page).toHaveURL(/\/admin\/personal-briefing\/$/);
+  await reader.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(reader).toHaveCount(0);
+  await page.goto(detailHref);
   await expect(login).toBeVisible();
   const detailLogin = (await login.boundingBox())!;
   expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
@@ -132,10 +140,9 @@ test("published headlines open retained briefing evidence and preserve read-only
   const body = page.locator(".briefing-detail-body .news-summary");
   await expect(body).toContainText("The full briefing ends here");
   await expect(body).toHaveCSS("overflow", "visible");
-  await page.locator(".briefing-detail-body .briefing-reference").first().click();
-  const source = page.getByRole("dialog", { name: "Source preview" });
-  await expect(source).toContainText("The full briefing ends here");
-  await expect(source.getByRole("link", { name: "Read full article" })).toHaveAttribute("href", sourceUrl);
+  await page.context().route(sourceUrl, route => route.fulfill({ body: "Publisher article" }));
+  const [source] = await Promise.all([page.waitForEvent('popup'), page.locator(".briefing-detail-body .briefing-reference").first().click()]);
+  await expect(source).toHaveURL(sourceUrl);
 });
 
 for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and menu follow ${language} layout`, async ({ page }) => {

@@ -2,11 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { BriefingEdition } from '@distilled/core';
 import { briefingReferences, readerEvidenceUrl } from './briefing-references';
 import { sourceEvidenceLabels } from './source-evidence-labels';
-import { ExternalLink, X } from 'lucide-react';
 import { SourceLogo } from './SourceLogo';
-import { createPortal } from 'react-dom';
-import { Dialog } from './Dialog';
-import { useLanguage } from './LanguageControl';
 
 export function CitationReference({ number, edition, loadDetail, label, sectionReference = false }: {
   number: number;
@@ -15,14 +11,13 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
   label: string;
   sectionReference?: boolean;
 }) {
-  const { t } = useLanguage();
-  const [sourceOpen, setSourceOpen] = useState(false);
   const id = useId();
   const trigger = useRef<HTMLAnchorElement>(null);
   const preview = useRef<HTMLSpanElement>(null);
   const [loaded, setLoaded] = useState<BriefingEdition>();
   const [pending, setPending] = useState(false);
   const request = useRef<Promise<BriefingEdition | null> | undefined>(undefined);
+  const opening = useRef(false);
   const [dismissed, setDismissed] = useState(false);
   function sourceFor(value: BriefingEdition) {
     const references = briefingReferences(value);
@@ -47,37 +42,35 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     if (entry) return loaded ?? edition;
     if (request.current) return request.current;
     setPending(true);
-    request.current = loadDetail();
+    request.current = loadDetail().catch(() => null);
     try { const detail = await request.current; if (detail) setLoaded(detail); return detail; }
     finally { setPending(false); request.current = undefined; }
   }
   return <span className="citation-reference"
     onKeyDown={event => { if (event.key === 'Escape') setDismissed(true); }}>
     <a ref={trigger} className="briefing-reference" href={url}
-      onMouseEnter={() => { if (!sourceOpen) { setDismissed(false); fitPreview(); void prepare(); } }}
+      onMouseEnter={() => { setDismissed(false); fitPreview(); void prepare(); }}
       onFocus={() => { fitPreview(); void prepare(); }} target={url ? '_blank' : undefined} rel="noopener noreferrer"
-      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher && !dismissed && !sourceOpen ? id : undefined}
+      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher && !dismissed ? id : undefined}
       aria-busy={pending} role="link" tabIndex={0} onKeyDown={event => { if (!url && event.key === 'Enter') { event.preventDefault(); event.currentTarget.click(); } }} onClick={async event => {
         setDismissed(true);
+        if (url) return;
         event.preventDefault();
-        setSourceOpen(true);
-        await prepare();
+        if (entry || opening.current) return;
+        opening.current = true;
+        // A touch can arrive before evidence has loaded. Reserve the tab during the gesture.
+        const tab = window.open("about:blank", "_blank");
+        if (tab) tab.opener = null;
+        const detail = await prepare();
+        const source = detail && sourceFor(detail);
+        const href = source && readerEvidenceUrl(source);
+        opening.current = false;
+        if (!href) { tab?.close(); return; }
+        if (tab && !tab.closed) tab.location.replace(href);
+        else if (!tab) window.location.assign(href);
       }}><bdi dir="ltr">[{number}]</bdi>
-    {entry && publisher && !dismissed && !sourceOpen && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
+    {entry && publisher && !dismissed && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
       <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/><strong>{publisher}</strong>
     </span>}</a>
-    {sourceOpen && createPortal(<Dialog label={t("Source preview")} className="citation-source-dialog" onClose={() => setSourceOpen(false)}>
-      <div className="dialog-inner">
-        <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setSourceOpen(false)}><X size={22} aria-hidden/></button>
-        <div className="citation-source-heading">
-          {entry && publisher && <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/>}
-          <h2 dir="auto">{publisher ?? t("Source preview")}</h2>
-          {url && <a className="citation-source-link" href={url} target="_blank" rel="noopener noreferrer">
-            {t("Read full article")}<ExternalLink size={14} aria-hidden/>
-          </a>}
-        </div>
-        {entry && <p className="citation-source-text" dir="auto">{entry.text}</p>}
-      </div>
-    </Dialog>, document.body)}
   </span>;
 }

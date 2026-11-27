@@ -119,10 +119,17 @@ export function useReadProgress(feedId:string|undefined,readerId:string|null|und
     if(!key)return;
     const previous=latest.current.key===key?latest.current:{ids:empty,considered:empty};
     const ids=typeof next==='function'?next(new Set(previous.ids)):next;
+    const changedKeys: string[] = [];
     for(const id of new Set([...previous.ids,...ids]))if(previous.ids.has(id)!==ids.has(id)){
-      try{localStorage.setItem(decisionKey(key,id),ids.has(id)?'1':'0');}catch{/* Keep this tab usable without persistent storage. */}
+      try {
+        const changedKey = decisionKey(key, id);
+        localStorage.setItem(changedKey, ids.has(id) ? '1' : '0');
+        changedKeys.push(changedKey);
+      } catch { /* Keep this tab usable without persistent storage. */ }
     }
     const updated={key,ids,considered:new Set([...previous.considered,...previous.ids,...ids])};latest.current=updated;setSaved(updated);
+    // Native storage events only reach other tabs. The popup and its feed share this tab.
+    for (const changedKey of changedKeys) window.dispatchEvent(new StorageEvent('storage', { key: changedKey }));
   },[key]);
   // Account/feed changes hide the previous reader's IDs before effects run.
   return [saved.key===key?saved.ids:empty,setIds] as const;

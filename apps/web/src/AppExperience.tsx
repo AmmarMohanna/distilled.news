@@ -1,5 +1,5 @@
 import {ApiError,toUiError, type UiMessage} from './api-errors';
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
@@ -32,6 +32,16 @@ function tabFromLocation():ExperienceTab {
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
 export const channelUrl = (username: string) => `/explore?channel=${encodeURIComponent(username)}`;
 export const editionUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">, editionId: string) => `${feedUrl(feed)}briefing/${encodeURIComponent(editionId)}/`;
+export const BriefingNavigation = createContext<((href: string) => boolean) | null>(null);
+
+export function BriefingLink({ popup = true, ...props }: React.ComponentProps<"a"> & { popup?: boolean }) {
+  const openBriefing = useContext(BriefingNavigation);
+  return <a {...props} aria-haspopup={popup && openBriefing ? "dialog" : undefined} onClick={event => {
+    props.onClick?.(event);
+    if (popup && props.href && !event.defaultPrevented && event.button === 0
+      && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && openBriefing?.(props.href)) event.preventDefault();
+  }}/>;
+}
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual, loading = false }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean; loading?: boolean }) {
   const { t } = useLanguage();
@@ -734,9 +744,9 @@ function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
 
   return <article className="feed-tile">
     <div className="feed-tile-cover">
-      <a className="feed-tile-artwork" href={destination ?? href} aria-label={`${t(destination ? "Open briefing" : "Open feed")}: ${feed.title}`} tabIndex={-1}>
+      <BriefingLink popup={Boolean(destination)} className="feed-tile-artwork" href={destination ?? href} aria-label={`${t(destination ? "Open briefing" : "Open feed")}: ${feed.title}`} tabIndex={-1}>
         <FeedArt feed={feed} centered/>
-      </a>
+      </BriefingLink>
       <div className="feed-tile-controls">
         {feed.publicFeedEnabled && <button type="button" className="feed-tile-star" aria-label={`${t(starred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={starred} disabled={busy || !canStar} onClick={() => void toggleStar()}>
           <Star size={19} fill={starred ? "currentColor" : "none"} aria-hidden/>
@@ -756,7 +766,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
       </div>
     </div>
     <div className="feed-tile-caption">
-      <a href={destination ?? href}><bdi>{feed.title}</bdi></a>
+      <BriefingLink popup={Boolean(destination)} href={destination ?? href}><bdi>{feed.title}</bdi></BriefingLink>
       <small>{feed.publicFeedEnabled
         ? <a className="feed-tile-owner" href={channelUrl(feed.ownerUsername)}><ChannelAvatar username={feed.ownerUsername}/><bdi>@{feed.ownerUsername}</bdi></a>
         : <bdi>@{feed.ownerUsername}</bdi>}</small>

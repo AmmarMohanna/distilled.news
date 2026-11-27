@@ -25,7 +25,7 @@ test('refresh preserves read status and loaded pages while pending and after suc
  await page.goto('/reader/news/');const unread=page.locator('.news-item:not(.is-read)');await expect(unread).toHaveCount(20);
  await unread.first().locator('.briefing-headline-link').click();
  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['anonymous'],'loading-feed'])))).toContain('1');
- await page.getByRole('link',{name:'Back to feed'}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
+ await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
  delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-item.is-read')).toHaveCount(1);await expect(page.locator('.news-item')).toHaveCount(25);
 });

@@ -4382,6 +4382,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .news-item,
 :root.apple-ui.apple-ui .briefing-detail-page { position: relative; width: 100%; padding: 0 clamp(28px, 4vw, 64px) 36px; }
 :root.apple-ui.apple-ui .feed-shell .news-item { padding-block-start: 12px; }
+:root.apple-ui.apple-ui .briefing-reader-dialog { width: min(64rem, calc(100vw - 24px)); }
+:root.apple-ui.apple-ui .briefing-reader-dialog .briefing-detail-page { padding-block-start: 52px; }
+:root.apple-ui.apple-ui .briefing-reader-dialog .dialog-close { inset: 12px 12px auto auto; }
+:root.apple-ui.apple-ui[dir="rtl"] .briefing-reader-dialog .dialog-close { inset: 12px auto auto 12px; }
 :root.apple-ui.apple-ui .briefing-detail-menu .feed-options-popover {
   background: var(--surface);
   backdrop-filter: none;
@@ -4499,14 +4503,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (hover: none) {
   :root.apple-ui.apple-ui .briefing-photo-viewport .catalog-edge { opacity: 1; pointer-events: auto; }
 }
-:root.apple-ui.apple-ui .citation-source-dialog { width: min(92vw, 46rem); }
-:root.apple-ui.apple-ui dialog.citation-source-dialog .dialog-pages .screen-page-viewport { scrollbar-gutter: stable both-edges; }
-:root.apple-ui.apple-ui .citation-source-heading { display: grid; justify-items: center; gap: 6px; padding-inline: 36px; text-align: center; }
-:root.apple-ui.apple-ui .citation-source-heading > :is(img, svg) { width: 36px; height: 36px; object-fit: contain; }
-:root.apple-ui.apple-ui .citation-source-heading h2 { margin: 0; padding-inline: 0; text-align: center; font-size: 1.125rem; overflow-wrap: anywhere; }
-:root.apple-ui.apple-ui .citation-source-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; color: var(--accent-ink); text-decoration: underline; text-underline-offset: .18em; font-size: .875rem; }
-:root.apple-ui.apple-ui .citation-source-link > svg { flex: none; }
-:root.apple-ui.apple-ui .citation-source-text { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 :root.apple-ui.apple-ui .feed-tile-owner {
   display: inline-flex;
