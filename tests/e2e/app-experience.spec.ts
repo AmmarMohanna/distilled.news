@@ -78,7 +78,11 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
     await expect(button).toBeVisible();
     return (await button.boundingBox())!;
   }));
-  expect(tabs[0].x).toBeCloseTo((await nav.boundingBox())!.x + 4, 0);
+  const navBounds = (await nav.boundingBox())!;
+  expect(tabs[0].x).toBeCloseTo(navBounds.x, 0);
+  expect(tabs[0].y).toBeCloseTo(navBounds.y, 0);
+  expect(tabs[0].height).toBeCloseTo(navBounds.height, 0);
+  expect(tabs[3].x - (tabs[2].x + tabs[2].width)).toBeCloseTo(8, 0);
   expect(tabs.every((tab, index) => index === 0 || tab.x >= tabs[index - 1].x + tabs[index - 1].width)).toBe(true);
   expect(tabs[3].width).toBeCloseTo(tabs[3].height, 0);
   await nav.getByRole('button', { name: 'Followed' }).click();

@@ -4570,19 +4570,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
     grid-row: 1;
     min-width: 0;
     min-height: 48px;
-    margin-block: 4px;
+    margin-block: 0;
     border-radius: 999px;
     padding: 2px 4px;
     gap: 2px;
   }
   :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="home"] {
     grid-column: 1;
-    margin-inline-start: 4px;
   }
   :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="explore"] { grid-column: 2; }
   :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="followed"] {
     grid-column: 3;
-    margin-inline-end: 12px;
+    margin-inline-end: 8px;
   }
   :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation > .navigation-settings {
     grid-column: 4;
