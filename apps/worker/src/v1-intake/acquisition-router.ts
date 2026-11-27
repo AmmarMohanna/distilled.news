@@ -13,7 +13,7 @@ import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
 import {articleHeadlineKey,reviewedRedirectFor,matchesReviewedRedirect} from './reviewed-redirect';
 import {nationalLiveblog} from './national-liveblog';
 import {nnaArticleBody} from './nna-article';
-import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason,isFortuneReportUrl,sameFortuneReportUrl,retryAfterTime} from '@distilled/connectors';
 import {canUseRetainedRssExcerpt,permitsRetainedRssExcerpt,retainedRssExcerpt,type SuppliedPayload} from './retained-rss-excerpt';
 
 export type {SuppliedPayload} from './retained-rss-excerpt';
@@ -77,6 +77,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    }
   }
   if(!o.canonicalUrl) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'MISSING_CANONICAL_URL'});
+  const fortuneReport=isFortuneReportUrl(o.canonicalUrl);
   const reviewed=reviewedRedirectFor(claim.job,o.canonicalUrl);
 
   let fetchPort:WorkerPublicSourceFetch;
@@ -106,6 +107,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(r.status===429)throw new AcquisitionFailure('RATE_LIMIT',true);
    if(r.status===451)throw new AcquisitionFailure('POLICY_DENIED',false);
    if(r.status===401)throw new AcquisitionFailure('AUTH_REQUIRED',false);
+   if(r.status===402)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_PAYMENT_REQUIRED',httpStatus:402});
+   if(fortuneReport&&r.reportSummary!==true)return undefined;
    const contentKind=r.pageKind==='catalogue'&&(r.contentKind==='PRODUCT_DETAIL'||r.contentKind==='CATALOGUE')?r.contentKind:undefined;
    if(r.status!==200||!sameArticleUrl(r.url,o.canonicalUrl)||(r.pageKind!=='article'&&!contentKind)||typeof r.body!=='string'||r.body.length<(contentKind||short||r.contentCompleteness==='PARTIAL'?80:200)||new TextEncoder().encode(r.body).length>500_000)return undefined;
    // A different canonical identity needs a newly observed candidate; it cannot
@@ -134,6 +137,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     throw error;
    }
    if(document.status===401 || document.authenticationRequired) return {stage:'HTTP',status:'AUTH_REQUIRED'};
+   if(document.status===402)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_PAYMENT_REQUIRED',httpStatus:402});
    if(document.status===451)return {stage:'HTTP',status:'POLICY_DENIED'};
    if(document.status===403||document.status===406){
     const item=await privateArticle();
@@ -147,9 +151,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     return {stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:'private_public_http'}}};
    }
    if(document.status===429){
-    const value=document.retryAfter,seconds=value===undefined?NaN:Number(value);
-    const retryAt=value===undefined?undefined:Number.isFinite(seconds)?new Date(Date.parse(options.now())+Math.max(0,seconds)*1000).toISOString():Number.isFinite(Date.parse(value))?new Date(value).toISOString():undefined;
-    throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429,retryNotBefore:retryAt});
+    const retryAt=retryAfterTime({'retry-after':document.retryAfter??''},Date.parse(options.now()));
+    throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429,retryNotBefore:retryAt===undefined?undefined:new Date(retryAt).toISOString()});
    }
    if(document.status>=500||document.status===408||document.status===425){
     const item=await privateArticle();
@@ -159,6 +162,18 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
    const media=document.contentType.split(';')[0].trim().toLowerCase();
    const htmlLike=/^\s*<(?:!doctype|html|head|body|meta|link|title|style|article|main|section|header|div|p|script)\b/i.test(document.body);
+   if(fortuneReport){
+    if(!sameFortuneReportUrl(document.url,o.canonicalUrl!))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});
+    const page=extractPublicHtml(document.body,document.url);
+    if(page.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+    if(page.articleIdentityMismatch)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'CANONICAL_IDENTITY_MISMATCH'});
+    if(!page.reportSummary)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
+    const dateMetadata=readArticleDateMetadata(document.body,document.url);
+    const item=helperArticle({...page,status:200,url:o.canonicalUrl,canonicalUrl:o.canonicalUrl,
+     dateMetadata:{...dateMetadata,updatedAt:page.updatedAt??dateMetadata.updatedAt}},'publisher_report_summary_http');
+    if(!item)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
+    return fallbackSuccess({...item,originalSourceReference:document.url});
+   }
    if(!sameArticleUrl(document.url,o.canonicalUrl)){
     if(!htmlLike&&!['text/html','application/xhtml+xml'].includes(media)&&!/^\s*<(?:link|body|section|h[1-6])\b/i.test(document.body)){redirectFailure=new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});return {stage:'HTTP',status:'POLICY_DENIED'};}
     let redirected=extractPublicHtml(document.body,document.url);
@@ -271,7 +286,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    return outcome!;
   };
   try {
-   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http:httpWithFallback}).acquire(request);
+   const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http:fortuneReport?http:httpWithFallback}).acquire(request);
    if(redirectFailure)throw redirectFailure;
    const items=outcome.result?.items;
    if(outcome.status!=='SUCCESS' || !items?.length) {

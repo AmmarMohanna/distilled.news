@@ -173,7 +173,7 @@ export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:Int
   if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') failure=new AcquisitionFailure(error.code==='SCOPE_DENIED'?'APPROVAL_REVOKED':error.code==='IDEMPOTENCY_CONFLICT'?'IDEMPOTENCY_CONFLICT':'INVALID_RESULT',false);
   if(!failure) throw error;
   const classified=failure;
-  return transact(store,claim.job.feedSourceId,async tx=>{
+  const state=await transact(store,claim.job.feedSourceId,async tx=>{
    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
    if(classified.code==='BUDGET_EXHAUSTED'||classified.code==='BACKPRESSURE'){
     const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%120,0)*1000;
@@ -186,5 +186,11 @@ export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:Int
    tx.write('jobs',id,{...job,state:retry?'PENDING':'FAILED',failureCode:classified.code,failureDetail:classified.diagnostic?.detail,httpStatus:classified.diagnostic?.httpStatus,leaseToken:undefined,leaseUntil:undefined,exhausted:!retry,nextAttemptAt:retry?new Date(Math.max(Date.parse(policy.now())+30_000*2**(job.attempts-1)+jitter,Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString():undefined},claim.input.observation.sourceItemKey);
    return retry?'RETRY':'FAILED';
   });
+  if(classified.code==='EXTRACTION_FAILED'){
+   const url=claim.input.observation.canonicalUrl;
+   const publisher=url&&URL.canParse(url)?new URL(url).hostname:undefined;
+   console.warn(JSON.stringify({type:'PUBLISHER_EXTRACTION_FAILURE',jobId:id,publisher,reason:classified.diagnostic?.detail??classified.code,state}));
+  }
+  return state;
  }
 }

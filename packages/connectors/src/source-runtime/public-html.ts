@@ -60,6 +60,64 @@ function scopedPublisherParagraphs(root:Node,skipClasses:RegExp):string {
  }
  return paragraphs.join('\n\n');
 }
+
+function fortuneReport(value:string) {
+ try {
+  const url=new URL(value);
+  if(url.protocol!=='https:'||url.port||url.username||url.password||
+    !['fortunebusinessinsights.com','www.fortunebusinessinsights.com'].includes(url.hostname))return undefined;
+  const match=/^\/(?:industry-reports\/)?([a-z0-9-]+-(\d{6}))\/?$/.exec(url.pathname);
+  if(match){url.pathname='/'+match[1];return {id:match[2],url};}
+ }catch{/* Invalid URLs cannot identify a report. */}
+}
+
+export const isFortuneReportUrl=(url:string)=>fortuneReport(url)!==undefined;
+export function sameFortuneReportUrl(left:string,right:string):boolean {
+ const a=fortuneReport(left),b=fortuneReport(right);
+ return !!a&&!!b&&sameArticleUrl(a.url.href,b.url.href);
+}
+
+function reportVisible(node:Node):boolean {
+ for(let current:Node|undefined=node;current;current=current.parentNode){
+  const tag=current.tagName??'';
+  if((excluded.has(tag)&&tag!=='header')||tag==='template'||tag==='dialog'||
+    current.attrs?.some(a=>a.name==='hidden')||attr(current,'aria-hidden')==='true'||attr(current,'role')==='dialog'||
+    /\bdisplay\s*:\s*none\b/i.test(attr(current,'style'))||
+    /(?:^|\s)(?:paywall|paywall-content|modal|related-reports)(?:\s|$)/i.test(attr(current,'class')))return false;
+ }
+ return true;
+}
+
+/** Read only the public outlook before the next report section. The publisher
+ * ties it to a visible headline and report ID independently of the URL slug. */
+function fortunePublicSummary(nodes:Node[],reportId:string) {
+ const headings=nodes.filter(n=>n.tagName==='h1'&&reportVisible(n));
+ if(headings.length!==1)return undefined;
+ const title=visibleText(headings[0]);
+ const lead=nodes.indexOf(headings[0]);
+ const outlook=nodes.slice(lead+1).filter(n=>['h2','h3'].includes(n.tagName??'')&&reportVisible(n)&&
+  /\bmarket size and (?:future )?outlook$/i.test(visibleText(n)));
+ if(outlook.length!==1)return undefined;
+ const name=visibleText(outlook[0]).replace(/ size and (?:future )?outlook$/i,'');
+ if(!title.toLowerCase().startsWith(name.toLowerCase()+' '))return undefined;
+ const start=nodes.indexOf(outlook[0]);
+ const fields=nodes.slice(lead+1,start).filter(n=>n.nodeName==='#text'&&/\b(?:report id|last updated)\b/i.test(n.value??'')&&reportVisible(n));
+ const labels=new Set(fields.flatMap(n=>[n.parentNode,n.parentNode?.parentNode].map(p=>p&&visibleText(p)).filter((v):v is string=>!!v&&v.length<=300)));
+ const ids=new Set([...labels].flatMap(v=>Array.from(v.matchAll(/\bReport ID\s*:\s*FBI(\d{6})\b/gi),m=>m[1])));
+ if(ids.size!==1||!ids.has(reportId))return undefined;
+ const updated=new Set([...labels].flatMap(v=>Array.from(v.matchAll(/\bLast Updated\s*:\s*([A-Za-z]{3,9} \d{1,2}, \d{4})\b/gi),m=>Date.parse(m[1]+' UTC')))
+  .filter(Number.isFinite));
+ const paragraphs:string[]=[];
+ for(const n of nodes.slice(start+1)){
+  if(!['h1','h2','h3','p'].includes(n.tagName??'')||!reportVisible(n))continue;
+  if(n.tagName!=='p')break;
+  const prose=visibleText(n);
+  if(prose.length>=60&&!/^(?:download|request|buy|listen to)\b/i.test(prose))paragraphs.push(prose);
+ }
+ const body=paragraphs.join('\n\n');
+ return body.length>=200?{title,body,updatedAt:updated.size===1?new Date([...updated][0]).toISOString():undefined}:undefined;
+}
+
 /** Deterministic public HTML extraction. Dates come only from publisher
  * publication metadata; missing dates and content remain explicitly missing. */
 export function extractPublicHtml(html:string,url:string){
@@ -157,6 +215,23 @@ export function extractPublicHtml(html:string,url:string){
  const content=articleBodies.length===1?articleBodies[0]:primary;
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
+ const report=fortuneReport(url);
+ if(report){
+  const canonicalLinks=all.filter(n=>n.tagName==='link'&&attr(n,'rel').toLowerCase().split(/\s+/).includes('canonical'));
+  const matchesReport=(value:string|undefined)=>{
+   try{return !!value&&sameFortuneReportUrl(new URL(value,url).href,url);}catch{return false;}
+  };
+  const canonicalHref=attr(canonicalLinks[0]??{},'href'),ogUrl=metadata('og:url');
+  const identity=canonicalLinks.length===1&&matchesReport(canonicalHref)&&(!ogUrl||matchesReport(ogUrl));
+  const restricted=restrictedMetadata||accessRestricted;
+  const summary=identity&&!restricted?fortunePublicSummary(all,report.id):undefined;
+  return {title:summary?.title??title,body:summary?.body??'',updatedAt:summary?.updatedAt,reportSummary:!!summary,
+   articleIdentityMismatch:!identity,
+   contentCompleteness:summary?'PARTIAL' as const:undefined,contentKind:undefined,accessRestricted:restricted||undefined,
+   publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,
+   canonicalUrl:identity?new URL(canonicalHref,url).href:url,
+   language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,pageKind:summary?'article':'unknown',articleLinks:[]};
+ }
  const visibleBody=articleBodies.length===1?text(articleBodies[0]):undefined;
  // Some publishers label a teaser as JSON-LD articleBody. A substantial,
  // unambiguous visible article body must not be replaced by that short teaser.
