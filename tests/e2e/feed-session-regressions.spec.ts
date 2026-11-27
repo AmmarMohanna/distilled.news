@@ -35,21 +35,23 @@ test('an ownership lookup failure has a visible retry that restores feed setting
 });
 test('logout replaces the open private feed with Home and cannot restore its content using Back',async({page})=>{
  await fixture(page);await page.goto('/');await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
- await page.getByRole('button',{name:'Account profile',exact:true}).click();await page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click();
- // The URL changes at navigation commit, before the replacement document has
- // loaded. Back must wait for that logout navigation rather than abort it.
- await page.waitForURL(/\/$/,{waitUntil:'load'});await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Account profile',exact:true}).click();
+ // Wait for the Home document before Back. The private feed URL also ends in a slash.
+ await Promise.all([
+  page.waitForURL('/',{waitUntil:'load'}),
+  page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click()
+ ]);
+ await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
  await page.goBack();await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(0);
 });
-test('renaming the owner follows its canonical feed URL and retains editor controls and read progress',async({page})=>{
+test('renaming the owner follows its canonical feed URL and retains editor controls and published briefings',async({page})=>{
  await fixture(page);await page.goto('/owner/news/');await page.locator('.briefing-headline-link').click();
  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
- await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id'])))).toContain('stable-edition');
  await page.getByRole('link',{name:'Back to feed'}).click();
  await rename(page);await expect(page).toHaveURL(/\/renamed-owner\/news\/$/);
  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
- await expect(page.locator('.news-item')).toHaveClass(/is-read/);
+ await expect(page.locator('.news-item')).toContainText('Protected development');
 });
 for(const [language,message] of [
  ['en','Could not complete the request. Try again.'],
@@ -61,29 +63,6 @@ for(const [language,message] of [
  await expect(page.getByText(message,{exact:true})).toBeVisible();expect(state.errors).toEqual([]);
  await expect(button).toBeEnabled();await button.click();await expect(button).toHaveAttribute('aria-pressed','true');
 });
-test('reader history from the old account-scoped URL key migrates across a publisher rename',async({page})=>{
- await page.addInitScript(()=>localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','owner-id'],'owner','news']),'["stable-edition"]'));
- const state=await fixture(page,true);state.rename();await page.goto('/renamed-owner/news/');
- await expect(page.locator('.news-item')).toHaveClass(/is-read/);
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id']))??'[]'))).toContain('stable-edition');
- await page.reload();
- await expect(page.locator('.news-item')).toHaveClass(/is-read/);
-});
-
-test('two tabs synchronize read progress when a briefing is opened',async({page,context})=>{
- const other=await context.newPage();
- for(const tab of [page,other]){
-  await fixture(tab,true);
-  await tab.goto('/owner/news/');
-  await expect(tab.locator('.news-item')).not.toHaveClass(/is-read/);
- }
- await page.locator('.briefing-headline-link').click();
- await expect(page.locator('.briefing-detail-hero')).toBeVisible();
- await expect(other.locator('.news-item')).toHaveClass(/is-read/);
- await page.getByRole('link',{name:'Back to feed'}).click();
- await expect(page.locator('.news-item')).toHaveClass(/is-read/);
-});
-
 test('failed logout keeps the private reader authenticated and retryable',async({page})=>{
  await fixture(page);await page.route('**/api/auth/logout',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
@@ -93,7 +72,7 @@ test('failed logout keeps the private reader authenticated and retryable',async(
  await expect(page).toHaveURL(/\/owner\/news\/$/);await expect(page.locator('.news-item')).toContainText('Protected development');
 });
 
-test('session outage keeps loaded feed history unassigned until retry confirms the reader',async({page})=>{
+test('session outage keeps published briefings available until retry restores the account',async({page})=>{
  let sessions=0;const anonymousKey='dn_read:v3:'+JSON.stringify([['anonymous'],'stable-feed-id']);
  await page.addInitScript(key=>localStorage.setItem(key,'["anonymous-only"]'),anonymousKey);
  await page.route('**/api/**',route=>{

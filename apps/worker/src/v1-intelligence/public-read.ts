@@ -4,6 +4,7 @@ import {V1FeedStore} from './store';
 import type {BriefingEditionRecord} from './publication';
 import {projectEditionLedger} from './ledger';
 import {readVerifiedArchive} from '../verified-archives';
+import type {EditionWindow} from '../reader-history';
 export interface PublicationStatus {id:string;feedId:string;status:'PUBLISHED'|'WITHDRAWN';publishedAt:string;withdrawnAt?:string;reason?:string}
 interface EditionRow {id:string;feed_id:string;edition:string;feed:string|null;status:string|null;status_feed_id:string|null;configuration:string|null}
 interface CitationRow {publisher_url:string|null;publisher_name:string|null;id:string;revision_id:string;revision_feed_id:string;observation_id:string|null;observation_feed_id:string|null;title:string|null;url:string|null;publisher_id:string|null;source_id:string|null;published_at:string|null}
@@ -131,14 +132,18 @@ async function mixedPublishedEditions(db:D1Database,bucket:R2Bucket,feedId:strin
   LEFT JOIN v1_visible_edition_delivery d ON d.edition_id=e.id AND d.feed_id=e.feed_id
   LEFT JOIN v1_verified_archives a ON a.object_key=d.object_key AND a.state='REFERENCED'
   ORDER BY e.created_at DESC,e.id DESC`).bind(feedId).all<DeliveryRow>();
- const available=recent.results.filter(row=>row.object_key).slice(0,ARCHIVE_LIST_READS);
+ return publishedFromDeliveryRows(db,feedId,recent.results,bucket);
+}
+
+async function publishedFromDeliveryRows(db:D1Database,feedId:string,rows:DeliveryRow[],bucket?:R2Bucket) {
+ const available=bucket?rows.filter(row=>row.object_key).slice(0,ARCHIVE_LIST_READS):[];
  const fromArchive=new Map<string,PublishedEdition>();
  for(let i=0;i<available.length;i+=4){
   await Promise.all(available.slice(i,i+4).map(async row=>{
-   try{fromArchive.set(row.id,await readDeliveryRow(bucket,row));}catch{console.warn('Verified edition artifact unavailable');}
+   try{fromArchive.set(row.id,await readDeliveryRow(bucket!,row));}catch{console.warn('Verified edition artifact unavailable');}
   }));
  }
- const missing=recent.results.filter(row=>!fromArchive.has(row.id)).map(row=>row.id);
+ const missing=rows.filter(row=>!fromArchive.has(row.id)).map(row=>row.id);
  const legacy=await batches<EditionRow>(db,chunks(missing).map(part=>db.prepare(`SELECT ${metadataFields} FROM v1_feed_documents e ${metadataJoins}
   WHERE e.kind='editions' AND e.feed_id=? AND e.id IN (${part.map(()=>'?').join(',')})`).bind(feedId,...part)));
  const output=new Map((await projectPublishedRows(db,legacy)).map(edition=>[edition.id,edition]));
@@ -148,7 +153,31 @@ async function mixedPublishedEditions(db:D1Database,bucket:R2Bucket,feedId:strin
    .bind(feedId,...fromArchive.keys()).all<{edition_id:string}>();
   for(const row of visible.results)output.set(row.edition_id,fromArchive.get(row.edition_id)!);
  }
- return recent.results.flatMap(row=>{const edition=output.get(row.id);return edition?[edition]:[];});
+ return rows.flatMap(row=>{const edition=output.get(row.id);return edition?[edition]:[];});
+}
+
+/** Select bounded publication metadata before reading edition prose and citations. */
+export async function recentV1Editions(db:D1Database,feedId:string,window:EditionWindow,bucket?:R2Bucket) {
+ const publishedAt="json_extract(p.json,'$.publishedAt')";
+ const before=window.before;
+ const {results}=await db.prepare(`WITH recent AS MATERIALIZED (
+   SELECT p.id,p.feed_id,${publishedAt} AS published_at
+   FROM v1_feed_documents p
+   WHERE p.kind='publication_status' AND p.feed_id=? AND json_extract(p.json,'$.status')='PUBLISHED'
+     AND ${publishedAt}>=? AND ${publishedAt}<=?
+     ${before?`AND (${publishedAt},p.id)<(?,?)`:''}
+     ${window.excludeOpenedBy?`AND NOT EXISTS (SELECT 1 FROM catch_up_opened_editions o
+       WHERE o.account_id=? AND o.feed_id=p.feed_id AND o.edition_id=p.id
+         AND o.published_at=${publishedAt} AND o.expires_at>=?)`:''}
+   ORDER BY ${publishedAt} DESC,p.id DESC LIMIT ?
+ )
+ SELECT p.id,p.feed_id,p.published_at,a.object_key,a.sha256,a.byte_count,a.schema_version FROM recent p
+ LEFT JOIN v1_visible_edition_delivery d ON d.edition_id=p.id AND d.feed_id=p.feed_id AND d.published_at=p.published_at
+ LEFT JOIN v1_verified_archives a ON a.object_key=d.object_key AND a.state='REFERENCED'
+ ORDER BY p.published_at DESC,p.id DESC`)
+   .bind(feedId,window.since,window.until,...(before?[before.publishedAt,before.id]:[]),
+     ...(window.excludeOpenedBy?[window.excludeOpenedBy,window.until]:[]),window.limit).all<DeliveryRow>();
+ return publishedFromDeliveryRows(db,feedId,results,bucket);
 }
 
 export async function publicV1Edition(db:D1Database,id:string,bucket?:R2Bucket,feedId?:string) {

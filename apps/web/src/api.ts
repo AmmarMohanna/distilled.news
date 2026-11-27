@@ -2,7 +2,7 @@ import type { BriefingConfig, BriefingEdition } from "@distilled/core";
 import {EXPLORE_CHANGED_EVENT} from './explore-events';
 import { preferredLanguage } from './LanguageControl';
 import {ApiError, apiError} from './api-errors';
-import type { AccountRecord, AccountWithStats, ExploreChannel, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, ExploreChannel, FeedPayload, FeedTimelinePage, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -32,8 +32,13 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
-export async function summarizeUnread(username:string,slug:string,readIds:string[]):Promise<{status:'ready';summary:string}|{status:'pending'|'empty'}>{
-  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/unread-summary`,{method:'POST',body:JSON.stringify({readIds})});
+const pendingBriefingOpens=new Map<string,Set<Promise<void>>>();
+const feedApiPath=(username:string,slug:string)=>`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
+
+export async function catchUp(username:string,slug:string,signal:AbortSignal):Promise<{status:'ready';summary:string;validUntil?:number}|{status:'pending'|'empty'}>{
+  const path=feedApiPath(username,slug),pending=pendingBriefingOpens.get(path);
+  if(pending)await Promise.allSettled(pending);
+  return requestJson(`${path}/catch-up`,{method:'POST',signal});
 }
 
 
@@ -342,12 +347,16 @@ export async function deleteAdminBriefing(
  * an unchanged feed returns 304 and downloads nothing. Memory only. */
 let feedCacheEpoch = 0;
 const feedValidators = new Map<string, { etag: string; payload: FeedPayload }>();
-async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload> {
+async function readFeed(path: string, signal?: AbortSignal, timeline?: boolean): Promise<FeedPayload> {
   const epoch = feedCacheEpoch;
-  const known = feedValidators.get(path);
+  const cacheKey=timeline?`${path}?timeline=1`:path;
+  const known = feedValidators.get(cacheKey);
+  const headers: Record<string,string>={};
+  if(known)headers['If-None-Match']=known.etag;
+  if(timeline)headers['X-Distilled-Reader-Timeline']='1';
   let response: Response;
   try {
-    response = await fetch(path, { credentials: "include", signal, headers: known ? { "If-None-Match": known.etag } : {} });
+    response = await fetch(path, { credentials: "include", signal, headers });
   } catch {
     throw apiError(undefined);
   }
@@ -357,24 +366,29 @@ async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload
   if (!response.ok) throw apiError(errorDetail(payload), response);
   const etag = response.headers.get("ETag");
   if (epoch === feedCacheEpoch) {
-    if (etag) feedValidators.set(path, { etag, payload }); else feedValidators.delete(path);
+    if (etag) feedValidators.set(cacheKey, { etag, payload }); else feedValidators.delete(cacheKey);
   }
   return payload;
 }
 
-export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean }): Promise<FeedPayload> {
+export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean; timeline?: boolean }): Promise<FeedPayload> {
   const path = `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
   const signal = options?.signal;
   try {
-    return await readFeed(path, signal);
+    return await readFeed(path, signal, options?.timeline);
   } catch (cause) {
     if (!options?.retryInitialRead || signal?.aborted || !(cause instanceof ApiError)) throw cause;
     const { status, retryAfterSeconds } = cause.uiMessage.details;
     if ((status !== undefined && ![502, 503, 504].includes(status)) || retryAfterSeconds) throw cause;
     await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 300));
     if (signal?.aborted) throw cause;
-    return readFeed(path, signal);
+    return readFeed(path, signal, options?.timeline);
   }
+}
+
+export function getTimelinePage(username:string,slug:string,before:string,signal:AbortSignal):Promise<FeedTimelinePage> {
+  const query=new URLSearchParams({timeline:'1',before});
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}?${query}`,{signal});
 }
 
 export async function getFeedEdition(username: string, slug: string, editionId: string): Promise<BriefingEdition> {
@@ -384,8 +398,23 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
-export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition }> {
+export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition; catchUpAvailable?:boolean }> {
   return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`, { signal });
+}
+
+export async function recordBriefingOpened(username:string,slug:string,editionId:string):Promise<void> {
+  const path=feedApiPath(username,slug);
+  const request=fetch(`${path}/editions/${encodeURIComponent(editionId)}/opened`,
+    {method:'POST',credentials:'include',keepalive:true,signal:AbortSignal.timeout(4000)}).then(response=>{
+    if(!response.ok)throw apiError(undefined,response);
+  });
+  const pending=pendingBriefingOpens.get(path)??new Set<Promise<void>>();
+  pending.add(request);
+  pendingBriefingOpens.set(path,pending);
+  try{await request;}finally{
+    pending.delete(request);
+    if(!pending.size)pendingBriefingOpens.delete(path);
+  }
 }
 
 export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null; photos?: Array<{ url: string; source: string }> }> {

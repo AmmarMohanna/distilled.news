@@ -61,9 +61,8 @@ test('dark reader text, metadata, citations and actions meet contrast thresholds
   expect(await contrast(page.locator('.feed-header-actions > button').first())).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(page.locator('.news-head time'))).toBeGreaterThanOrEqual(4.5);
   await page.screenshot({path:`.local-reports/dark-mode/${info.project.name}-reader.png`});
-  await page.evaluate(()=>localStorage.setItem('dn_read:v3:'+JSON.stringify([['account','owner'],'news']), '["edition"]'));
   await page.reload();
-  await expect(page.locator('.news-item')).toHaveClass(/is-read/);
+  await expect(page.locator('.news-item')).not.toHaveClass(/is-read/);
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(4.5);
   await page.emulateMedia({contrast:'more',reducedMotion:'reduce'});
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(4.5);

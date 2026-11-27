@@ -8,6 +8,8 @@ import type {Env} from './types';
 import {feedReadVersion,resetFeedReadCacheForTests} from './feed-read-cache';
 import {profileD1,isWriteSql} from './perf/d1-profile';
 import {seedQaShape,editionStatements,editionIdFor,feedId,feedSlug,OWNER,type QaShape} from './perf/qa-shape';
+import {catchUpOpenExpiry,editionWindow,expireCatchUpOpens} from './reader-history';
+import {recentProductEditions} from './product-feeds';
 
 const SHAPE:QaShape={feeds:3,heavyJobs:60,jobsPerFeed:10,editionsHeavy:6,editionsPerFeed:3,citationsPerEdition:2,requestsPerFeed:3,pollsPerSource:3};
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,ownerId:string;
@@ -32,6 +34,107 @@ async function read(f:number,cache:boolean,init:RequestInit={},db:D1Database=ctx
  const app=createApp({repository:new D1Repository(db)});
  return app.request(feedUrl(f),init,env(db,cache,extra));
 }
+
+it('keeps the legacy timeline version stable across requests and changes it when an older edition is withdrawn',async()=>{
+ const now=new Date('2026-11-26T12:00:00Z'),repo=new D1Repository(ctx.db),briefingId=feedId(1);
+ const runtime=env(ctx.db,true,{PRODUCT_FEEDS_ENABLED:'false'});
+ const app=createApp({now:()=>now}),url=`${feedUrl(1)}?timeline=1`;
+ const records=Array.from({length:10},(_,i)=>{
+  const at=new Date(now.getTime()-(i+1)*60_000).toISOString();
+  const text='The coastal road reopened after an overnight security closure.';
+  return {id:`legacy-${i}`,briefingId,cadence:'hourly' as const,windowStart:at,windowEnd:at,title:'Coastal news',summary:text,
+    sections:[{title:'Infrastructure',summary:text,evidence:[]}],status:'published' as const,publishedAt:at,createdAt:at,updatedAt:at};
+ });
+ for(const edition of records)await repo.saveBriefingEdition(edition,now);
+ const get=async(suffix='')=>{
+  const response=await app.request(url+suffix,{},runtime);
+  expect(response.status).toBe(200);
+  return response.json() as Promise<{editions:{id:string}[];publicationVersion:string;timelineNextCursor:string|null}>;
+ };
+ try {
+  const initial=await get(),pageQuery=`&before=${encodeURIComponent(initial.timelineNextCursor!)}`;
+  expect(initial.editions).toHaveLength(8);
+  expect(initial.publicationVersion).toMatch(/^\d+:\d+:(en|ar|fr)$/);
+  await repo.recordCatchUpOpen(ownerId,records[0],catchUpOpenExpiry(records[0].publishedAt));
+  const window={...editionWindow(now,1,2),excludeOpenedBy:ownerId};
+  expect((await repo.listBriefingEditions(briefingId,true,now,2,window)).map(e=>e.id)).toEqual(['legacy-1','legacy-2']);
+  expect(await repo.openedCatchUpCorrectionTargets(ownerId,briefingId,window,false)).toEqual([]);
+  expect((await get()).publicationVersion).toBe(initial.publicationVersion);
+  expect(await get(pageQuery)).toMatchObject({publicationVersion:initial.publicationVersion,editions:[{id:'legacy-8'},{id:'legacy-9'}]});
+  await repo.saveBriefingEdition({...records[9],status:'empty'},now);
+  const changed=await get();
+  expect(changed.publicationVersion).not.toBe(initial.publicationVersion);
+  expect(changed.editions).toEqual(initial.editions);
+  expect(await get(pageQuery)).toMatchObject({publicationVersion:changed.publicationVersion,editions:[{id:'legacy-8'}]});
+ } finally {
+  await ctx.db.prepare("DELETE FROM catch_up_opened_editions WHERE feed_id=? AND edition_id LIKE 'legacy-%'").bind(briefingId).run();
+  await ctx.db.prepare("DELETE FROM briefing_editions WHERE briefing_id=? AND id LIKE 'legacy-%'").bind(briefingId).run();
+ }
+});
+
+it('excludes opened product editions before the limit and scopes correction targets to live publications',async()=>{
+ const now=new Date('2026-11-26T12:00:00Z'),repo=new D1Repository(ctx.db),briefing=(await repo.getBriefingById(feedId(1)))!;
+ const runtime=env(ctx.db,false,{CATCH_UP_ENABLED:'true',OPENROUTER_API_KEY:'offline-fixture'});
+ const times=['2026-11-26T09:00:00.000Z','2026-11-26T10:00:00.000Z','2026-11-26T11:00:00.000Z'];
+ const ids=times.map((_,i)=>editionIdFor(1,80+i));
+ for(const [i,at] of times.entries())await ctx.db.batch(editionStatements(ctx.db,1,80+i,1,1,at));
+ const [older,next,latest]=ids;
+ const target=`${older}:original`,window=editionWindow(now,1,2),filtered={...window,excludeOpenedBy:ownerId};
+ const readRecent=async(scope=window)=>(await recentProductEditions(runtime,briefing,scope)).map(e=>e.id);
+ try {
+  const owner=(await repo.getAccountById(ownerId))!;
+  const cookie=`dn_session=${await createSession('cache-secret',owner)}`,app=createApp({now:()=>now});
+  const requestOpen=(id:string)=>app.request(`${feedUrl(1)}/editions/${id}/opened`,{method:'POST',headers:{cookie}},runtime);
+  const original=(await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='editions' AND id=?").bind(latest).first<{json:string}>())!;
+  await ctx.db.batch([
+   ctx.db.prepare("DELETE FROM v1_feed_documents WHERE kind='editions' AND id=?").bind(latest),
+   ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('editions',?,?,json_set(?,'$.stories[0].relation','correction','$.stories[0].updatesId',?))")
+    .bind(latest,briefing.id,original.json,target)
+  ]);
+  expect(await readRecent(filtered)).toEqual([latest,next]);
+  expect((await requestOpen(latest)).status).toBe(204);
+  expect((await requestOpen(latest)).status).toBe(204);
+  expect(await readRecent(filtered)).toEqual([next,older]);
+  expect(await readRecent()).toEqual([latest,next]);
+  expect(await repo.openedCatchUpCorrectionTargets(ownerId,briefing.id,window,true)).toEqual([target]);
+  await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.publishedAt',?) WHERE kind='publication_status' AND id=?")
+    .bind('2026-11-26T11:30:00.000Z',latest).run();
+  expect(await readRecent(filtered)).toEqual([latest,next]);
+  expect(await repo.openedCatchUpCorrectionTargets(ownerId,briefing.id,window,true)).toEqual([]);
+  await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.status','WITHDRAWN') WHERE kind='publication_status' AND id=?").bind(latest).run();
+  expect((await requestOpen(latest)).status).toBe(404);
+  await expireCatchUpOpens(ctx.db,new Date('2027-02-01T00:00:00Z'));
+  expect(await ctx.db.prepare('SELECT 1 FROM catch_up_opened_editions WHERE account_id=? AND feed_id=?').bind(ownerId,briefing.id).first()).toBeNull();
+ } finally {
+  await ctx.db.prepare('DELETE FROM catch_up_opened_editions WHERE account_id=? AND feed_id=?').bind(ownerId,briefing.id).run();
+  await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE feed_id=? AND id IN (?,?,?) AND kind IN ('editions','publication_status')").bind(briefing.id,...ids).run();
+ }
+});
+
+it('bounds D1 timeline reads while preserving permissions on older edition detail',async()=>{
+ const app=createApp({now:()=>new Date('2026-11-26T12:00:00Z')});
+ const path=feedUrl(1), runtime=env(ctx.db,true);
+ const old=editionIdFor(1,0);
+ const recent='2026-11-26T10:00:00.000Z';
+ await ctx.db.batch(editionStatements(ctx.db,1,70,1,1,recent));
+ try {
+  const result=await app.request(`${path}?timeline=1`,{},runtime);
+  expect(result.status).toBe(200);
+  const timeline=await result.json() as {editions:{id:string}[];timelineNextCursor:string|null};
+  expect(timeline.editions.map(edition=>edition.id)).toEqual([editionIdFor(1,70)]);
+  expect(timeline.timelineNextCursor).toBeNull();
+  expect((await app.request(`${path}/editions/${old}`,{},runtime)).status).toBe(200);
+  const repo=new D1Repository(ctx.db),feed=(await repo.getBriefingById(feedId(1)))!;
+  await repo.upsertBriefing({...feed,publicFeedEnabled:false});
+  try {
+   expect((await app.request(`${path}?timeline=1`,{},runtime)).status).toBe(404);
+   expect((await app.request(`${path}/editions/${old}`,{},runtime)).status).toBe(404);
+   expect((await app.request(`${path}/search?q=Article`,{},runtime)).status).toBe(404);
+  } finally {await repo.upsertBriefing(feed);}
+ } finally {
+  await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE id=? AND kind IN ('editions','publication_status')").bind(editionIdFor(1,70)).run();
+ }
+});
 
 it('bumps the read version only for edition and publication-status writes',async()=>{
  const id=feedId(2),before=await feedReadVersion(ctx.db,id);

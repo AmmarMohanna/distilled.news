@@ -1,5 +1,7 @@
 # Unread catch-up summary
 
+This is a historical record of the retired summarizer. The current endpoint and activation criteria are documented in [Catch me up](WEB_APP_AND_NOTIFICATIONS.md#catch-me-up).
+
 ## Interface
 
 The feed reader has a compact **Summarize unread** action beside search on desktop and below it on phones. A short paragraph opens inline above the briefing timeline. It supports the existing light/dark themes, Arabic RTL, enlarged text, reduced motion, keyboard focus and screen-reader status updates. It does not mark briefings read, publish editions or send notifications. There are no coverage dates or briefing-count labels.
