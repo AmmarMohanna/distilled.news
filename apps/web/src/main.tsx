@@ -2238,7 +2238,7 @@ function briefingPhotos(edition: BriefingEdition) {
 }
 
 function PublisherPhoto({photo}: {photo: ReturnType<typeof briefingPhotos>[number]}) {
-  return <img src={photo.url} referrerPolicy="no-referrer" loading="lazy" alt="" title={photo.source}
+  return <img src={photo.url} referrerPolicy="no-referrer" loading="eager" fetchPriority="high" alt="" title={photo.source}
     onError={event => { event.currentTarget.hidden = true; }}/>;
 }
 
@@ -2266,7 +2266,8 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const recordedOpen=useRef<string|null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const retainedPhotos = result ? briefingPhotos(result.edition) : [];
-  const previewPhotos = usePublisherPhotos(result?.briefing.publicFeedEnabled && retainedPhotos.length < 3 ? props.username : undefined, props.slug, props.editionId);
+  const loadPublisherPhotos = !result || (result.briefing.publicFeedEnabled && retainedPhotos.length < 3);
+  const previewPhotos = usePublisherPhotos(loadPublisherPhotos ? props.username : undefined, props.slug, props.editionId);
   useEffect(() => {
     let active = true;
     void getSession().then(session => { if (active) setReaderAccount(session.account ?? null); })

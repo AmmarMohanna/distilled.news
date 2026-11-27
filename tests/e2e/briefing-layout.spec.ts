@@ -153,16 +153,19 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   const photoUrl = "https://example.test/briefing-photo.svg";
   const secondPhotoUrl = "https://example.test/second-briefing-photo.svg";
   let photoRequests = 0;
+  let releaseEdition!: () => void;
+  const editionReady = new Promise<void>(resolve => { releaseEdition = resolve; });
   await page.route("https://example.test/*briefing-photo.svg", route => route.fulfill({
     contentType: "image/svg+xml",
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
   }));
-  await page.route("**/api/**", route => {
+  await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     if (url.searchParams.has("photo")) {
       photoRequests++;
       return route.fulfill({ json: { photos: [{ url: photoUrl, source: "Example" }, { url: secondPhotoUrl, source: "Second publisher" }] } });
     }
+    if (url.pathname.endsWith("/editions/latest")) await editionReady;
     if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
     return route.fulfill({ json: url.pathname === "/api/auth/session"
       ? { authenticated: false } : { briefing: { ...briefing, language }, editions: [edition], edition, viewerHasStarred: false } });
@@ -172,7 +175,13 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   await expect(headline).toBeVisible();
   expect(photoRequests).toBe(0);
   await headline.click();
+  try {
+    await expect.poll(() => photoRequests).toBe(1);
+  } finally {
+    releaseEdition();
+  }
   await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("fetchpriority", "high");
   const menu = (await page.locator(".briefing-detail-menu summary").boundingBox())!;
   const photo = (await page.locator(".briefing-detail-photo").boundingBox())!;
   if (language === "ar") expect(menu.x).toBeCloseTo(photo.x, 0);
