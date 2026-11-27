@@ -3902,6 +3902,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   --reader-chrome: color-mix(in srgb, var(--reader-banner) 88%, transparent);
   padding-inline: var(--reader-gutter);
 }
+:root.apple-ui.apple-ui[data-theme="light"] .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) {
+  --reader-banner: color-mix(in srgb, var(--surface) 86%, #a38be3);
+}
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) > .experience-header.experience-header {
   position: relative;
   z-index: 22;
