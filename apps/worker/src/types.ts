@@ -225,6 +225,7 @@ export interface Env extends Cloudflare.Env {
   AGENTOPS_CAMPAIGN_ALLOW_FAULTS?: string;
   UNREAD_SUMMARY_ENABLED?: string;
   CATCH_UP_ENABLED?: string;
+  CATCH_UP_LIFETIME_LIMIT_USD?: string;
   /** Version 5 is opt-in pending real novelty/false-rejection qualification. */
   BRIEFING_PROMPT_VERSION?: "4" | "5" | "6";
   BRIEFING_WORDING_FIDELITY_ENABLED?: string;

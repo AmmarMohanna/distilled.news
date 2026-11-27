@@ -1,7 +1,7 @@
 import {sha256} from '@distilled/contracts';
 import {BriefingBudgetError,BriefingModelError,openAiCompatibleModel,type ModelPort,type ModelResponse} from '@distilled/briefing';
 import type {Env} from './types';
-import {modelSpendingAccount,ModelSpendingWait,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
+import {modelSpendingAccount,ModelSpendingWait,READER_CATCH_UP_RESERVATION_PREFIX,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
 import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
@@ -28,7 +28,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
   const receiptKind=discovery?'website_link_discovery_provider':'reader_catch_up_provider_v1';
   return {async complete(request){
     const {signal:_,...body}=request;
-    const requestId=operation+'-provider:'+await sha256(JSON.stringify([feedId,scopeId,body]));
+    const requestId=(discovery?operation+'-provider:':READER_CATCH_UP_RESERVATION_PREFIX)+await sha256(JSON.stringify([feedId,scopeId,body]));
     const maxAttempts=discovery?1:MAX_SUMMARY_ATTEMPTS;
     let attempt=0,id=requestId;
     for(;attempt<maxAttempts;attempt++){
@@ -68,7 +68,8 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
 
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
-      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter','interactive')},{requireAuthorization:!discovery});
+      const lifetimeLimit=discovery||env.CATCH_UP_LIFETIME_LIMIT_USD===undefined?undefined:Number(env.CATCH_UP_LIFETIME_LIMIT_USD);
+      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter','interactive')},{requireAuthorization:!discovery,catchUpLifetimeLimitUsd:lifetimeLimit});
     }catch(error){
       if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new CatchUpSummaryResourceWait();
       console.warn(discovery?'website-link-discovery-admission-failed':'reader-catch-up-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});

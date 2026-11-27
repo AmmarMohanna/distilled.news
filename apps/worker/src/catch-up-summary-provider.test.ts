@@ -3,7 +3,7 @@ import {createIntakeDatabase} from './v1-intake/test-utils';
 import {catchUpSummaryPort} from './catch-up-summary-provider';
 import {generateCatchUpSummary,CatchUpSummaryResourceWait,catchUpSummaryRequest} from './catch-up-summary';
 import type {Env} from './types';
-import {authorizeModelSpending,reserveModelSpending} from './v1-intelligence/model-spending';
+import {authorizeModelSpending,READER_CATCH_UP_RESERVATION_PREFIX,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
 import {recoverProviderGeneration} from './v1-intelligence/provider-recovery';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 beforeAll(async()=>{ctx=await createIntakeDatabase({product:true});await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('summary-test',JSON.stringify({revision:1,paused:true})).run();});
@@ -101,6 +101,38 @@ it('requires and enforces a finite grant even when the model account is in TRACK
   expect(await local.db.prepare('SELECT reported,cost_usd FROM v1_model_spending_settlements').first()).toMatchObject({reported:1,cost_usd:.005});
   await expect(port.complete(catchUpSummaryRequest({...input,language:'fr'}))).rejects.toThrow('temporarily unavailable');
   expect(fetcher).toHaveBeenCalledOnce();
+ }finally{await local.dispose()}
+},30000);
+
+it('keeps a lifetime cap for summaries separate from scheduled spending on the same account',async()=>{
+ const local=await createIntakeDatabase({product:true,modelSpending:false});try{
+  const feedId='lifetime-feed',accountId='shared-provider';
+  await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(feedId,JSON.stringify({revision:1})).run();
+  await local.db.prepare('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?)')
+   .bind('model-spending:tracking-only:'+accountId,JSON.stringify({mode:'TRACK_ONLY',modelIds:['*'],enabledAt:'2000-01-01T00:00:00Z'}),'2026-01-01T00:00:00Z').run();
+  await reserveModelSpending(local.db,{id:'scheduled-test',accountId,feedId,token:'scheduled',model:'openai/gpt-4.1-mini',
+   reservedCostUsd:1,leaseUntil:Date.now()+60_000,createdAt:new Date().toISOString()});
+  await settleModelSpending(local.db,'scheduled-test','scheduled',{costUsd:1,reported:true});
+
+  const env={DB:local.db,OPENROUTER_API_KEY:'test',CATCH_UP_LIFETIME_LIMIT_USD:'.005'} as Env;
+  const fetcher=vi.fn(async()=>summaryResponse(.005));
+  const port=catchUpSummaryPort(env,feedId,'first-reader',fetcher);
+  const request=catchUpSummaryRequest(input);
+  expect(await port.complete(request)).toMatchObject({costUsd:.005});
+  expect(await port.complete(request)).toMatchObject({costUsd:.005});
+  const other=catchUpSummaryPort(env,feedId,'second-reader',fetcher);
+  await expect(other.complete(request)).rejects.toThrow('temporarily unavailable');
+  expect(fetcher).toHaveBeenCalledOnce();
+  const {results}=await local.db.prepare('SELECT authorization_id FROM v1_model_spending_reservations ORDER BY id').all();
+  expect(results).toEqual([{authorization_id:'reader-catch-up-lifetime'},{authorization_id:null}]);
+
+  const reserve=(key:string)=>reserveModelSpending(local.db,{
+   id:READER_CATCH_UP_RESERVATION_PREFIX+key,accountId,feedId,token:key,model:'openai/gpt-4.1-mini',
+   reservedCostUsd:.004,leaseUntil:Date.now()+60_000,createdAt:new Date().toISOString()
+  },{requireAuthorization:true,catchUpLifetimeLimitUsd:.011});
+  const concurrent=await Promise.allSettled([reserve('race-a'),reserve('race-b')]);
+  expect(concurrent.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+  await expect(reserve('still-held')).rejects.toThrow('ACCOUNT_RESOURCE_WAIT');
  }finally{await local.dispose()}
 },30000);
 

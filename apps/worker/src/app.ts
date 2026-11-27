@@ -2612,7 +2612,9 @@ async function hasRetainedPublication(env:Env,repo:Repository,feedId:string,now:
 }
 
 function catchUpEnabled(env:Env) {
-  return env.CATCH_UP_ENABLED==='true'&&Boolean(env.DB&&env.OPENROUTER_API_KEY);
+  const cap=Number(env.CATCH_UP_LIFETIME_LIMIT_USD);
+  return env.CATCH_UP_ENABLED==='true'&&Boolean(env.DB&&env.OPENROUTER_API_KEY)
+    &&(env.CATCH_UP_LIFETIME_LIMIT_USD===undefined||(Number.isFinite(cap)&&cap>0));
 }
 
 function publicEdition(
