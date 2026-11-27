@@ -154,6 +154,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   if(['telegram','website'].includes(approved.source.family)&&sourceAvailability(env,approved.source.family).state!=='AVAILABLE')continue;
   await enrollV1Source(env.DB,id,row.owner_account_id,now.toISOString());
  }
+ let recoverySources:Set<string>|undefined;
  const scheduled:{id:string;scheduler:string;sourceId:string}[]=[];
  if(!options.skipSchedule)for(const id of ids) {
   const row=await env.DB.prepare(`SELECT s.briefing_id,s.created_at,s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{briefing_id:string;created_at:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
@@ -171,7 +172,18 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
     !((budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0)||(budgets.x_apify>0&&ceilings.apify>0)))continue;
   if(paidFamily.startsWith('linkedin_')&&!(budgets.linkedin_apify>0&&ceilings.apify>0))continue;
   if(paidFamily.startsWith('x_'))await recoverExpiredTwitterReads(env,row.briefing_id,id,now);
-  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(paidFamily.startsWith('linkedin_')||paidFamily.startsWith('x_')||paidFamily==='google_news'))await recoverInterruptedApifyRead(env,row.briefing_id,id);
+  if(env.APIFY_API_TOKEN && env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true' &&
+    (paidFamily.startsWith('linkedin_')||paidFamily.startsWith('x_')||paidFamily==='google_news')){
+   // A queue tick owns one feed. Check its sparse set of blocked sources
+   // once; recoverInterruptedApifyRead still revalidates each live job.
+   if(options.feedId===row.briefing_id && !recoverySources){
+    const rows=await env.DB.prepare(`SELECT DISTINCT json_extract(request,'$.scope.feedSourceId') AS id
+     FROM connector_provider_poll_jobs WHERE json_extract(request,'$.scope.feedId')=?
+     AND state='BLOCKED' AND last_error='UNCERTAIN_PAID_SUBMISSION'`).bind(row.briefing_id).all<{id:string}>();
+    recoverySources=new Set(rows.results.map(source=>source.id));
+   }
+   if(options.feedId!==row.briefing_id || recoverySources?.has(id))await recoverInterruptedApifyRead(env,row.briefing_id,id);
+  }
   if((paidFamily.startsWith('x_')||paidFamily.startsWith('linkedin_'))&&await hasUncertainSourcePayment(env.DB,
    row.briefing_id,id,
    paidFamily.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify']))continue;

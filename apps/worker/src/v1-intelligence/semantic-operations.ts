@@ -28,7 +28,7 @@ async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Pro
  if(input.kind==='V3_EDITOR_VERIFIER'&&(input.state as {cutoffPolicy?:string})?.cutoffPolicy===CUTOFF_EDITION_POLICY){
   if(!await cutoffSemanticAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');return;
  }
- const active=await tx.store.activeEvidenceRevisionIds(input.feedId);
+ const active=await tx.store.activeEvidenceRevisionIds(input.feedId,input.evidenceRevisionIds);
  if(!input.evidenceRevisionIds.length || input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');
 }
 /** Calls occur only after durable intent commit. Lost outcomes never reissue;

@@ -53,8 +53,18 @@ function flakyDatabase(){
   run:async()=>{calls.push(sql);if(failNext){failNext=false;throw new Error(OVERLOADED);}return {success:true};},
  }) as unknown as D1PreparedStatement;
  const db={prepare:(sql:string)=>statement(sql),batch:async(list:D1PreparedStatement[])=>{calls.push(`batch:${list.length}`);if(failNext){failNext=false;throw new Error(OVERLOADED);}return [];}} as unknown as D1Database;
- return {db:withReadRetry(db),calls,arm:()=>{failNext=true;}};
+ return {native:db,db:withReadRetry(db),calls,arm:()=>{failNext=true;}};
 }
+
+it('retries session overload on the primary even when replica sessions are enabled',async()=>{
+ const {native,calls}=flakyDatabase();
+ const withSession=vi.fn(()=>{throw Error('session validation must stay on primary')});
+ const DB:D1Database=Object.assign(native,{withSession});
+ const db=readRouteDatabase({DB,D1_READ_SESSIONS_ENABLED:'true'} as Env,new Request('https://x/api/auth/session'));
+ expect(await db.prepare('SELECT 1').first()).toEqual({ok:1});
+ expect(calls).toEqual(['SELECT 1','SELECT 1']);
+ expect(withSession).not.toHaveBeenCalled();
+});
 
 it('retries an overloaded read once and never retries a write',async()=>{
  const flaky=flakyDatabase();

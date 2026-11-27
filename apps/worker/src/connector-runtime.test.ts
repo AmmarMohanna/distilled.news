@@ -1,5 +1,6 @@
 import {createApp} from './app';
 import {readEditionDelivery} from './v1-intelligence/delivery-status';
+import {profileD1} from './perf/d1-profile';
 import {connectorSourceHealth} from './connector-health';
 import {publishedProductEditions} from './product-feeds';
 import {HandoffError,sha256,hashContent,handoffFixture,receiptFixture} from '@distilled/contracts';
@@ -527,6 +528,24 @@ it('maps approved X profile and topic inputs to their exact connector identities
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS='x-topic';
  expect(await authorizeConnectorSource(env,{scope:{feedId:'feed-1',feedSourceId:'x-topic',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'topic-run',source:{family:'x_search',locator:'Lebanon electricity'},requestedBounds:{},limit:20})).toBe(true);
 },15000);
+it('checks recovery candidates once per feed and only probes a source with blocked work',async()=>{
+ const ids=['google-a','google-b'],now=testPolicy.now();
+ for(const id of ids){
+  const url=buildGoogleNewsRssUrl(id,{geo:'US',language:'en'});
+  await ctx.db.prepare(`INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at)
+   VALUES(?,'feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)`).bind(id,url,'news: '+id,now,now,now).run();
+ }
+ await ctx.db.prepare(`INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,state,last_error)
+   VALUES('blocked-google',?,'hash','[]',?,'BLOCKED','UNCERTAIN_PAID_SUBMISSION')`)
+   .bind(JSON.stringify({scope:{feedId:'feed-1',feedSourceId:ids[1]}}),now).run();
+ const measured=profileD1(ctx.db);
+ await runConnectorMaintenance({...env,DB:measured.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',
+  APIFY_API_TOKEN:'fixture-only',V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(',')},new Date(now),{scheduleOnly:true,feedId:'feed-1'});
+ const discovery=measured.log.filter(entry=>entry.sql.includes('SELECT DISTINCT json_extract(request'));
+ expect(discovery).toHaveLength(1);
+ const probes=measured.log.filter(entry=>entry.sql.includes('SELECT p.job_id FROM connector_provider_poll_jobs p'));
+ expect(probes.map(entry=>entry.binds.slice(0,2))).toEqual([['feed-1','google-b']]);
+});
 it('accepts an approved Google News query through the free RSS path and rejects a changed query URL',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-source','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();

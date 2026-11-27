@@ -210,10 +210,10 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   })}
   // Refresh only unstarted work; retain the predecessor and its paid identity.
   // A deleted/revoked source never supplies authority for a replacement input.
-  const activeIds=await store.activeEvidenceRevisionIds(feedId);
+  const activeIds=snapshot.cutoffPolicy ? undefined : await store.activeEvidenceRevisionIds(feedId,snapshot.evidenceRevisionIds);
   if(snapshot.cutoffPolicy){
    if(!await cutoffEvidenceAuthorized(store,snapshot))throw new HandoffError('SCOPE_DENIED');
-  }else if(snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
+  }else if(activeIds && snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
    const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy,snapshot.input.feed.wordingFidelityPolicy,snapshot.input.feed.verificationRecoveryPolicy,snapshot.input.feed.identityFidelityPolicy,snapshot.editorSelectionPolicy,snapshot.input.feed.verificationInputPolicy,snapshot.v5PublicationPolicy),priorSnapshot=snapshot;
    if(prepared.feedRevision!==priorSnapshot.feedRevision)throw new HandoffError('SCOPE_DENIED');
    for(const ref of priorSnapshot.evidenceRevisionIds.filter(ref=>!activeIds.has(ref))){
@@ -326,7 +326,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     if(collection.unavailable){coverage.state='INCOMPLETE';coverage.failures.push({kind:'COLLECTION',code:'COLLECTION_BACKPRESSURE_AT_DEADLINE',count:collection.unavailable});coverage.unavailableCollections=collection.unavailableSources;}
    }
    if(frozen.cutoffPolicy){if(!await cutoffEvidenceAuthorized(store,frozen))throw new HandoffError('SCOPE_DENIED');}
-   else{const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
+   else{const active=await store.activeEvidenceRevisionIds(feedId,frozen.evidenceRevisionIds);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
    const result=completed.result;
    if(result.status!=='published'){
     const v5Failure=frozen.models.generation&&result.dropped.map(d=>d.reason.split(':',1)[0]).find(reason=>['V5_EDITOR_CONTRACT','V5_CONSOLIDATION_CONTRACT','V5_READER_WORD_BUDGET'].includes(reason));
@@ -372,7 +372,7 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
     input.models.generation.prompt!=='v5-source-first-v5'||input.input.feed.identityFidelityPolicy!=='source-bound-claims-v3'||
     !saved.result.items.length||saved.result.items.some(item=>!item.sourceIds.length)))throw new HandoffError('SCOPE_DENIED');
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
- else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
+ else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId,input.evidenceRevisionIds);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}
  await tx.preloadRevisions(input.evidenceRevisionIds);
  if(!saved.operationIds.length||canonicalJson(edition)!==canonicalJson(await v3Edition(ref=>tx.revision(ref),edition.id,input,saved,edition.createdAt)))throw new HandoffError('SCOPE_DENIED');
