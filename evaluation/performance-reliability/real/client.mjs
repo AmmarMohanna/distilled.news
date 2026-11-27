@@ -33,7 +33,7 @@ export class ApplicationClient{
   if(Buffer.byteLength(text)>2_000_000)throw Error('APPLICATION_RESPONSE_LIMIT');
   let value;try{value=JSON.parse(text)}catch{value=null;}
   journal(this.dir,{category,method,routeHash:hash(path),status:response.status,expected:expected.includes(response.status),elapsedMs:performance.now()-started,responseHash:hash(text),cfRay:response.headers.get('cf-ray'),returnedTraceparent:response.headers.get('traceparent')});
-  if(!expected.includes(response.status))throw Error('APPLICATION_HTTP_'+response.status);
+  if(!expected.includes(response.status))throw Error('APPLICATION_HTTP_'+response.status+(response.status>=400&&response.status<500?applicationErrorCode(text):''));
   const set=response.headers.getSetCookie?.()??[response.headers.get('set-cookie')].filter(Boolean);
   const session=set.map(s=>s.split(';')[0]).find(s=>/^dn_session=/.test(s));
   return {status:response.status,value,cookie:session,elapsedMs:performance.now()-started};
@@ -46,3 +46,9 @@ export async function bounded(items,limit,fn){
 
 /** A stale lock requires operator reconciliation; never auto-delete another run. */
 export function lockRun(dir){const path=resolve(dir,'active.lock');let fd;try{fd=openSync(path,'wx',0o600)}catch{throw Error('RUN_LOCKED_RECONCILE_BEFORE_RESTART')}writeFileSync(fd,String(process.pid));return ()=>{closeSync(fd);unlinkSync(path)};}
+/** A short, sanitized code from a 4xx body (the app's error text and any source-check statuses) for logs. */
+export function applicationErrorCode(text){
+ try{const j=JSON.parse(text);const statuses=Array.isArray(j?.checks)?j.checks.map(c=>c?.status).filter(Boolean).join('_'):'';
+  const code=[typeof j?.error==='string'?j.error:'',statuses].filter(Boolean).join('_').replace(/[^A-Z0-9_]/gi,'_').replace(/_+/g,'_').toUpperCase().slice(0,120);
+  return code?'_'+code:'';}catch{return '';}
+}

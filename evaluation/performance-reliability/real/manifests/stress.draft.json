@@ -8,7 +8,7 @@
   "feedsPerUser": 2,
   "feeds": [
     {
-      "topic": "Important political, government and security developments affecting Lebanon, grounded in the source reporting",
+      "topic": "Important political, government and security developments across the Middle East, including Lebanon, grounded in the source reporting",
       "language": "en",
       "intervalMinutes": 30,
       "timezone": "Asia/Beirut",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "topic": "Important economic, banking and public-service developments affecting Lebanon and the Middle East, grounded in the source reporting",
+      "topic": "Important economic, energy and humanitarian developments across the Middle East, grounded in the source reporting",
       "language": "ar",
       "intervalMinutes": 60,
       "timezone": "Asia/Beirut",

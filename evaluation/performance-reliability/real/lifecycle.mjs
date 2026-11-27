@@ -36,7 +36,7 @@ export async function setup(m,client,dir,{emailDomain,gmailAddress,mailbox,chall
    const entry={id,slot:i,ownerId:u.id,state:'CREATE_SENT'};u.feeds.push(entry);save();
    // Reserves observer/fault scope before any source assessment or paid work.
    await client.request(`/api/admin/agentops/campaigns/${m.runId}/register`,{method:'POST',cookie:adminCookie,body:{feedId:id,ownerId:u.id},category:'register-scope'});
-   const response=await client.request('/api/me/feeds',{method:'POST',cookie:u.cookie,category:'create-feed',body:{id,title:`QA ${m.runId} ${u.slot}-${i}`,interestProfile:template.topic,sourceInputs:template.sources,publicFeedEnabled:template.public,updateIntervalMinutes:template.intervalMinutes,briefingTimeOfDay:template.dailyAt??'00:00',briefingTimezone:template.timezone,language:template.language}});
+   const response=await client.request('/api/me/feeds',{method:'POST',cookie:u.cookie,category:'create-feed',expected:[200,202],body:{id,title:`QA ${m.runId} ${u.slot}-${i}`,interestProfile:template.topic,sourceInputs:template.sources,publicFeedEnabled:template.public,updateIntervalMinutes:template.intervalMinutes,briefingTimeOfDay:template.dailyAt??'00:00',briefingTimezone:template.timezone,language:template.language}});
    assert(response.value?.briefing?.id===id&&response.value.briefing.ownerAccountId===u.id,'CREATED_FEED_OWNERSHIP');
    Object.assign(entry,{state:'CREATED',config:response.value.briefing,createdAt:new Date().toISOString()});save();
   }
