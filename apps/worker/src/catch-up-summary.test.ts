@@ -43,6 +43,21 @@ it('bounds multilingual input without cutting a briefing or its qualifiers',()=>
   expect(data.briefings.map(b=>b.id)).toEqual(['small']);
   const req=catchUpSummaryRequest(data);expect(summaryTokenUpperBound(req)).toBeGreaterThan(req.user.length);
 });
+it('keeps all published prose and correction links when source quotes exceed the input limit',()=>{
+  const old=edition('old',2,'The port authority expected a reopening at noon.');
+  const corrected=edition('corrected',1,'The port authority now estimates a reopening at 18:00 if inspections finish.');
+  const published=[{...corrected.sections[0],storyId:'corrected:port',relation:'correction' as const,updatesId:'old:section:0',
+    evidence:[{messageId:'r1',sourceId:'r1',sourceTitle:'Port authority',sourceType:'channel' as const,postedAt:corrected.publishedAt,
+      text:'Source document. '.repeat(7000),links:[],media:[]}]},
+    {...corrected.sections[0],storyId:'corrected:other',summary:'Runway closures are scheduled in December.'}];
+  const data=prepareCatchUpSummary([{...corrected,sections:published},old],'en',since,now);
+  expect(data.briefings.map(b=>b.id)).toEqual(['old','corrected']);
+  expect(data.briefings[1].stories.map(s=>s.summary)).toEqual(published.map(s=>s.summary));
+  expect(data.briefings[1].stories[0]).toMatchObject({id:'corrected:port',relation:'correction',updatesId:'old:section:0',sources:[{source:'Port authority'}]});
+  expect(data.briefings[1].stories[0].sources[0].quote).toBeUndefined();
+  expect(catchUpSummaryRequest(data).user).not.toContain('Source document.');
+  expect(()=>parseCatchUpSummary(result('Reopening at noon.',['old:section:0']),data)).toThrow();
+});
 it('does not invoke a model for an empty history window',async()=>{
   const p=port();expect(await run(p,'reader',{language:'en',briefings:[]})).toEqual({status:'empty'});expect(p.complete).not.toHaveBeenCalled();
 });
