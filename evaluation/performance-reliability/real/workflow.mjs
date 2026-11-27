@@ -119,6 +119,9 @@ export function printStopReasons(dir) {
     try { event = JSON.parse(line); } catch { continue; }
     if (['phase-stopped', 'cleanup-required', 'URGENT_MANUAL_ROLLBACK_REQUIRED'].includes(event.category))
       console.error(`Campaign ${code(event.category)}: phase=${code(event.phase)} reason=${code(event.reason)}`);
+    if (event.category === 'setup-result' && Array.isArray(event.users))
+      for (const user of event.users) if (user?.status === 'rejected')
+        console.error(`Campaign setup user ${Number(user.slot)}: stopped at ${code(user.state)} reason=${code(user.reason)}`);
   }
 }
 

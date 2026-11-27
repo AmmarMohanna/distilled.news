@@ -47,7 +47,7 @@ export async function setup(m,client,dir,{emailDomain,gmailAddress,mailbox,chall
   }
   u.state='READY';save();return {userSlot:u.slot,feeds:u.feeds.length};
  });
- journal(dir,{category:'setup-result',users:results.map((r,i)=>({slot:i,status:r.status,...(r.status==='rejected'?{reason:r.reason}:{})}))});
+ journal(dir,{category:'setup-result',users:results.map((r,i)=>({slot:i,status:r.status,...(r.status==='rejected'?{reason:String(r.reason?.message??r.reason).replace(/[^A-Z0-9_]/gi,'_').slice(0,160),state:registry.users[i].state}:{})}))});
  if(results.some(r=>r.status==='rejected'))throw Error('SETUP_PARTIAL_STOP_AND_RECONCILE');
  return registry;
 }
