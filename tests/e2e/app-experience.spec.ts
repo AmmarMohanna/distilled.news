@@ -214,6 +214,13 @@ test('an owner can remove their cover from the corner of the banner', async ({ p
     await page.locator('.channel-banner').hover();
   }
   await expect(remove).toHaveCSS('opacity', '1');
+  const banner = (await page.locator('.channel-banner').boundingBox())!;
+  const hitArea = (await remove.boundingBox())!;
+  const chipSize = await remove.evaluate(button => getComputedStyle(button, '::before').width);
+  expect(hitArea.y).toBeLessThan(banner.y);
+  expect(hitArea.y + hitArea.height).toBeGreaterThan(banner.y);
+  expect(hitArea.width).toBeGreaterThanOrEqual(44);
+  expect(parseFloat(chipSize)).toBeLessThanOrEqual(22);
   await remove.click();
   await expect(page.locator('.channel-cover-photo')).toHaveCount(0);
   await page.reload();

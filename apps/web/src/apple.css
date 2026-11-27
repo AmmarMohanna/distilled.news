@@ -3925,26 +3925,34 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .channel-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 :root.apple-ui.apple-ui .channel-banner img:not(.channel-cover-photo) { filter: blur(26px) brightness(.75); transform: scale(1.22); }
-:root.apple-ui.apple-ui .channel-banner .channel-cover-remove {
+:root.apple-ui.apple-ui .channel-banner-frame { position: relative; width: 100%; }
+:root.apple-ui.apple-ui .channel-banner-frame .channel-cover-remove {
   position: absolute;
-  inset-block-start: 8px;
-  inset-inline-start: 8px;
+  inset-block-start: -18px;
+  inset-inline-start: -4px;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   min-height: 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgb(0 0 0 / 54%);
-  color: white;
+  background: transparent;
+  color: var(--muted);
 }
+:root.apple-ui.apple-ui .channel-cover-remove::before {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+}
+:root.apple-ui.apple-ui .channel-cover-remove svg { position: relative; }
+:root.apple-ui.apple-ui .channel-cover-remove:hover { color: var(--danger); }
 @media (hover: hover) and (pointer: fine) {
-  :root.apple-ui.apple-ui .channel-banner:not(:hover, :focus-within) .channel-cover-remove { opacity: 0; }
-}
-@media (pointer: coarse) {
-  :root.apple-ui.apple-ui .channel-banner .channel-cover-remove { width: 44px; height: 44px; }
+  :root.apple-ui.apple-ui .channel-banner-frame:not(:hover, :focus-within) .channel-cover-remove { opacity: 0; }
 }
 :root.apple-ui.apple-ui .channel-hero .channel-avatar { margin-block-start: calc(-.5 * var(--channel-profile-size) - 9px); border: 4px solid var(--page); outline: 1px solid var(--line); z-index: 1; }
 :root.apple-ui.apple-ui .channel-hero .channel-counts { color: var(--muted); }

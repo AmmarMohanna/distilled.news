@@ -620,12 +620,14 @@ function ChannelHeader({ channel, canEdit, onError }: {
     }
   };
   return <div className="channel-hero">
-    <div className="channel-banner">
-      <img key={avatarUrl} src={avatarUrl} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
-      {coverVersion !== null && <img key={coverVersion} className="channel-cover-photo" src={`${picturePath}/cover?v=${coverVersion}`} alt=""
-        style={{ visibility: coverLoaded ? "visible" : "hidden" }} onLoad={() => setCoverLoaded(true)}/>}
+    <div className="channel-banner-frame">
+      <div className="channel-banner">
+        <img key={avatarUrl} src={avatarUrl} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+        {coverVersion !== null && <img key={coverVersion} className="channel-cover-photo" src={`${picturePath}/cover?v=${coverVersion}`} alt=""
+          style={{ visibility: coverLoaded ? "visible" : "hidden" }} onLoad={() => setCoverLoaded(true)}/>}
+      </div>
       {canEdit && coverLoaded && <button type="button" className="channel-cover-remove" aria-label={t("Remove cover photo")}
-        disabled={coverBusy} onClick={() => void removeCover()}><X size={15} aria-hidden/></button>}
+        disabled={coverBusy} onClick={() => void removeCover()}><X size={12} aria-hidden/></button>}
     </div>
     {canEdit && <input ref={coverInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
       const file = event.currentTarget.files?.[0];
