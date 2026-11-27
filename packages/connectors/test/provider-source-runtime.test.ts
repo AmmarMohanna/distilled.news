@@ -344,14 +344,21 @@ describe('fallback policy and durable handoff',()=>{
     expect(actor).toBe(3);
   });
 
-  it.each(['success','failed actor','invalid dataset','wrong company','monthly limit','unconfirmed start'] as const)(
+  it.each(['success','failed actor','invalid dataset','wrong company','partial activity mismatch',
+    'partial wrong company','exactly half invalid','majority invalid','monthly limit','unconfirmed start'] as const)(
     'routes LinkedIn company posts through the shared Apify ledger for %s',async scenario=>{
     const s=setup([]);
     const companyUrl='https://www.linkedin.com/company/example';
     const post={type:'post',activityUrn:'urn:li:activity:42',postId:'42',postUrl:'https://www.linkedin.com/posts/example_activity-42-example',text:'Company update',postedAt:time,sourceCompanyUrl:companyUrl};
+    const examplePost=(id:number)=>({...post,activityUrn:'urn:li:activity:'+id,postId:String(id),
+      postUrl:`https://www.linkedin.com/posts/example_activity-${id}-example`});
+    const mismatchedPosts=[43,44].map(id=>({...examplePost(id),postUrl:post.postUrl}));
+    const wrongCompanyPost={...examplePost(43),sourceCompanyUrl:'https://www.linkedin.com/company/unrelated'};
+    const validPosts=Array.from({length:18},(_,index)=>examplePost(100+index));
+    const limit=scenario==='partial activity mismatch'?20:scenario==='majority invalid'?4:2;
     const dispatch=vi.fn(async(url:string,init?:RequestInit)=>{
       if(url.includes('innolabs~')){
-        expect(JSON.parse(String(init?.body))).toEqual({companyUrls:[companyUrl],maxPostsPerCompany:2,maxItems:2,includeComments:false});
+        expect(JSON.parse(String(init?.body))).toEqual({companyUrls:[companyUrl],maxPostsPerCompany:limit,maxItems:limit,includeComments:false});
         if(scenario==='monthly limit')return Response.json({error:{type:'platform-feature-disabled',message:'Monthly usage hard limit exceeded'}},{status:403});
         if(scenario==='unconfirmed start')return Response.json({error:'gateway unavailable'},{status:502});
         return Response.json({data:{id:'innolabsRun'}});
@@ -359,8 +366,12 @@ describe('fallback policy and durable handoff',()=>{
       if(url.includes('harvestapi~'))return Response.json({data:{id:'harvestRun'}});
       if(url.includes('/actor-runs/innolabsRun'))return Response.json({data:scenario==='failed actor'?{id:'innolabsRun',status:'FAILED'}:{id:'innolabsRun',status:'SUCCEEDED',defaultDatasetId:'innolabsData'}});
       if(url.includes('/datasets/innolabsData/')){
-        if(scenario==='invalid dataset')return Response.json([{type:'post',text:'Unidentified'}]);
-        if(scenario==='wrong company')return Response.json([{...post,sourceCompanyUrl:'https://www.linkedin.com/company/unrelated'}]);
+        if(scenario==='invalid dataset')return Response.json([{type:'post',text:'Unidentified'},mismatchedPosts[0]]);
+        if(scenario==='wrong company')return Response.json([wrongCompanyPost]);
+        if(scenario==='partial activity mismatch')return Response.json([mismatchedPosts[0],...validPosts,mismatchedPosts[1]]);
+        if(scenario==='partial wrong company')return Response.json([wrongCompanyPost,post]);
+        if(scenario==='exactly half invalid')return Response.json([mismatchedPosts[0],post]);
+        if(scenario==='majority invalid')return Response.json([...mismatchedPosts,{type:'SUMMARY'},post]);
         return Response.json([post,{type:'SUMMARY'}]);
       }
       if(url.includes('/actor-runs/harvestRun'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'harvestData'}});
@@ -372,7 +383,7 @@ describe('fallback policy and durable handoff',()=>{
     const collectors=[new ApifySourceProvider(LINKEDIN_INNOLABS_PROVIDER,['linkedin_company'],http,async()=> 'fixture-token',.1),
       new ApifySourceProvider('linkedin_apify',['linkedin_company'],http,async()=> 'fixture-token',.1)];
     const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,collectors,()=>time);
-    const input:SourceFetchRequest={...request,source:{family:'linkedin_company',locator:companyUrl}};
+    const input:SourceFetchRequest={...request,source:{family:'linkedin_company',locator:companyUrl},limit};
     if(scenario==='unconfirmed start'){
       await expect(collector.collect(input)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
       expect(s.db.db.prepare('SELECT provider_id,payload_ref FROM connector_provider_operations').all()).toEqual([{provider_id:'linkedin_apify',payload_ref:null}]);
@@ -393,9 +404,19 @@ describe('fallback policy and durable handoff',()=>{
     if(scenario==='success'){
       expect(result).toMatchObject({state:'HANDED_OFF',providerId:LINKEDIN_INNOLABS_PROVIDER,request:{observations:[{sourceItemKey:'linkedin:urn:li:activity:42',publishedAtHint:time}]}});
       expect(dispatch.mock.calls.some(([url])=>url.includes('harvestapi~'))).toBe(false);
+    }else if(scenario==='partial activity mismatch'||scenario==='partial wrong company'||scenario==='exactly half invalid'){
+      expect(result).toMatchObject({state:'HANDED_OFF',providerId:LINKEDIN_INNOLABS_PROVIDER,request:{coverage:{status:'PARTIAL'}}});
+      if(result.state!=='HANDED_OFF')throw Error('NO_RESULT');
+      const accepted=scenario==='partial activity mismatch'?validPosts:[post];
+      expect(result.request.observations.map(o=>o.sourceItemKey)).toEqual(accepted.map(p=>'linkedin:'+p.activityUrn));
+      expect(dispatch.mock.calls.some(([url])=>url.includes('harvestapi~'))).toBe(false);
+      if(scenario==='partial activity mismatch')expect(JSON.parse(result.continuation!.token).offset).toBe(20);
     }else{
       expect(result).toMatchObject({state:'HANDED_OFF',providerId:'linkedin_apify',continuation:{providerId:'linkedin_apify'}});
       expect(dispatch.mock.calls.filter(([url])=>url.includes('harvestapi~'))).toHaveLength(1);
+      if(scenario==='invalid dataset'||scenario==='wrong company'||scenario==='majority invalid'){
+        expect(result).toMatchObject({attempts:[{providerId:LINKEDIN_INNOLABS_PROVIDER,failure:'MALFORMED',diagnostic:{detail:'INNOLABS_DATASET_INVALID'}}]});
+      }
     }
     const calls=dispatch.mock.calls.length;
     await collector.collect(next);
