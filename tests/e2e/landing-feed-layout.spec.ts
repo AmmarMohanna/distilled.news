@@ -31,8 +31,8 @@ for (const size of [
     await page.setViewportSize(size);
     await openLanding(page, 1);
     const card = page.locator(".guest-landing .feed-tile-grid[data-feed-view=explore] .feed-tile");
-    const art = await card.locator(".topic-art").boundingBox();
-    expect(Math.abs(art!.width - art!.height)).toBeLessThan(1);
+    const cover = await card.locator(".feed-tile-cover").boundingBox();
+    expect(Math.abs(cover!.width - cover!.height)).toBeLessThan(1);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeInViewport({ ratio: 0.95 });
   });
@@ -55,13 +55,18 @@ for (const width of [320, 749, 900, 1280]) {
       const card = node.getBoundingClientRect();
       const title = node.querySelector('.feed-tile-caption > a')!;
       const identity = title.getBoundingClientRect();
-      const art=node.querySelector(".topic-art")!.getBoundingClientRect();
-      return { x: card.x, y: card.y, width: card.width, titleWidth: identity.width, artSquare:Math.abs(art.width-art.height)<1, clipped: title.scrollWidth > title.clientWidth + 1 };
+      const cover = node.querySelector(".feed-tile-cover")!.getBoundingClientRect();
+      const art = node.querySelector(".topic-art")!.getBoundingClientRect();
+      return { x: card.x, y: card.y, width: card.width, titleWidth: identity.width,
+        coverSquare: Math.abs(cover.width - cover.height) < 1,
+        artFits: art.height > 0 && art.width <= cover.width + 1 && art.height <= cover.height + 1,
+        clipped: title.scrollWidth > title.clientWidth + 1 };
     }));
     for (const card of measurements) {
       expect(card.titleWidth).toBeGreaterThan(100);
       expect(card.clipped).toBe(false);
-      expect(card.artSquare).toBe(true);
+      expect(card.coverSquare).toBe(true);
+      expect(card.artFits).toBe(true);
       expect(card.x + card.width).toBeLessThanOrEqual(width);
     }
     await expect(cards.first().locator('.feed-card-status.live')).toHaveCount(0);

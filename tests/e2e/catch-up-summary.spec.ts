@@ -53,7 +53,7 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`Catch me 
   await expect(page.locator('.briefing-detail-hero')).toBeVisible();
   await expect.poll(()=>opens).toBe(1);
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner'],'news'])))).toBeNull();
-  await page.getByRole('link',{name:'Back to feed'}).click();
+  await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
   await expect(button).toBeEnabled();
 });
 

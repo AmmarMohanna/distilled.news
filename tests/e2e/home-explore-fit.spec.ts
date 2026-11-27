@@ -51,18 +51,62 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
 
 for (const tab of ["home", "explore"] as const) {
   test(`${tab} scrolls within complete rows when feeds exceed the available space`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 664 });
+    await page.setViewportSize({ width: tab === "home" ? 481 : 390, height: tab === "home" ? 934 : 664 });
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
     if (tab === "home") {
       expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+      const grid = page.locator(".feed-tile-grid[data-feed-view=home]");
+      const [first, second] = await grid.locator(".feed-tile-cover").evaluateAll(covers =>
+        covers.slice(0, 2).map(cover => {
+          const { left, right, bottom } = cover.getBoundingClientRect();
+          const controls = cover.querySelector(".feed-tile-controls")!.getBoundingClientRect();
+          const artwork = cover.querySelector(".feed-tile-artwork")!.getBoundingClientRect();
+          return { left, right, bottom, controlsTop: controls.top, controlsBottom: controls.bottom, artworkBottom: artwork.bottom };
+        }));
+      const content = (await page.locator(".app-pages > .screen-page-viewport > .screen-page-content").boundingBox())!;
+      const gap = second.left - first.right;
+      expect(gap).toBeGreaterThan(0);
+      expect(first.left - content.x).toBeCloseTo(gap, 0);
+      expect(content.x + content.width - second.right).toBeCloseTo(gap, 0);
+      if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+        expect(first.controlsBottom).toBeCloseTo(first.bottom, 0);
+        expect(first.artworkBottom).toBeCloseTo(first.controlsTop, 0);
+        expect(first.controlsTop).toBeLessThan(first.bottom);
+      }
     } else {
       const shelf = page.locator(".featured-feeds .catalog-shelf-track");
       await expect.poll(() => shelf.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
+      const first = shelf.locator(".feed-tile").first();
+      await expect(first).toBeInViewport({ ratio: 1 });
+      const back = page.locator(".featured-feeds .catalog-shelf-viewport").getByRole("button", { name: "Scroll backward" });
+      await expect(back).toHaveCount(0);
+      await shelf.evaluate(node => node.scrollTo({ left: node.clientWidth }));
+      await back.click();
+      await expect.poll(() => shelf.evaluate(node => node.scrollLeft)).toBe(0);
+      await expect(first).toBeInViewport({ ratio: 1 });
     }
   });
 }
+
+test("Show all preserves the public feed square size while wrapping the row", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("dn-sidebar-collapsed", "false"));
+  await openApp(page, 8);
+  await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
+  const shelf = page.locator('section[aria-label="Public feeds"]');
+  const first = shelf.locator(".catalog-shelf-track .feed-tile-cover").first();
+  await expect(first).toBeVisible();
+  const original = (await first.boundingBox())!;
+  await shelf.getByRole("button", { name: "Show all" }).click();
+  const expanded = shelf.locator(".catalog-vertical-grid .feed-tile-cover");
+  await expect(expanded).toHaveCount(8);
+  const firstExpanded = (await expanded.first().boundingBox())!;
+  expect(firstExpanded.width).toBeCloseTo(original.width, 0);
+  expect(firstExpanded.height).toBeCloseTo(original.height, 0);
+  expect((await expanded.last().boundingBox())!.y).toBeGreaterThan(firstExpanded.y);
+});
 
 for (const language of ["fr", "ar"]) {
   for (const tab of ["home", "explore"] as const) {

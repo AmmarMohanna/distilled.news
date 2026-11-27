@@ -45,8 +45,30 @@ test('landing pencil artwork uses the inline dark filter on reload', async ({ pa
   const art = page.locator('.feed-tile .transparent-cover-image').first();
   await expect(art).toBeVisible();
   await page.reload();
-  await expect(art).toHaveCSS('filter', 'url("#dark-pencil-ink")');
-  await expect(page.locator('#dark-pencil-ink feColorMatrix')).toHaveCount(1);
+  await expect(art).toHaveCSS('filter', 'url("#dark-card-pencil-ink")');
+  await expect(page.locator('#dark-card-pencil-ink feComponentTransfer')).toHaveCount(1);
+});
+test('an opaque panoramic cover fills its square card', async ({ page }) => {
+  await mock(page, false);
+  const cover = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 80;
+    const drawing = canvas.getContext('2d')!;
+    drawing.fillStyle = '#685db4';
+    drawing.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg').split(',')[1];
+  }), 'base64');
+  await page.route('**/api/feed/joud/lebanon/sketch*', route => route.fulfill({
+    body: cover,
+    contentType: 'image/jpeg',
+    headers: { 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+  }));
+  await page.goto('/');
+  const coverImage = page.locator('.feed-tile-artwork .panoramic-cover-image').first();
+  await expect(coverImage).toBeVisible();
+  await expect(coverImage).not.toHaveClass(/transparent-cover-image/);
+  await expect(coverImage).toHaveCSS('object-fit', 'cover');
 });
 test('home has one creation entry and no decorative globe or briefing card',async({page})=>{
  await mock(page); await page.goto('/');
@@ -78,11 +100,20 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
     await expect(button).toBeVisible();
     return (await button.boundingBox())!;
   }));
-  expect(tabs[0].x).toBeCloseTo((await nav.boundingBox())!.x + 4, 0);
+  const navBounds = (await nav.boundingBox())!;
+  expect(tabs[0].x).toBeCloseTo(navBounds.x, 0);
+  expect(tabs[0].y).toBeCloseTo(navBounds.y, 0);
+  expect(tabs[0].height).toBeCloseTo(navBounds.height, 0);
+  expect(tabs[3].x - (tabs[2].x + tabs[2].width)).toBeCloseTo(8, 0);
   expect(tabs.every((tab, index) => index === 0 || tab.x >= tabs[index - 1].x + tabs[index - 1].width)).toBe(true);
   expect(tabs[3].width).toBeCloseTo(tabs[3].height, 0);
   await nav.getByRole('button', { name: 'Followed' }).click();
   await expect(nav.getByRole('button', { name: 'Followed' })).toHaveAttribute('aria-current', 'page');
+  const settings = nav.getByRole('button', { name: 'Settings' });
+  await settings.click();
+  await expect(settings).toHaveAttribute('aria-current', 'page');
+  await expect(settings).toHaveCSS('box-shadow', 'none');
+  expect(await nav.evaluate(element => getComputedStyle(element, '::after').boxShadow)).toBe('none');
 });
 test('Explore keeps its own results visible while returning from Followed', async ({ page }) => {
   await mock(page);
@@ -102,8 +133,8 @@ test('Explore keeps its own results visible while returning from Followed', asyn
     await expect(publicFeed).toBeVisible();
     await expect(page.getByRole('link', { name: '@other', exact: true })).toHaveAttribute('href', '/explore?channel=other');
     await nav.getByRole('button', { name: 'Followed', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'No starred feeds yet' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No followed feeds yet.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Star feeds', exact: true })).toBeVisible();
     await expect(publicFeed).toHaveCount(0);
     await nav.getByRole('button', { name: 'Explore', exact: true }).click();
     await expect(publicFeed).toBeVisible();
@@ -147,7 +178,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const chooser = page.waitForEvent('filechooser');
   await dialog.locator('input[type=file]').dispatchEvent('cancel', { bubbles: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud&preview=1');
+  await expect(dialog.getByRole('link', { name: 'Open my channel' })).toHaveAttribute('href', '/explore?channel=joud');
   await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
   await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();
@@ -162,6 +193,72 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   expect(photo.height).toBeCloseTo(button.height, 0);
   expect(photo.x).toBeCloseTo(button.x, 0);
   expect(photo.y).toBeCloseTo(button.y, 0);
+});
+test('an owner with no feeds can open their editable channel from Profile Settings', async ({ page }) => {
+  await mock(page);
+  await page.route('**/api/me/briefings', route => route.fulfill({ json: { briefings: [] } }));
+  await page.route('**/api/explore/channels/joud', route => route.fulfill({ json: { channel: { username: 'joud', publicFeedCount: 0, followerCount: 0 } } }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Account profile' }).click();
+  const profile = page.getByRole('dialog');
+  await expect(profile.getByRole('link', { name: 'Preview public profile' })).toHaveCount(0);
+  await profile.getByRole('link', { name: 'Open my channel' }).click();
+  await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toBeVisible();
+});
+test('an owner can remove their cover from the corner of the banner', async ({ page }) => {
+  await mock(page);
+  const coverImage = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 10"><rect width="40" height="10" fill="blue"/></svg>';
+  let hasCover = true;
+  await page.route('**/api/explore/channels/*', route => {
+    const username = new URL(route.request().url()).pathname.split('/').at(-1);
+    return route.fulfill({ json: { channel: { username, publicFeedCount: 0, followerCount: 0 } } });
+  });
+  await page.route('**/api/explore/channels/*/cover?*', route => hasCover
+    ? route.fulfill({ contentType: 'image/svg+xml', body: coverImage })
+    : route.fulfill({ status: 404 }));
+  await page.route('**/api/me/channel-cover', route => {
+    expect(route.request().method()).toBe('DELETE');
+    hasCover = false;
+    return route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto('/explore?channel=another');
+  await expect(page.locator('.channel-cover-photo')).toBeVisible();
+  const remove = page.getByRole('button', { name: 'Remove cover photo' });
+  await expect(remove).toHaveCount(0);
+
+  await page.goto('/explore?channel=joud');
+  await expect(page.locator('.channel-cover-photo')).toBeVisible();
+  if (await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)) {
+    await expect(remove).toHaveCSS('opacity', '0');
+    await page.locator('.channel-banner').hover();
+    const beforeHover = await remove.evaluate(button => ({
+      icon: getComputedStyle(button).color,
+      circle: getComputedStyle(button, '::before').backgroundColor,
+    }));
+    await remove.hover();
+    await expect(remove).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(remove).not.toHaveCSS('color', beforeHover.icon);
+    expect(await remove.evaluate(button => getComputedStyle(button, '::before').backgroundColor)).toBe(beforeHover.circle);
+  }
+  await expect(remove).toHaveCSS('opacity', '1');
+  const banner = (await page.locator('.channel-banner').boundingBox())!;
+  const back = (await page.locator('.channel-heading > .feed-nav-back').boundingBox())!;
+  const hitArea = (await remove.boundingBox())!;
+  const chipSize = await remove.evaluate(button => getComputedStyle(button, '::before').width);
+  expect(hitArea.y).toBeLessThan(banner.y);
+  expect(hitArea.y).toBeGreaterThanOrEqual(back.y + back.height);
+  expect(hitArea.y + hitArea.height).toBeGreaterThan(banner.y);
+  expect(hitArea.width).toBeGreaterThanOrEqual(44);
+  expect(parseFloat(chipSize)).toBeLessThanOrEqual(22);
+  await remove.click();
+  await expect(page.locator('.channel-cover-photo')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
+  await expect(page.locator('.channel-cover-photo')).toBeHidden();
+  await expect(remove).toHaveCount(0);
 });
 test('opens a top channel with its public feeds and sharing menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
@@ -198,9 +295,13 @@ test('Show all isolates channels and places Back below search', async ({ page })
     json: { channels: [{ username: 'joud', publicFeedCount: 1, followerCount: 1 }] }
   }));
   await page.goto('/explore');
+  const channel = page.locator('.catalog-shelf-track .channel-card').first();
+  await expect(channel).toBeVisible();
+  const channelWidth = (await channel.boundingBox())!.width;
   await page.getByRole('region', { name: 'Explore channels', exact: true }).filter({ has: page.getByRole('heading') })
     .getByRole('button', { name: 'Show all' }).click();
   await expect(page.locator('.catalog-vertical-grid .channel-card')).toHaveCount(1);
+  expect((await page.locator('.catalog-vertical-grid .channel-card').boundingBox())!.width).toBeCloseTo(channelWidth, 0);
   await expect(page.locator('.featured-feeds')).toHaveCount(0);
   const back = page.getByRole('button', { name: 'Back', exact: true });
   const search = await page.getByRole('searchbox').boundingBox();
@@ -223,36 +324,57 @@ for (const path of ["/", "/explore"]) test(`guest discovery shelves recover from
   await expect(page.getByRole('heading', { name: 'Top feeds', exact: true })).toBeVisible();
   releaseHighlights();
   const trending = page.getByRole('region', { name: 'Trending topics', exact: true });
+  const cover = trending.locator('.catalog-shelf-track .feed-tile-cover');
+  await expect(cover).toBeVisible();
+  const coverWidth = (await cover.boundingBox())!.width;
   await trending.getByRole('button', { name: 'Show all' }).click();
   await expect(page).toHaveURL(new URL(path + '?section=trending', page.url()).href);
+  expect((await trending.locator('.catalog-vertical-grid .feed-tile-cover').boundingBox())!.width).toBeCloseTo(coverWidth, 0);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page).toHaveURL(new URL(path, page.url()).href);
   await expect(trending.first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New feeds' })).toBeVisible();
 });
-test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
+for (const publicFeedCount of [0, 1]) test(`channel follow works for visitors and previews with ${publicFeedCount} public feeds`, async ({ page }) => {
   await mock(page);
   let following = false;
   await page.route('**/api/explore/channels/*', route => {
     const username = new URL(route.request().url()).pathname.split('/').at(-1);
-    return route.fulfill({ json: { channel: { username, publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+    return route.fulfill({ json: { channel: { username, publicFeedCount, followerCount: Number(following), viewerFollowing: following } } });
   });
   await page.route('**/api/me/channels/another/follow', route => {
     following = route.request().postDataJSON().following;
-    return route.fulfill({ json: { channel: { username: 'another', publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+    return route.fulfill({ json: { channel: { username: 'another', publicFeedCount, followerCount: Number(following), viewerFollowing: following } } });
   });
-  await page.goto('/explore?channel=another');
+  await page.goto('/explore?channel=another&preview=1');
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  if (publicFeedCount === 0) {
+    await expect(page.getByRole('heading', { name: '@another' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();
+    await expect.poll(() => page.locator('[data-empty-view="channel"] img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole('searchbox', { name: 'Search feeds' })).toHaveCount(0);
+  }
   const follow = page.getByRole('button', { name: 'Follow', exact: true });
   const before = await follow.boundingBox();
   await follow.click();
   const followed = page.getByRole('button', { name: 'Following', exact: true });
   await expect(followed).toBeEnabled();
-  expect(await followed.boundingBox()).toEqual(before);
+  const after = await followed.boundingBox();
+  if (publicFeedCount === 0) {
+    expect(after?.width).toEqual(before?.width);
+    expect(after?.x).toEqual(before?.x);
+    await expect(page.getByText('You’ll get notified when this account adds a public feed if notifications are enabled.')).toBeVisible();
+  } else {
+    expect(after).toEqual(before);
+  }
   for (const suffix of ['', '&preview=1']) {
     following = false;
     await page.goto('/explore?channel=joud' + suffix);
     await expect(page.getByRole('button', { name: 'Follow', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toHaveCount(0);
+    if (publicFeedCount === 0) await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
   }
 });
 test('discovery shelves link to a dedicated briefing with its published body', async ({ page }) => {
@@ -271,13 +393,15 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   const shelf = page.getByRole('region', {name:'Trending briefings',exact:true}).last();
   await expect(shelf).toHaveCSS('overflow-x', 'auto');
   await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
-  await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);
-  await expect(page.getByRole('heading', {name:edition.title})).toBeVisible();
+  const reader = page.getByRole('dialog', { name: 'Briefing' });
+  await expect(page).toHaveURL(/\/$/);
+  await expect(reader.getByRole('heading', {name:edition.title})).toBeVisible();
   await expect(page.locator('.briefing-detail-summary')).toContainText(edition.summary);
   await expect(page.getByRole('heading', {name:'Screening details'})).toBeVisible();
   await expect(page.locator('.briefing-detail-body')).toContainText(edition.sections[0].summary);
-  await expect(page.locator('.briefing-parent-feed')).toHaveAttribute('href','/joud/lebanon/');
-  await expect(page.getByRole('link', {name:'Back to feed'})).toHaveAttribute('href','/joud/lebanon/');
+  await expect(reader.locator('.briefing-detail-hero a[href="/joud/lebanon/"]')).toHaveCount(0);
+  await reader.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(reader).toHaveCount(0);
 });
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');

@@ -50,8 +50,10 @@ import {
   type ModelRoutingConfig
 } from "@distilled/agent-runtime";
 import {
+  BRIEFING_PHOTO_TARGET,
   defaultNextBriefingAt,
   FEED_TITLE_MAX_LENGTH,
+  retainedBriefingPhotos,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
   sanitizeEvidenceText,
@@ -975,14 +977,16 @@ export function createApp(options: AppOptions = {}) {
   app.put("/api/me/avatar", accountPictureLimit, saveAccountPicture(false));
   app.put("/api/me/channel-cover", accountPictureLimit, saveAccountPicture(true));
 
-  app.delete("/api/me/avatar", async (c) => {
+  const deleteAccountPicture = (key: (accountId: string) => string) => async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
     const origin = c.req.header("origin");
     if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Forbidden" }, 403);
     const bucket = c.env.RAW_ARCHIVE;
     if (!bucket) return c.json({ error: "Profile picture storage is unavailable" }, 503);
-    await bucket.delete(accountAvatarKey(c.get("account")!.id));
+    await bucket.delete(key(c.get("account")!.id));
     return c.json({ ok: true });
-  });
+  };
+  app.delete("/api/me/avatar", deleteAccountPicture(accountAvatarKey));
+  app.delete("/api/me/channel-cover", deleteAccountPicture(channelCoverKey));
 
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
@@ -1557,7 +1561,7 @@ export function createApp(options: AppOptions = {}) {
     const viewer = c.get("account")!;
     const repo = c.get("repo");
     const owner = await channelOwner(repo, c.req.param("username"));
-    if (!owner || !(await repo.listExploreChannels(1, owner.id)).length) return c.json({ error: "Channel not found" }, 404);
+    if (!owner || (!owner.emailVerifiedAt && !(await repo.listExploreChannels(1, owner.id)).length)) return c.json({ error: "Channel not found" }, 404);
     if (owner.id === viewer.id) return c.json({ error: "You can’t follow your own channel" }, 400);
     const { following } = z.object({ following: z.boolean() }).parse(await c.req.json());
     await repo.setChannelFollow(owner.id, viewer.id, following);
@@ -1570,7 +1574,7 @@ export function createApp(options: AppOptions = {}) {
     c.header("Cache-Control", "no-store");
     const repo = repoFor(c);
     const owner = await channelOwner(repo, username);
-    if (!owner || !(await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id)).length) return c.body(null, 404);
+    if (!owner || (!owner.emailVerifiedAt && !(await repo.listExploreChannels(1, owner.id)).length)) return c.body(null, 404);
     const avatar = await c.env.RAW_ARCHIVE?.get(cover ? channelCoverKey(owner.id) : accountAvatarKey(owner.id));
     if (avatar?.customMetadata?.channel !== "public") return c.body(null, 404);
     return c.body(avatar.body, 200, {
@@ -1749,14 +1753,17 @@ export function createApp(options: AppOptions = {}) {
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
+    const readerEdition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true);
     if (c.req.query("photo") === "1") {
-      if (!briefing.publicFeedEnabled) return c.json({ photo: null, photos: [] });
+      if (!briefing.publicFeedEnabled || retainedBriefingPhotos(readerEdition).length >= BRIEFING_PHOTO_TARGET) {
+        return c.json({ photo: null, photos: [] });
+      }
       const photos = await briefingPublisherPhotos(edition, fetcher);
       const current = photos.length ? await repo.getBriefingById(briefing.id) : null;
       const visiblePhotos = current?.publicFeedEnabled ? photos : [];
       return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
     }
-    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true),
+    return c.json({ briefing: publicBriefing(briefing), edition: readerEdition,
       ...(catchUpEnabled(c.env)?{catchUpAvailable:true}:{}) });
   });
 

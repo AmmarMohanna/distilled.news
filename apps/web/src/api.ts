@@ -162,6 +162,10 @@ export function uploadChannelCover(file: File): Promise<void> {
   return uploadAccountPicture(file, true);
 }
 
+export async function deleteChannelCover(): Promise<void> {
+  await requestJson("/api/me/channel-cover", { method: "DELETE" });
+}
+
 async function uploadAccountPicture(file: File, cover: boolean): Promise<void> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image");

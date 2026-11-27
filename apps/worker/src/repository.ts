@@ -528,17 +528,20 @@ export class D1Repository implements Repository {
   }
 
   async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
+    const includeEmpty = ownerId !== undefined || viewer?.followed;
     return all<ExploreChannel>(this.db.prepare(
-      `SELECT accounts.username, COUNT(*) AS publicFeedCount,
+      `SELECT accounts.username, COUNT(briefings.id) AS publicFeedCount,
         (SELECT COUNT(*) FROM channel_follows
           JOIN accounts AS followers ON followers.id = channel_follows.follower_id
           WHERE channel_id = accounts.id AND followers.disabled_at IS NULL) AS followerCount
-       FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
-       WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
-       ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
+       FROM accounts ${includeEmpty ? 'LEFT JOIN' : 'JOIN'} briefings
+         ON briefings.owner_account_id = accounts.id AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+       WHERE accounts.disabled_at IS NULL
+       ${ownerId === undefined ? '' : 'AND accounts.id = ?'}
        ${viewer ? `AND accounts.id != ? AND ${viewer.followed ? '' : 'NOT '}EXISTS (
          SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?)` : ''}
-       GROUP BY accounts.id ORDER BY followerCount DESC, SUM(briefings.stars) DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
+       GROUP BY accounts.id ${includeEmpty ? 'HAVING COUNT(briefings.id) > 0 OR accounts.email_verified_at IS NOT NULL' : ''}
+       ORDER BY followerCount DESC, SUM(briefings.stars) DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
     ).bind(...(ownerId === undefined ? [] : [ownerId]), ...(viewer ? [viewer.id, viewer.id] : []), limit));
   }
 
@@ -2153,6 +2156,13 @@ export class InMemoryRepository implements Repository {
 
   async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
     const channels = new Map<string, { username: string; publicFeedCount: number }>();
+    if (ownerId !== undefined || viewer?.followed) {
+      for (const account of this.accounts.values()) {
+        if (!account.emailVerifiedAt || account.disabledAt || (ownerId !== undefined && account.id !== ownerId)) continue;
+        if (viewer && (viewer.id === account.id || Boolean(this.channelFollows.get(account.id)?.has(viewer.id)) !== viewer.followed)) continue;
+        channels.set(account.id, { username: account.username, publicFeedCount: 0 });
+      }
+    }
     for (const feed of this.briefings.values()) {
       if (!feed.publicFeedEnabled || feed.paused || (ownerId !== undefined && feed.ownerAccountId !== ownerId)) continue;
       const account = this.accounts.get(feed.ownerAccountId);
