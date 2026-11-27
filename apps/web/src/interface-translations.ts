@@ -188,6 +188,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Profile Settings': ['Paramètres du profil', 'إعدادات الملف الشخصي'],
   'Account': ['Compte', 'الحساب'],
   'Preview public profile': ['Aperçu du profil public', 'معاينة الملف الشخصي العام'],
+  'Open my channel': ['Ouvrir ma chaîne', 'فتح قناتي'],
   'Show current password': ['Afficher le mot de passe actuel', 'إظهار كلمة المرور الحالية'],
   'Show new password': ['Afficher le nouveau mot de passe', 'إظهار كلمة المرور الجديدة'],
   'Profile picture': ['Photo de profil', 'صورة الملف الشخصي'],

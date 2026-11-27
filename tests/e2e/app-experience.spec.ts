@@ -172,6 +172,19 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   expect(photo.x).toBeCloseTo(button.x, 0);
   expect(photo.y).toBeCloseTo(button.y, 0);
 });
+test('an owner with no feeds can open their editable channel from Profile Settings', async ({ page }) => {
+  await mock(page);
+  await page.route('**/api/me/briefings', route => route.fulfill({ json: { briefings: [] } }));
+  await page.route('**/api/explore/channels/joud', route => route.fulfill({ json: { channel: { username: 'joud', publicFeedCount: 0, followerCount: 0 } } }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Account profile' }).click();
+  const profile = page.getByRole('dialog');
+  await expect(profile.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud&preview=1');
+  await profile.getByRole('link', { name: 'Open my channel' }).click();
+  await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toBeVisible();
+});
 test('opens a top channel with its public feeds and sharing menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
   await mock(page, false);
@@ -258,7 +271,10 @@ for (const publicFeedCount of [0, 1]) test(`channel follow works for visitors an
     following = route.request().postDataJSON().following;
     return route.fulfill({ json: { channel: { username: 'another', publicFeedCount, followerCount: Number(following), viewerFollowing: following } } });
   });
-  await page.goto('/explore?channel=another');
+  await page.goto('/explore?channel=another&preview=1');
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   if (publicFeedCount === 0) {
     await expect(page.getByRole('heading', { name: '@another' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();

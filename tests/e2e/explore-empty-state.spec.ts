@@ -188,7 +188,8 @@ test('own public profile preview shows Follow without offering to follow yoursel
   await page.goto('/explore?channel=owner&preview=1');
   await expect(page.getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
   await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toHaveCount(0);
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toBeVisible();
   await page.goto('/explore?channel=owner');
   await expect(page.locator('.explore-controls').getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
   await page.locator('.channel-options summary').click();

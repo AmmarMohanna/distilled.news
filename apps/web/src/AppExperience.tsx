@@ -238,7 +238,6 @@ export function AppExperience(props: {
   const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
   const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
   const ownChannel = Boolean(channel && props.account?.username === channel.username);
-  const previewingChannel = ownChannel && new URLSearchParams(window.location.search).get("preview") === "1";
   const emptyChannel = channel?.publicFeedCount === 0;
   const channelFollow = channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel}
     signedIn={Boolean(props.account)} onSignIn={props.onAccount}
@@ -322,7 +321,7 @@ export function AppExperience(props: {
 
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href={!props.account && document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
-        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t("Channel not available")}</p> : <div className="channel-hero" aria-busy="true">
+        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel} onError={setError}/> : channelFailed ? <p role="status">{t("Channel not available")}</p> : <div className="channel-hero" aria-busy="true">
           <div className="channel-banner" aria-hidden="true"/>
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
