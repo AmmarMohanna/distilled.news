@@ -4332,15 +4332,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   padding: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--line) 48%, transparent);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--surface-hover) 38%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
   backdrop-filter: blur(14px) saturate(125%);
   color: var(--text);
   box-shadow: none;
 }
-:root.apple-ui.apple-ui .briefing-detail-menu .feed-more > summary:hover {
-  background: color-mix(in srgb, var(--surface-hover) 62%, transparent);
+:root.apple-ui.apple-ui .briefing-detail-menu .feed-more > summary:is(:hover, :focus-visible),
+:root.apple-ui.apple-ui .briefing-detail-menu .feed-more[open] > summary {
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
   color: var(--accent-ink);
 }
 :root.apple-ui.apple-ui .feed-shell .news-day { font-size: 1.125rem; line-height: 1.3; }
