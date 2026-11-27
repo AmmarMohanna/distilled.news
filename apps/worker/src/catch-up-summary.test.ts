@@ -18,7 +18,7 @@ const edition=(id:string,hours:number,text='Officials announced a new electricit
     windowStart:at,windowEnd:at,createdAt:at,updatedAt:at,summary:text,sections:[{title:'',summary:text,evidence:[]}]};
 };
 const input=()=>prepareCatchUpSummary([edition('one',1)],'en',since,now);
-const result=(text:string,storyIds=['one:section:0'])=>JSON.stringify({sentences:[{text,storyIds}]});
+const result=(text:string,storyIds=['s1'])=>JSON.stringify({sentences:[{text,storyIds}]});
 const response={text:result('Officials announced a new electricity schedule.'),inputTokens:100,outputTokens:20,costUsd:.0001};
 const port=()=>({complete:vi.fn(async()=>response)});
 const run=(p:ModelPort,accountId='reader',data=input())=>generateCatchUpSummary({db,accountId,feedId:'feed',input:data,port:p,guard:new V3SpendGuard(db,{dailyUsd:1,runUsd:.1}),prices:DEFAULT_PRICES,now});
@@ -56,7 +56,7 @@ it.each([1,7000])('keeps published prose and correction links while excluding so
   expect(data.briefings[1].stories[0]).toMatchObject({id:'corrected:port',relation:'correction',updatesId:'old:section:0',sources:[{source:'Port authority'}]});
   expect(data.briefings[1].stories[0].sources).toEqual([{source:'Port authority'}]);
   expect(catchUpSummaryRequest(data).user).not.toContain('Source document.');
-  expect(()=>parseCatchUpSummary(result('Reopening at noon.',['old:section:0']),data)).toThrow();
+  expect(()=>parseCatchUpSummary(result('Reopening at noon.',['s1']),data)).toThrow();
 });
 it('does not invoke a model for an empty history window',async()=>{
   const p=port();expect(await run(p,'reader',{language:'en',briefings:[]})).toEqual({status:'empty'});expect(p.complete).not.toHaveBeenCalled();
@@ -123,11 +123,17 @@ it.each([
     [correction,report,water,repeated]),language,since,now);
   expect(data.briefings.flatMap(briefing=>briefing.stories.map(story=>story.id))).toEqual([originalId,'edition-4:edition-4:0',separateId,correctionId]);
   expect(data.briefings[3].stories[0]).toMatchObject({relation:'correction',updatesId:originalId,summary:corrected});
-  const response=JSON.stringify({sentences:[{text:corrected,storyIds:[correctionId]},{text:separate,storyIds:[separateId]}]});
+  const request=catchUpSummaryRequest(data);
+  const wire=JSON.parse(request.user);
+  expect(wire.briefings.map((briefing:{stories:{id:string}[]})=>briefing.stories[0].id)).toEqual(['s1','s2','s3','s4']);
+  expect(wire.briefings[3].stories[0]).toMatchObject({id:'s4',updatesId:'s1'});
+  expect(request.user).not.toContain('edition-');
+  const response=JSON.stringify({sentences:[{text:corrected,storyIds:['s4']},{text:separate,storyIds:['s3']}]});
   expect(parseCatchUpSummary(response,data)).toBe(`${corrected} ${separate}`);
-  expect(()=>parseCatchUpSummary(result(original,[originalId]),data)).toThrow('incomplete');
-  expect(()=>parseCatchUpSummary(result(original,['edition-4:edition-4:0']),data)).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(result(original,['s1']),data)).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(result(original,['s2']),data)).toThrow('incomplete');
   expect(()=>parseCatchUpSummary(result(original,['edition-1']),data)).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(result(original,['s5']),data)).toThrow('incomplete');
   expect(catchUpSummaryRequest(data).system).toContain('Never present an allegation, estimate, proposal, denial or forecast as a confirmed fact.');
 });
 

@@ -63,8 +63,21 @@ export function prepareCatchUpSummary(editions:BriefingEdition[],language:string
   }
   return {language,briefings:briefings.reverse()};
 }
-export function catchUpSummaryRequest(input:SummaryInput):ModelRequest {
-  return {model:CATCH_UP_MODEL,system:CATCH_UP_PROMPT,user:JSON.stringify(input),maxTokens:512};
+function storyReferences(input:SummaryInput){
+  return new Map(input.briefings.flatMap(briefing=>briefing.stories).map((story,index)=>[story.id,`s${index+1}`]));
+}
+
+export type CatchUpModelRequest=ModelRequest & {canonicalEvidence:SummaryInput};
+export function catchUpSummaryRequest(input:SummaryInput):CatchUpModelRequest {
+  const refs=storyReferences(input);
+  const briefings=input.briefings.map(briefing=>({
+    publishedAt:briefing.publishedAt,
+    stories:briefing.stories.map(story=>({
+      ...story,id:refs.get(story.id),updatesId:story.updatesId?refs.get(story.updatesId):undefined
+    }))
+  }));
+  const system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
+  return {model:CATCH_UP_MODEL,system,user:JSON.stringify({language:input.language,briefings}),maxTokens:512,canonicalEvidence:input};
 }
 export function summaryTokenUpperBound(request:ModelRequest){
   // A UTF-8 byte bound also covers multilingual inputs; include chat framing.
@@ -94,7 +107,8 @@ export function parseCatchUpSummary(text:string,input:SummaryInput,finishReason?
   const supersededText=new Set([...superseded].flatMap(id=>{const story=byId.get(id);return story?[storyText(story)]:[];}));
   const eligible=new Set(stories.filter(story=>(story.summary.trim()||story.title.trim())&&!superseded.has(story.id)
     &&(story.relation==='correction'||!supersededText.has(storyText(story)))).map(story=>story.id));
-  if(result.data.sentences.some(sentence=>sentence.storyIds.some(id=>!eligible.has(id))))throw new CatchUpSummaryError('SUMMARY_INVALID_OUTPUT');
+  const refs=storyReferences(input),eligibleRefs=new Set([...eligible].map(id=>refs.get(id)));
+  if(result.data.sentences.some(sentence=>sentence.storyIds.some(id=>!eligibleRefs.has(id))))throw new CatchUpSummaryError('SUMMARY_INVALID_OUTPUT');
   const summary=result.data.sentences.map(sentence=>sentence.text.replace(/\s+/gu,' ')).join(' ');
   if(summary.length>3000||summary.split(/\s+/u).length>80)throw new CatchUpSummaryError('SUMMARY_TOO_LONG');
   return summary;
