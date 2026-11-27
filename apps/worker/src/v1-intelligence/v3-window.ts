@@ -21,7 +21,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
-import {v5Generation,v5StageRouting} from './v5-generation';
+import {frozenRouteError,v5Generation,v5StageRouting} from './v5-generation';
 import {validateEditorApprovedEdition,type V5ReviewCase} from './v5-review-contract';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
@@ -125,12 +125,8 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
    const generation = request.generation;
    const stage = request.stageRoute;
    const route = generation ?? stage?.route;
-   if (stage) {
-    const configured = snapshot.models.languageStageRoutes?.[snapshot.input.feed.language]?.[stage.stage]
-      ?? snapshot.models.stageRoutes?.[stage.stage];
-    if (generation || !snapshot.models.generation || !configured || request.model !== stage.route.model ||
-      request.maxTokens > configured.maxOutputTokens || canonicalJson(configured) !== canonicalJson(stage.route)) throw Error('V5_STAGE_SCOPE_MISMATCH');
-   }
+   const scopeError=frozenRouteError(snapshot.models,snapshot.input.feed.language,request);
+   if(scopeError)throw Error(scopeError);
    const capability = route
     ? {
      contextTokens: route.contextTokens,
@@ -140,8 +136,6 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
      source: route.provider,
     }
     : modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
-   if (generation && (generation.model !== request.model || !snapshot.models.generation ||
-     canonicalJson(generation) !== canonicalJson(snapshot.models.generation))) throw Error('V5_GENERATION_SCOPE_MISMATCH');
    const admission=admitModelOperation(request.model,state,{type:'object',properties:{},required:[],additionalProperties:false},capability,request.maxTokens);
    admission.providerLimits=configuredProviderLimits(env,'openrouter');
    const runOperation=async(cancelledVerifierId?:string)=>{

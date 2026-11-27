@@ -34,7 +34,9 @@ class ReleaseGateTests(unittest.TestCase):
                 release.validate_configs(configs)
 
     def test_production_cannot_use_an_experimental_engine_or_container_rollout(self):
-        for key, value in (("vars", {"BRIEFING_ENGINE": "v5"}), ("containers", [{}])):
+        for key, value in (("vars", {"BRIEFING_ENGINE": "v5"}),
+                           ("vars", {"BRIEFING_V5_FEEDS_CREATED_FROM": "11/26/2026 19:54:12"}),
+                           ("vars", {"BRIEFING_V5_EDITOR_REVIEW_ENABLED": "true"}), ("containers", [{}])):
             with self.subTest(key=key):
                 configs = copy.deepcopy(release.load_configs())
                 if key == "vars":

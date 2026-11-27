@@ -94,8 +94,15 @@ def validate_configs(configs):
                     and variables["CI_STAGING_READ_ONLY"] == "true", "ci-staging: read-only mode is required")
             resources[target] = {db["database_id"]}
             continue
-        require(variables["BRIEFING_ENGINE"] == "v3" and not any(re.search(r"(^|_)V5(_|$)", k, re.I) for k in variables),
-                f"{target}: experimental briefing settings are outside this pipeline")
+        # Production already uses this rollout. Its exact creation-time boundary
+        # is part of feed eligibility and must survive deployment byte-for-byte.
+        rollout = {k: v for k, v in variables.items() if re.search(r"(^|_)V5(_|$)", k, re.I)}
+        require(variables["BRIEFING_ENGINE"] == "v3" and variables.get("BRIEFING_SOURCE_BINDINGS_ENABLED") == "true"
+                and rollout == {
+                    "BRIEFING_V5_AUTO_PUBLICATION_ENABLED": "true",
+                    "BRIEFING_V5_FEEDS_CREATED_FROM": "2026-11-26T19:54:12.096Z",
+                    "BRIEFING_V5_GENERATION_PROFILE": "deepseek-flash-wafer",
+                }, f"{target}: expected the approved V5 rollout on the source-bound V3 publication path")
         require(not {"RELEASE_SHA", "CI_STAGING_READ_ONLY"} & variables.keys(),
                 f"{target}: release markers are set by CI")
         bucket, = config["r2_buckets"]

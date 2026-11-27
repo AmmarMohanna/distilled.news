@@ -17,7 +17,7 @@ import {prepareV3Window,publishProductV3Window,productV3PromptVersion,productV3V
 import {supersedeUnstartedV3Windows} from './window-catchup';
 import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
-import {cutoffEvidenceAuthorized} from './cutoff-edition';
+import {cutoffEvidenceAuthorized,cutoffSemanticAuthorized} from './cutoff-edition';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {isolateExpiredModelExecutions} from './model-capacity-recovery';
@@ -62,13 +62,16 @@ it.each([
  {compact:true, profile:undefined, routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true},
+ {compact:true, profile:'deepseek-flash-wafer', automatic:true, scheduled:true, routing:JSON.stringify({
+  default:{sourceInventory:'deepseek-flash-wafer'},en:{sourceInventory:'gemini-ai-studio-flex'},
+ })},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, reject:true},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, olderFeed:true},
  {compact:true, profile:'deepseek-flash-wafer', routing:JSON.stringify({
   default:{sourceInventory:'deepseek-flash-wafer'},
   en:{sourceInventory:'gemini-ai-studio-flex'},
  })},
-])('binds new windows to their verification and generation configuration ($compact, $profile, $routing, automatic=$automatic, reject=$reject, older=$olderFeed, cancellation=$cancelVerifier)',async ({compact,profile,routing,automatic,reject,olderFeed,cancelVerifier})=>{
+])('binds new windows to their verification and generation configuration ($compact, $profile, $routing, automatic=$automatic, reject=$reject, older=$olderFeed, cancellation=$cancelVerifier, scheduled=$scheduled)',async ({compact,profile,routing,automatic,reject,olderFeed,cancelVerifier,scheduled})=>{
  await article();const calls:any[]=[];
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
@@ -81,8 +84,9 @@ it.each([
   else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
   return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
- const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window};
- let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);
+ const reportingWindow=scheduled?livePublicationWindow({durationMinutes:30,timezone:'Asia/Beirut',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z')):window;
+ const candidate={...env,CUTOFF_EDITIONS_ENABLED:String(Boolean(scheduled)),BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window:reportingWindow};
+ let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider,{scheduledDelivery:scheduled});
  if(cancelVerifier){
   expect(edition).toBeUndefined();
   const requestId=await windowIdentity('feed-1',window);
@@ -111,7 +115,21 @@ it.each([
  }
  const expectedCalls=cancelVerifier?5:4;
  expect(calls).toHaveLength(expectedCalls);
- const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
+ const id=await windowIdentity('feed-1',reportingWindow),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
+ if(scheduled){
+  expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');
+  expect(edition?.scheduledFor).toBe('2026-10-03T12:30:00.000Z');
+  const intents=await store.list<any>('feed-1','semantic_intents');
+  const writer=intents.find(i=>i.input.state.request.generation).input;
+  const inventory=intents.find(i=>i.input.state.request.stageRoute).input;
+  expect(await cutoffSemanticAuthorized(store,writer)).toBe(true);
+  expect(await cutoffSemanticAuthorized(store,inventory)).toBe(true);
+  const withRequest=(input:typeof writer,request:typeof writer.state.request)=>({...input,model:request.model,state:{...input.state,request}});
+  expect(await cutoffSemanticAuthorized(store,withRequest(writer,{...writer.state.request,generation:undefined}))).toBe(false);
+  const otherRoute=frozen.models.stageRoutes.sourceInventory;
+  expect(await cutoffSemanticAuthorized(store,withRequest(inventory,{...inventory.state.request,model:otherRoute.model,
+   stageRoute:{stage:'sourceInventory',route:otherRoute}}))).toBe(false);
+ }
  expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v3');
  expect(frozen.input.feed.verificationInputPolicy).toBe(compact?'reader-unit-context-v1':undefined);
  const proof=JSON.parse(calls.find(r=>r.messages[0].content.startsWith('You are a meticulous source-grounded')).messages[1].content);

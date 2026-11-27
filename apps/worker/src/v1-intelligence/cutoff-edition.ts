@@ -1,3 +1,5 @@
+import type {BriefingModels,FeedSpec,ModelRequest} from '@distilled/briefing';
+import {frozenRouteError} from './v5-generation';
 import {canonicalJson} from '../v1-intake/canonical';
 import {DELIVERY_LEAD_MS} from './schedule';
 import type {PublicationWindow} from './scoring';
@@ -58,12 +60,18 @@ export async function cutoffEvidenceAuthorized(store:V1FeedStore,snapshot:{feedI
 /** Scope the historical-revision exception to the exact immutable V3 snapshot,
  * fingerprint, revision set and model. Never relax legacy semantic operations. */
 export async function cutoffSemanticAuthorized(store:V1FeedStore,input:SemanticOperationInput):Promise<boolean>{
- const state=input.state as {cutoffPolicy?:string;cutoffInputId?:string;inputId?:string};
+ const state=input.state as {cutoffPolicy?:string;cutoffInputId?:string;inputId?:string;request?:ModelRequest};
  if(input.kind!=='V3_EDITOR_VERIFIER'||state?.cutoffPolicy!==CUTOFF_EDITION_POLICY||!state.cutoffInputId||!input.evidenceRevisionIds.length)return false;
  const row=await store.db.prepare(`SELECT json_extract(json,'$.cutoffPolicy') policy,json_extract(json,'$.fingerprint') fingerprint,
   json_extract(json,'$.feedRevision') revision,json_extract(json,'$.evidenceRevisionIds') refs,json_extract(json,'$.input.windowEnd') cutoff,
-  json_extract(json,'$.models.editor') editor,json_extract(json,'$.models.verifier') verifier
-  FROM v1_feed_documents WHERE kind='v3_window_inputs' AND feed_id=? AND id=?`).bind(input.feedId,state.cutoffInputId).first<{policy:string;fingerprint:string;revision:number;refs:string;cutoff:string;editor:string;verifier:string}>();
- if(!row||row.policy!==CUTOFF_EDITION_POLICY||row.fingerprint!==state.inputId||row.revision!==input.feedRevision||![row.editor,row.verifier].includes(input.model)||canonicalJson(JSON.parse(row.refs))!==canonicalJson(input.evidenceRevisionIds))return false;
+  json_extract(json,'$.models') models,json_extract(json,'$.input.feed.language') language
+  FROM v1_feed_documents WHERE kind='v3_window_inputs' AND feed_id=? AND id=?`).bind(input.feedId,state.cutoffInputId).first<{policy:string;fingerprint:string;revision:number;refs:string;cutoff:string;models:string;language:FeedSpec['language']}>();
+ if(!row||row.policy!==CUTOFF_EDITION_POLICY||row.fingerprint!==state.inputId||row.revision!==input.feedRevision||canonicalJson(JSON.parse(row.refs))!==canonicalJson(input.evidenceRevisionIds))return false;
+ const models:BriefingModels=JSON.parse(row.models);
+ const request=state.request;
+ if(request && request.model!==input.model)return false;
+ if(request?.generation || request?.stageRoute){
+  if(frozenRouteError(models,row.language,request))return false;
+ }else if(input.model!==models.editor && input.model!==models.verifier)return false;
  return cutoffEvidenceAuthorized(store,{feedId:input.feedId,cutoffPolicy:row.policy,evidenceRevisionIds:input.evidenceRevisionIds,input:{windowEnd:row.cutoff}});
 }
