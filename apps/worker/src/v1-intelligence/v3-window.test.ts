@@ -1,3 +1,4 @@
+import * as generationProfiles from './v5-generation';
 import * as collectionCoverage from '../connector-publication-coverage';
 import * as campaignFault from '../agentops-campaign-fault';
 import * as providerReceipts from '../provider-receipt';
@@ -59,6 +60,7 @@ it.each([
  {compact:true, profile:undefined, routing:undefined, cancelVerifier:true},
  {compact:true, profile:undefined, routing:undefined, cancelVerifier:'twice'},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, cancelVerifier:true},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, cancelVerifier:true,legacyFrozen:true},
  {compact:true, profile:undefined, routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true},
@@ -71,7 +73,7 @@ it.each([
   default:{sourceInventory:'deepseek-flash-wafer'},
   en:{sourceInventory:'gemini-ai-studio-flex'},
  })},
-])('binds new windows to their verification and generation configuration ($compact, $profile, $routing, automatic=$automatic, reject=$reject, older=$olderFeed, cancellation=$cancelVerifier, scheduled=$scheduled)',async ({compact,profile,routing,automatic,reject,olderFeed,cancelVerifier,scheduled})=>{
+])('binds new windows to their verification and generation configuration ($compact, $profile, $routing, automatic=$automatic, reject=$reject, older=$olderFeed, cancellation=$cancelVerifier, scheduled=$scheduled)',async ({compact,profile,routing,automatic,reject,olderFeed,cancelVerifier,scheduled,legacyFrozen})=>{
  await article();const calls:any[]=[];
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
@@ -86,7 +88,12 @@ it.each([
  }) as typeof fetch;
  const reportingWindow=scheduled?livePublicationWindow({durationMinutes:30,timezone:'Asia/Beirut',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z')):window;
  const candidate={...env,CUTOFF_EDITIONS_ENABLED:String(Boolean(scheduled)),BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window:reportingWindow};
+ const generation=generationProfiles.v5Generation(profile);
+ const revision=legacyFrozen?'v5-source-first-v5':'v5-source-first-v6';
+ const oldDefault=legacyFrozen&&generation?vi.spyOn(generationProfiles,'v5Generation').mockReturnValue({...generation,prompt:'v5-source-first-v5'}):undefined;
  let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider,{scheduledDelivery:scheduled});
+ oldDefault?.mockRestore();
+ if(legacyFrozen)expect(calls[0].messages[0].content).toContain("words including headlines");
  if(cancelVerifier){
   expect(edition).toBeUndefined();
   const requestId=await windowIdentity('feed-1',window);
@@ -142,7 +149,7 @@ it.each([
    expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({result:'DEFERRED'});
    expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
   }else{
-   expect(edition).toMatchObject({id,generation:{promptVersion:'v5-source-first-v5'}});
+   expect(edition).toMatchObject({id,generation:{promptVersion:revision}});
    expect(edition?.editorialApprovalId).toBeUndefined();
    expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
   }
@@ -155,7 +162,7 @@ it.each([
   expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
   expect(calls[0].max_tokens).toBe(4000);
   expect(frozen.models.generation.model).toBe('deepseek/deepseek-v4.1-flash-1017');
-  expect(frozen.models.generation.prompt).toBe('v5-source-first-v5');
+  expect(frozen.models.generation.prompt).toBe(revision);
   expect(calls[0].provider).toEqual({only:['wafer/us'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.036,completion:.5,request:0}});
   expect(calls[0].reasoning).toEqual({enabled:false});
   const sourceInventory=calls.find(call=>call.messages[0].content.startsWith('Independently extract explicitly supported HUMAN'));

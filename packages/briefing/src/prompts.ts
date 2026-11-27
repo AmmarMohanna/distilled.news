@@ -59,15 +59,21 @@ export function describeArticles(articles: PreparedArticle[]): string {
 }
 
 /** Reader attention for one briefing: a guide to selectivity that grows with the window, never a quota. */
-export function readingBudget(windowMinutes: number): string {
+export function readingBudget(windowMinutes: number, headlinesOnly = false): string {
   const seconds = Math.min(420, 30 + windowMinutes * 0.1);
   const words = readingBudgetWords(windowMinutes);
+  if (headlinesOnly) return `aim for roughly ${words} words across all headlines combined; exceed the target when warranted. Keep optional details concise; their length is outside this budget`;
   return `about ${seconds < 90 ? Math.round(seconds) + " seconds" : Math.round(seconds / 30) / 2 + " minutes"} of reading, roughly ${words} words in total across all items`;
 }
 
 export function readingBudgetWords(windowMinutes: number): number {
   const seconds = Math.min(420, 30 + windowMinutes * 0.1);
   return Math.round(((seconds / 60) * 200) / 10) * 10;
+}
+
+export function headlineWordCount(language: FeedSpec['language'], items: ReadonlyArray<{headline: string}>): number {
+  const segmenter = new Intl.Segmenter(language, { granularity: 'word' });
+  return items.reduce((count, item) => count + [...segmenter.segment(item.headline)].filter(segment => segment.isWordLike).length, 0);
 }
 
 export function readerWordCount(language: FeedSpec['language'], items: ReadonlyArray<{headline: string; body: string}>): number {
@@ -86,6 +92,7 @@ export function editorUser(input: {
   articles: PreparedArticle[];
   /** True when this call sees only part of the window; a later pass trims across all parts. */
   partial?: boolean;
+  headlinesOnly?: boolean;
   promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
 }): string {
   const { feed } = input;
@@ -95,8 +102,8 @@ export function editorUser(input: {
     feed.style ? `STYLE PREFERENCE: ${feed.style}` : "",
     `WINDOW: ${input.windowStart} to ${input.windowEnd} (${feed.windowMinutes} minutes)`,
     input.partial
-      ? `READING BUDGET FOR THE WHOLE WINDOW: ${readingBudget(feed.windowMinutes)}. You are seeing only part of the window's articles; a later editor will trim across all parts, so propose the items this part deserves, rank them honestly with importance, and do not pad.`
-      : `READING BUDGET: ${readingBudget(feed.windowMinutes)}`,
+      ? `READING BUDGET FOR THE WHOLE WINDOW: ${readingBudget(feed.windowMinutes, input.headlinesOnly)}. You are seeing only part of the window's articles; a later editor will trim across all parts, so propose the items this part deserves, rank them honestly with importance, and do not pad.`
+      : `READING BUDGET: ${readingBudget(feed.windowMinutes, input.headlinesOnly)}`,
     `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nNEW ARTICLES (${input.articles.length}):\n${describeArticles(input.articles)}`
   ]
@@ -115,12 +122,12 @@ OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}],"cut":[{"from":[5],"why":"one short phrase"}]}
 "from" lists the draft numbers the item is built from (one number if unchanged). "cut" lists every draft you dropped for the reading budget, with the reason, so the cut can be audited.`;
 
-export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
+export function consolidateUser(input: { feed: FeedSpec; headlinesOnly?: boolean; promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
     `WINDOW LENGTH: ${input.feed.windowMinutes} minutes`,
-    `READING BUDGET: ${readingBudget(input.feed.windowMinutes)}`,
+    `READING BUDGET: ${readingBudget(input.feed.windowMinutes, input.headlinesOnly)}`,
     `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nDRAFTS:\n${input.drafts
       .map((d, i) => `#${i} [${d.relation}${d.updates ? ` of ${d.updates}` : ""}, importance ${d.importance}] ${d.headline}: ${d.body}`)
