@@ -112,6 +112,7 @@ test("published headlines open retained briefing evidence and preserve read-only
   expect(detailLogin.y + detailLogin.height / 2).toBeCloseTo(feedLogin.y + feedLogin.height / 2, 0);
   const menu = page.locator('.briefing-detail-feed-row .feed-more > summary');
   await expect(menu).toHaveCSS('border-radius', '50%');
+  await expect(page.locator('.briefing-detail-art > .topic-art')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const titleBounds = (await page.locator('.briefing-detail-feed-row .briefing-parent-feed').boundingBox())!;
   const menuBounds = (await menu.boundingBox())!;
   expect(menuBounds.x).toBeGreaterThan(titleBounds.x + titleBounds.width);
