@@ -19,7 +19,7 @@ test('reject production and malformed dimensions before network',()=>{
  for(const change of [{origin:'https://distilled.news'},{users:1},{feedsPerUser:100},{notifications:true},{cleanup:'delete'},{cleanupReserveRequests:0},{deadlineGraceMs:-1},{faults:[{kind:'duplicate-delivery',afterSeconds:0,seconds:10}]}])assert.throws(()=>validateManifest({...manifest(),...change}));
 });
 test('approval binds exact input, phase, expiry and exposure',()=>{
- const m=manifest(),pf={schemaVersion:'distilled-real-preflight.v1',status:'READY',blockers:[],manifestHash:digest(m),revision:m.revision};const now=Date.now(),a={schemaVersion:'distilled-real-approval.v1',manifestHash:digest(m),preflightHash:digest(pf),revision:m.revision,phases:['setup'],issuedAt:new Date(now-1).toISOString(),expiresAt:new Date(now+1000).toISOString(),maximumUsd:2,maximumRequests:2512,maximumModelCalls:40};
+ const m=manifest(),pf={schemaVersion:'distilled-real-preflight.v1',status:'READY',blockers:[],manifestHash:digest(m),revision:m.revision};const now=Date.now(),a={schemaVersion:'distilled-real-approval.v1',manifestHash:digest(m),preflightHash:digest(pf),revision:m.revision,phases:['setup'],issuedAt:new Date(now-1).toISOString(),expiresAt:new Date(now+1000).toISOString(),maximumUsd:2,maximumRequests:m.requestBudget+m.controlPlaneRequestBudget,maximumModelCalls:40};
  assert.equal(admit(m,pf,a,'setup',now),true);assert.throws(()=>admit(m,pf,a,'campaign',now));assert.throws(()=>admit(m,pf,a,'setup',now+2000));assert.throws(()=>admit({...m,users:3},pf,a,'setup',now));
 });
 test('uncertain exposure, missing financial coverage and queue ages stop',()=>{

@@ -70,7 +70,7 @@
   "sourceAuthorization": {
     "evidenceId": "DRAFT_REQUIRES_SOURCE_AND_SPENDING_APPROVAL"
   },
-  "controlPlaneRequestBudget": 512,
+  "controlPlaneRequestBudget": 1500,
   "modelConfiguration": {
     "provider": "openrouter",
     "editor": "openai/gpt-4.1",
