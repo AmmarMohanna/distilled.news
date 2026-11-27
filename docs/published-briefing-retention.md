@@ -1,0 +1,69 @@
+# Published briefing retention design
+
+The proposed 30/90-day lifecycle needs a new publication storage contract. The current R2 artifact speeds delivery while D1 keeps the canonical edition and its supporting records. Deleting the D1 edition today detaches the artifact and can put its object into orphan cleanup. This phase qualifies storage locally and produces a read-only inventory. It contains no live cleanup, schema change, or activation flag.
+
+## Storage and dependencies
+
+| Data | Current role and growth | Proposed treatment |
+| --- | --- | --- |
+| `briefing_editions` | Legacy published text, sections and embedded source excerpts. Read by timeline, search, detail, and publication version triggers. | Preserve initially. Qualify a separate exporter and archive reader for legacy payloads. |
+| `v1_feed_documents` kinds `editions`, `publication_status`, `delivery_jobs` | Canonical stories and claim quotes, visibility and publication timestamp, delivery state. Per-edition IDs also fence generation and publication retries. | Archive payload only after compatible readers and recovery are in place. Preserve publication identity, visibility and run fences even after reader access expires. |
+| `v1_inputs`, `v1_acquired`, `v1_revisions`, `v1_evidence`, intake scopes and source catalogs | Source input and acquisition bodies can be duplicated in immutable revisions, with distinct identities for observations and deduplication. Active evidence, shared references, correction support and future publication can outlive an edition. | Preserve active items and immutable history needed by retained references. Consider reversible cold body storage only after all hydration, validation and recovery paths are covered. |
+| `v3_window_inputs`, `v3_window_results`, V5 review cases/revisions, verification manifests, execution and response recoveries | Frozen input, copied evidence and generated output can dominate bytes even when no edition is visible. Retries use exact fingerprints, operation keys and unresolved work. | Independent lifecycle. Preserve unresolved and replay-relevant records. Verify which terminal payloads can be offloaded separately and keep their identity and outcome in D1. |
+| Edition delivery manifest, `v1_verified_archives` and private R2 | `0090_verified_edition_delivery.sql` requires a published V3 edition, matching timestamps, delivery job and verified immutable object. Its triggers detach delivery when the edition or publication status is deleted. | Copy and verify using the existing digest and intent pattern. Add an explicitly attached archive manifest that survives payload compaction before changing the source of truth. |
+| Financial, deduplication, account and delivery records | Authorizations, reservations, settlements, quotas, unknown outcomes, queued work, browser push receipts and account settings carry independent audit, billing, delivery and access semantics. | Exclude from age-based published-content cleanup. Decide each independent policy with its owner. |
+
+The largest candidates are the records with copied article bodies and generated window payloads, then edition prose and quotes. Their relative order varies with collection rate and publication yield. The audit reports JSON byte totals by D1 table and by document kind, allocated and reusable pages for a local SQLite snapshot, and manifest bytes by R2 state. The manifest does not measure the whole bucket. No current production size or billing measurement was taken. The checked-in staging record reports 10,157,790 logical bytes offloaded across 12 unpaid diagnostic compactions, a different workload. [Staging storage measurements](v3-bounded-history-storage.md)
+
+### Required behavior across the transition
+
+- **Reader and access.** Keep recent timeline windows. The existing search is bounded by edition count, not a 30-day guarantee. Fast feeds can exceed the current 100-record search bound in days. A historical search index needs feed-scoped keyset pagination and bounded matching, including archived metadata if the product chooses to support archive search. Keep signed-in ownership and withdrawal checks at request time, including after R2 fetch. Serve R2 through the Worker. Use an indistinguishable 404 for unknown, withdrawn and unauthorized private editions. A 410 with a generic message is an option only for specifically approved public expiry with visibility verified.
+- **Citations and corrections.** `public-read.ts` joins same-feed evidence revisions to observations, and validates each claim's support list. Cite stable revision IDs in the compact index, alongside permission-scoped resolution. Include explicit `updatesId` edges and unresolved correction obligations from `editorial.ts` and `ledger.ts`. An old story still referenced by a retained correction or citation is a protected dependency. Do not infer that a shared reference is dead from a single edition's age.
+- **V3, V5 and Catch me up.** The preparation-history queries in `store.ts`, carry index in migration `0080`, V3 frozen windows and V5 prior digests all require stable evidence and story identities. Validate byte-equivalent inputs, fingerprints and carry decisions before switching them to a compact projection. Catch me up can need up to 60 days for slow schedules and also checks an opened correction's old story. With a 30-day boundary it needs archive-aware reads or an approved separate history policy. Client timeline visibility plays no role in this choice.
+- **Publication and recovery.** `window-catchup.ts`, `briefing-outcome.ts`, `delivery-status.ts`, `publication.ts`, `v3-blocked-recovery.ts` and manual V5 review check edition or publication existence. An expiry tombstone must continue to fence job replays and duplicate charges. Preserve window fingerprints, unresolved inputs, leases and response-recovery references, including historical records with uncertain status. Verify delivery completion and withdrawal races against the same publication version. The admin trace and operator replay need an archive-aware lookup or intact original records.
+
+## Proposed lifecycle and rollout
+
+1. **Recent through day 3.** Keep canonical D1 reads. The schedule decides the 1–3-day default timeline. Verify archive health separately.
+2. **Historical through day 30.** Maintain authorized detail, citation lookup and paginated search. Measure count, rows read, R2 reads per request and retention lags on active schedules. Keep explicit bounds for quiet and slow feeds.
+3. **Candidate archive through day 90.** Write an immutable private object with an intent, read it back, verify size, format, feed and edition identity, SHA-256 and source inclusion. Attach the manifest by compare-and-swap against the source digest and current publication version. Keep a compact D1 index for timestamps, lookup, visibility, stable story and source references, and publication and recovery identity. Shadow-read and compare with D1 first. Use bounded archive hydration with fail-closed access and an operator-visible degraded state. Compact only after all normal and recovery readers support this contract and a restore drill passes.
+4. **Candidate expiry after day 90.** A policy-reviewed job records an exact eligibility decision with policy version, source digest, publication version and protection reasons. Acquire a fenced lease, recheck references and open work in the final D1 transaction, and attach a terminal tombstone and journal state atomically. R2 deletes use exact keys after a rollback grace period and run separately from D1 transactions. Resume a timed-out operation from its last durable phase and reconcile missing or ambiguous responses before retrying. Exclude pending, uncertain, failed, concurrently modified and referenced records.
+
+Use a versioned journal with a bounded keyset cursor and leases. Track candidates, protected reasons, archive bytes, digest mismatches, reader fallbacks, last completed cursor, oldest backlog, allocation and missing objects. Separate dry-run from archive-copy and compaction/expiry grants. Start every mutation mode disabled. Roll back by disabling workers, restoring the old read preference and rehydrating from a verified archive into a separately checked local or staging database. After physical expiry, rollback depends on a separately approved recovery copy and its retention. Backups, manifests and their keys need their own protection policy.
+
+## Capacity and qualification
+
+The paid D1 database limit is 10 GB. Compare actual allocation using D1 `meta.size_after`, inventory logical bytes separately, and report reusable pages only for a local SQLite fixture or export that supports the page pragmas. SQL deletions generally leave reusable allocation. A smaller offline rebuilt database is an estimate of a different physical layout. It does not establish that managed D1 will shrink. [D1 limits](https://developers.cloudflare.com/d1/platform/limits/), [D1 result metadata](https://developers.cloudflare.com/d1/worker-api/return-object/)
+
+The qualification separates fixture-measured edition, manifest and support bytes from projections for 100, 500 and 1,000 feeds. For example, at 48 eligible windows/day, 25% publication yield and 1,000 feeds, thirty days contain 360,000 editions. Each additional 10 KB retained per edition adds 3.6 GB before indexes and independently collected source data. At full yield the same period contains 1.44 million editions and 10 KB adds 14.4 GB. A single database cannot be sized from the proposed ages alone. Scope a partitioning plan and reserve availability headroom before onboarding high-frequency feeds.
+
+Existing Worker D1/R2 tests qualify archive read-back, unauthorized and withdrawn reads, attachment races, interruption and retry for the current copy-only contract. The lab explicitly exercises current delete triggers and reports compaction only for a disposable fixture. Production compaction, a new deletion journal and historical routing require a later, reviewed change.
+
+### Local measurements and estimates
+
+The fixture applies all 121 migrations and creates 100 editions with three artificial source bodies each. The measured logical payloads were 1.196 MB for editions, 1.156 MB for frozen window inputs, 1.151 MB for acquisitions and 1.166 MB for revisions. The 100 archive files occupied 1.199 MB. After simulating removal of 60 edition payloads, SQLite still allocated 7.537 MB and had 0.762 MB on its freelist. A local `VACUUM` rebuilt the file to 6.750 MB. The fixture also verifies that current deletion detaches delivery, rollback restores its reference, tampered bytes fail the digest check, and citation revision rows still resolve. One run averaged 0.23 ms for a local indexed manifest lookup, file read and digest check. These numbers are local measurements with synthetic content and no network latency.
+
+Estimated logical storage at 25% publication yield, in decimal GB. D1 includes 30 days of full edition payload, 90 days of estimated 1 KiB lookup metadata per edition and 90 days of sampled support. The estimates omit indexes, independent source traffic, retained checkpoints/results, long-lived correction roots and financial/recovery records. The CLI also reports the six schedules at full yield.
+
+| Active feeds | 30 min D1 / R2 | Hourly D1 / R2 | Daily D1 / R2 |
+| ---: | ---: | ---: | ---: |
+| 100 | 4.34 / 0.86 | 2.17 / 0.43 | 0.09 / 0.02 |
+| 500 | 21.69 / 4.32 | 10.84 / 2.16 | 0.45 / 0.09 |
+| 1,000 | 43.37 / 8.64 | 21.69 / 4.32 | 0.90 / 0.18 |
+
+At 1,000 half-hour feeds and 25% yield, archiving edition payloads cuts an estimated 7.51 GB from 90-day D1 edition storage after adding the projected compact metadata. Sampled support still adds 37.96 GB. At this rate, 12,000 publications per day would also outpace a copy-only backfill capped at five successes every minute if every edition required backfill. Existing on-publish artifacts may reduce that backlog. Daily feeds fit within the synthetic envelope, with operational headroom still to be measured. High-frequency feeds require fewer retained bytes per publication, data partitioning, or both.
+
+Reproduce the measurement with Python and SQLite 3.43 or newer. The live schema is used to seed the disposable fixture. A local snapshot audit reports aggregates and age cohorts without inspecting remote resources or deciding deletion eligibility.
+
+```text
+python scripts/published_retention_lab.py --fixture
+python scripts/published_retention_lab.py --sqlite path/to/local/snapshot.sqlite
+python -m unittest discover -s scripts -p test_published_retention_lab.py
+```
+
+## Decisions required before any data mutation
+
+- Approve historical availability, archive search coverage, link expiry behavior, legal holds and support expectations for public and private feeds.
+- Measure representative publication yield, acquisition fan-out, bytes by kind, retention backlog and D1/R2 read loads. Choose storage partitions and capacity thresholds.
+- Set independent retention for evidence, authorizations, receipts, correction and delivery/recovery state, including ongoing unknown outcomes.
+- Approve a compatible compact publication identity, reference inventory completeness, retention grace period, backfill rate limits and a staged restore exercise.
