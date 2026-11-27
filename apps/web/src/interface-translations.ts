@@ -150,6 +150,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Next image': ['Image suivante', 'الصورة التالية'],
   'Followed': ['Abonnements', 'المتابعة'],
   'Followed channels': ['Chaînes suivies', 'القنوات المتابَعة'],
+  'Followed channels could not be loaded.': ['Impossible de charger les chaînes suivies.', 'تعذّر تحميل القنوات التي تتابعها.'],
+  'Retry channels': ['Réessayer de charger les chaînes', 'إعادة محاولة تحميل القنوات'],
   'Trending feeds': ['Fils tendance', 'الموجزات الرائجة'],
   'Most followed channels': ['Chaînes les plus suivies', 'القنوات الأكثر متابعة'],
   'Show all': ['Tout afficher', 'عرض الكل'],

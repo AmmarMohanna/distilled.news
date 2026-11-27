@@ -65,6 +65,8 @@ export function AppExperience(props: {
   }
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
   const [readyCatalogs, setReadyCatalogs] = useState<ReadonlySet<string>>(() => new Set());
+  const [followedChannelLoad, setFollowedChannelLoad] = useState<{ scope: string; status: "loading" | "ready" | "error" }>();
+  const retryFollowedChannels = useRef<() => void>(() => {});
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
   const channelSnapshots = useRef(new Map<string, ExploreChannel[]>());
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
@@ -78,7 +80,6 @@ export function AppExperience(props: {
   const feedSnapshots = useRef(new Map<string, { feeds: typeof feeds; nextOffset: number | null }>());
   const currentFeeds=useRef(feeds);currentFeeds.current=feeds;
   const confirmedVotes=useRef(new Map<string,FeedStarResult>());
-  const signedIn = Boolean(props.account);
   const voteScope=JSON.stringify(props.account?['account',props.account.id??props.account.username]:['anonymous']);
   const catalogScope = JSON.stringify([voteScope, tab]);
   const catalogReady = readyCatalogs.has(catalogScope);
@@ -116,19 +117,30 @@ export function AppExperience(props: {
             setChannelFailed(true);
           });
       } else {
+        const loadChannelList = () => getExploreChannels(request.signal, followedView).then(result => {
+          if (request.signal.aborted) return;
+          channelSnapshots.current.set(catalogScope, result);
+          setChannels(result);
+        });
+        if (followedView) {
+          setFollowedChannelLoad(current => current?.scope === catalogScope && current.status === "ready"
+            ? current : { scope: catalogScope, status: "loading" });
+          const finish = (status: "ready" | "error") => {
+            if (!request.signal.aborted) setFollowedChannelLoad({ scope: catalogScope, status });
+          };
+          const deadline = window.setTimeout(() => { finish("error"); request.abort(); }, 8000);
+          request.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true });
+          void loadChannelList().then(() => finish("ready"), () => finish("error")).finally(() => window.clearTimeout(deadline));
+          return;
+        }
         const revealCatalog = () => {
           if (!request.signal.aborted) setReadyCatalogs(current => current.has(catalogScope) ? current : new Set([...current, catalogScope]));
         };
-        const deadline = signedIn ? undefined : window.setTimeout(revealCatalog, 1800);
+        const deadline = window.setTimeout(revealCatalog, 1800);
         request.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true });
         void Promise.allSettled([
-          getExploreChannels(request.signal, followedView).then(result => {
-            if (!request.signal.aborted) {
-              channelSnapshots.current.set(catalogScope, result);
-              setChannels(result);
-            }
-          }),
-          !followedView && getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
+          loadChannelList(),
+          getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
             if (!request.signal.aborted) setHighlights({ trending, newest });
           }),
         ]).then(() => {
@@ -139,10 +151,11 @@ export function AppExperience(props: {
     };
     setChannel(undefined);
     setChannelFailed(false);
+    retryFollowedChannels.current = loadChannel;
     loadChannel();
     window.addEventListener(EXPLORE_CHANGED_EVENT, loadChannel);
     return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
-  }, [tab, channelName, catalogScope, followedView, signedIn]);
+  }, [tab, channelName, catalogScope, followedView]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.pageTitle ?? (props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."); }, [tab, language, props.account, props.pageTitle]);
   useLayoutEffect(() => {
     let active = true;
@@ -222,7 +235,6 @@ export function AppExperience(props: {
   const visibleChannels = channels.filter(item => item.username !== props.account?.username && (tab === "followed" || !item.viewerFollowing) && matching(item.username));
   const trendingFeeds = highlights.trending.filter(feed => !owns(feed) && !(confirmedVotes.current.get(feed.id)?.viewerHasStarred ?? feed.viewerHasStarred));
   const newFeeds = highlights.newest.filter(feed => !owns(feed));
-  const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
   const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
   const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
   const ownChannel = Boolean(channel && props.account?.username === channel.username);
@@ -233,12 +245,15 @@ export function AppExperience(props: {
     onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>;
   const followedFeeds = visibleFeeds.filter(feed => feed.viewerHasStarred);
   const otherPublicFeeds = visibleFeeds.filter(feed => !props.account || !feed.viewerHasStarred);
+  const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady && otherPublicFeeds.length === 0;
+  const followedChannelStatus = followedChannelLoad?.scope === catalogScope ? followedChannelLoad.status : "loading";
+  const followedChannelsFailed = followedView && followedChannelStatus === "error";
   const canShowIllustratedEmpty = Boolean(props.account && (tab === "explore" || followedView)
     && !channelName && !catalogView && !query.trim() && !exploreError);
   const hasCatalogItems = followedView ? followedFeeds.length > 0 || visibleChannels.length > 0 : otherPublicFeeds.length > 0 || trendingFeeds.length > 0;
   const catalogPending = canShowIllustratedEmpty && !hasCatalogItems
-    && (!catalogReady || (loading && feedSnapshots.current.get(listingScope)?.nextOffset !== null));
-  const illustratedEmpty = canShowIllustratedEmpty && !catalogPending && !hasCatalogItems && nextOffset === null;
+    && ((followedView ? followedChannelStatus === "loading" : !catalogReady) || (loading && feedSnapshots.current.get(listingScope)?.nextOffset !== null));
+  const illustratedEmpty = canShowIllustratedEmpty && !catalogPending && !followedChannelsFailed && !hasCatalogItems && nextOffset === null;
   const renderExploreFeed = (feed: (typeof visibleFeeds)[number]) => <FeedTile
     key={feed.id}
     feed={feed}
@@ -316,7 +331,7 @@ export function AppExperience(props: {
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
-      {!catalogPending && !illustratedEmpty && (!channelName || (channel && !emptyChannel)) && <div className={props.account ? "explore-controls" : "landing-controls"}>
+      {!catalogPending && !illustratedEmpty && (!followedChannelsFailed || hasCatalogItems || query.trim()) && (!channelName || (channel && !emptyChannel)) && <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         {(!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
@@ -357,7 +372,7 @@ export function AppExperience(props: {
               {otherPublicFeeds.map(renderExploreFeed)}
             </CatalogShelf>}
           </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
-        ) : !catalogPending && (!loading || illustratedEmpty) && !exploreError && (query.trim() || nextOffset === null) && (
+        ) : !catalogPending && !followedChannelsFailed && (!loading || illustratedEmpty) && !exploreError && (query.trim() || nextOffset === null) && (
           query.trim() || channelName ? (
             <p className="empty-copy" role="status">{t(query.trim()
               ? nextOffset !== null ? "No matches in loaded feeds. Load more feeds to continue searching." : "No feeds match your search."
@@ -375,6 +390,10 @@ export function AppExperience(props: {
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
+      {followedChannelsFailed && <div role="alert">
+        <p className="error">{t("Followed channels could not be loaded.")}</p>
+        <button type="button" className="feed-state-retry" onClick={() => retryFollowedChannels.current()}>{t("Retry channels")}</button>
+      </div>}
       {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (props.account || catalogView === "trending") &&
         <CatalogShelf title={t(props.account ? "Trending feeds" : "Trending topics")} expanded={catalogView === "trending"} onShowAll={() => showCatalog("trending")}>
           {trendingFeeds.map(renderExploreFeed)}
