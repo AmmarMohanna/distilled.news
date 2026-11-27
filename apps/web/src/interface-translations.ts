@@ -172,6 +172,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Followed feeds': ['Fils suivis', 'الخلاصات المتابَعة'],
   'Explore channels': ['Explorer les chaînes', 'استكشف القنوات'],
   'Upload cover photo': ['Téléverser une photo de couverture', 'رفع صورة غلاف'],
+  'Remove cover photo': ['Supprimer la photo de couverture', 'إزالة صورة الغلاف'],
   'Channel not available': ['Chaîne indisponible', 'القناة غير متاحة'],
   'Loading channel…': ['Chargement de la chaîne…', 'جارٍ تحميل القناة…'],
   'Public feeds': ['Fils publics', 'الخلاصات العامة'],

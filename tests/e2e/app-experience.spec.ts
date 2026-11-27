@@ -185,6 +185,42 @@ test('an owner with no feeds can open their editable channel from Profile Settin
   await page.locator('.channel-options summary').click();
   await expect(page.getByRole('button', { name: 'Upload cover photo' })).toBeVisible();
 });
+test('an owner can remove their cover from the corner of the banner', async ({ page }) => {
+  await mock(page);
+  const coverImage = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 10"><rect width="40" height="10" fill="blue"/></svg>';
+  let hasCover = true;
+  await page.route('**/api/explore/channels/*', route => {
+    const username = new URL(route.request().url()).pathname.split('/').at(-1);
+    return route.fulfill({ json: { channel: { username, publicFeedCount: 0, followerCount: 0 } } });
+  });
+  await page.route('**/api/explore/channels/*/cover?*', route => hasCover
+    ? route.fulfill({ contentType: 'image/svg+xml', body: coverImage })
+    : route.fulfill({ status: 404 }));
+  await page.route('**/api/me/channel-cover', route => {
+    expect(route.request().method()).toBe('DELETE');
+    hasCover = false;
+    return route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto('/explore?channel=another');
+  await expect(page.locator('.channel-cover-photo')).toBeVisible();
+  const remove = page.getByRole('button', { name: 'Remove cover photo' });
+  await expect(remove).toHaveCount(0);
+
+  await page.goto('/explore?channel=joud');
+  await expect(page.locator('.channel-cover-photo')).toBeVisible();
+  if (await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)) {
+    await expect(remove).toHaveCSS('opacity', '0');
+    await page.locator('.channel-banner').hover();
+  }
+  await expect(remove).toHaveCSS('opacity', '1');
+  await remove.click();
+  await expect(page.locator('.channel-cover-photo')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
+  await expect(page.locator('.channel-cover-photo')).toBeHidden();
+  await expect(remove).toHaveCount(0);
+});
 test('opens a top channel with its public feeds and sharing menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
   await mock(page, false);

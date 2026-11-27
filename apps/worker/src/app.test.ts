@@ -110,11 +110,12 @@ describe("worker app accounts", () => {
     expect(await (await follow(false, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false, followerCount: 0 } });
   });
 
-  it("serves a public channel cover regardless of the number of active public feeds", async () => {
+  it("serves a channel cover with or without public feeds and lets only its owner remove it", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const owner = await createVerifiedUser(app, repo, "cover-owner@example.invalid", "Cover Owner");
     const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const other = await createVerifiedUser(app, repo, "cover-other@example.invalid", "Other Owner");
     const objects = new Map<string, { bytes: Uint8Array<ArrayBuffer>; channel: string }>();
     const runtime = { ...env(), RAW_ARCHIVE: {
       put: async (key: string, bytes: Uint8Array<ArrayBuffer>, options: {customMetadata: {channel: string}}) => {
@@ -123,7 +124,8 @@ describe("worker app accounts", () => {
       get: async (key: string) => {
         const object = objects.get(key);
         return object ? { body: new Response(object.bytes).body, customMetadata: { channel: object.channel } } : null;
-      }
+      },
+      delete: async (key: string) => { objects.delete(key); }
     } } as unknown as Env;
     const upload = "/api/me/channel-cover";
     const original = new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]);
@@ -136,6 +138,14 @@ describe("worker app accounts", () => {
     expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
     await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
     expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
+    expect((await app.request(upload, { method: "DELETE" }, runtime)).status).toBe(401);
+    expect((await app.request(upload, { method: "DELETE", headers: { cookie: other.cookie } }, runtime)).status).toBe(200);
+    expect((await app.request(cover, {}, runtime)).status).toBe(200);
+    expect((await app.request(upload, { method: "DELETE", headers: { ...headers, origin: "https://elsewhere.example" } }, runtime)).status).toBe(403);
+    expect((await app.request("/api/me/avatar", { method: "PUT", body: original, headers }, runtime)).status).toBe(200);
+    expect((await app.request(upload, { method: "DELETE", headers }, runtime)).status).toBe(200);
+    expect((await app.request(cover, {}, runtime)).status).toBe(404);
+    expect((await app.request("/api/me/avatar", { headers }, runtime)).status).toBe(200);
   });
 
   it("stores a replacement avatar privately for the signed-in account", async () => {

@@ -5,7 +5,7 @@ import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
-import { getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setChannelFollow, setFeedStar, uploadChannelCover, type ExploreHighlight, type FeedStarResult } from "./api";
+import { deleteChannelCover, getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setChannelFollow, setFeedStar, uploadChannelCover, type ExploreHighlight, type FeedStarResult } from "./api";
 import type {ExploreChangeDetail} from './explore-events';
 import { ThemeToggle, useTheme } from "./ThemeToggle";
 import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
@@ -331,7 +331,7 @@ export function AppExperience(props: {
 
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href={!props.account && document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
-        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel} onError={setError}/> : channelFailed ? <p role="status">{t("Channel not available")}</p> : <div className="channel-hero" aria-busy="true">
+        {channel ? <ChannelHeader key={channel.username} channel={channel} canEdit={ownChannel} onError={setError}/> : channelFailed ? <p role="status">{t("Channel not available")}</p> : <div className="channel-hero" aria-busy="true">
           <div className="channel-banner" aria-hidden="true"/>
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
@@ -580,7 +580,8 @@ function ChannelHeader({ channel, canEdit, onError }: {
   const menu = useRef<HTMLDetailsElement>(null);
   const [copied, setCopied] = useState(false);
   const coverInput = useRef<HTMLInputElement>(null);
-  const [coverVersion, setCoverVersion] = useState(0);
+  const [coverVersion, setCoverVersion] = useState<number | null>(0);
+  const [coverLoaded, setCoverLoaded] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const picturePath = `/api/explore/channels/${encodeURIComponent(channel.username)}`;
   const avatarUrl = useChannelAvatarUrl(channel.username);
@@ -604,11 +605,27 @@ function ChannelHeader({ channel, canEdit, onError }: {
       if (!(error instanceof Error && error.name === "AbortError")) onError(toUiError(error));
     }
   };
+  const removeCover = async () => {
+    setCoverBusy(true);
+    onError("");
+    try {
+      await deleteChannelCover();
+      setCoverLoaded(false);
+      setCoverVersion(null);
+      menu.current?.querySelector("summary")?.focus();
+    } catch (error) {
+      onError(toUiError(error));
+    } finally {
+      setCoverBusy(false);
+    }
+  };
   return <div className="channel-hero">
-    <div className="channel-banner" aria-hidden="true">
+    <div className="channel-banner">
       <img key={avatarUrl} src={avatarUrl} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
-      <img key={coverVersion} className="channel-cover-photo" src={`${picturePath}/cover?v=${coverVersion}`} alt="" style={{ visibility: "hidden" }}
-        onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+      {coverVersion !== null && <img key={coverVersion} className="channel-cover-photo" src={`${picturePath}/cover?v=${coverVersion}`} alt=""
+        style={{ visibility: coverLoaded ? "visible" : "hidden" }} onLoad={() => setCoverLoaded(true)}/>}
+      {canEdit && coverLoaded && <button type="button" className="channel-cover-remove" aria-label={t("Remove cover photo")}
+        disabled={coverBusy} onClick={() => void removeCover()}><X size={15} aria-hidden/></button>}
     </div>
     {canEdit && <input ref={coverInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
       const file = event.currentTarget.files?.[0];
@@ -618,6 +635,7 @@ function ChannelHeader({ channel, canEdit, onError }: {
       onError("");
       try {
         await uploadChannelCover(file);
+        setCoverLoaded(false);
         setCoverVersion(Date.now());
       } catch (error) {
         onError(toUiError(error));
