@@ -64,20 +64,24 @@ def age_screen(db, as_of):
 
 def inventory(db, as_of):
     tables = {name for (name,) in db.execute("SELECT name FROM sqlite_schema WHERE type='table'")}
-    required = {"v1_feed_documents", "briefing_editions", "v1_verified_archives"}
+    required = {"v1_feed_documents", "briefing_editions", "v1_verified_archives", *EVIDENCE_TABLES}
     if not required <= tables:
         raise ValueError("Snapshot is missing the current publication or archive schema")
     docs = db.execute("""
         SELECT kind, COUNT(*), SUM(length(CAST(json AS BLOB))) AS bytes
         FROM v1_feed_documents GROUP BY kind ORDER BY bytes DESC, kind
     """).fetchall()
-    sources = {}
-    for table in EVIDENCE_TABLES:
-        if table in tables:
-            count, size = db.execute(
-                f'SELECT COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM "{table}"'
-            ).fetchone()
-            sources[table] = {"rows": count, "payload_bytes": size}
+    sources = db.execute("""
+        SELECT 'v1_inputs', COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM v1_inputs
+        UNION ALL
+        SELECT 'v1_acquired', COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM v1_acquired
+        UNION ALL
+        SELECT 'v1_revisions', COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM v1_revisions
+        UNION ALL
+        SELECT 'v1_evidence', COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM v1_evidence
+        UNION ALL
+        SELECT 'v1_evidence_receipts', COUNT(*), COALESCE(SUM(length(CAST(json AS BLOB))),0) FROM v1_evidence_receipts
+    """).fetchall()
     legacy = db.execute("""
         SELECT status, COUNT(*), SUM(length(CAST(COALESCE(summary,'') AS BLOB))
           +length(CAST(COALESCE(sections_json,'') AS BLOB))) AS bytes
@@ -90,7 +94,7 @@ def inventory(db, as_of):
     return {
         "sqlite": page_usage(db),
         "document_kinds": [{"kind": kind, "rows": count, "payload_bytes": size} for kind, count, size in docs],
-        "source_tables": sources,
+        "source_tables": {table: {"rows": count, "payload_bytes": size} for table, count, size in sources},
         "legacy_editions": [{"status": status, "rows": count, "payload_bytes": size} for status, count, size in legacy],
         "r2_manifest": [{"kind": kind, "state": state, "rows": count, "recorded_bytes": size}
                         for kind, state, count, size in archived],
@@ -135,14 +139,17 @@ def seed_fixture(db, root):
             item = f"item-{age}-{source}"
             revision = f"rev-{item}"
             body = f"Fixture source {age}/{source}. " + "An independent source reported a bounded development. " * 70
-            for table, key, payload in (
-                ("v1_inputs", item, {"id": item, "feedId": feed, "publisherId": f"publisher-{source}"}),
-                ("v1_acquired", f"acquired-{item}", {"id": f"acquired-{item}", "body": body}),
-                ("v1_revisions", revision, {"id": revision, "feedId": feed, "sourceObservationId": item, "body": body}),
-                ("v1_evidence", item, {"id": item, "state": "ACTIVE", "currentRevisionId": revision}),
+            for statement, key, payload in (
+                ("INSERT INTO v1_inputs(id,feed_source_id,item_key,json) VALUES(?,'lab-scope',?,?)",
+                 item, {"id": item, "feedId": feed, "publisherId": f"publisher-{source}"}),
+                ("INSERT INTO v1_acquired(id,feed_source_id,item_key,json) VALUES(?,'lab-scope',?,?)",
+                 f"acquired-{item}", {"id": f"acquired-{item}", "body": body}),
+                ("INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,'lab-scope',?,?)",
+                 revision, {"id": revision, "feedId": feed, "sourceObservationId": item, "body": body}),
+                ("INSERT INTO v1_evidence(id,feed_source_id,item_key,json) VALUES(?,'lab-scope',?,?)",
+                 item, {"id": item, "state": "ACTIVE", "currentRevisionId": revision}),
             ):
-                db.execute(f"INSERT INTO {table}(id,feed_source_id,item_key,json) VALUES(?,'lab-scope',?,?)",
-                           (key, item, json_text(payload)))
+                db.execute(statement, (key, item, json_text(payload)))
             revision_ids.append(revision)
             articles.append({"id": revision, "text": body})
             support.append({"evidenceRevisionId": revision, "quote": body})
