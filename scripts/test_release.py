@@ -46,6 +46,34 @@ class ReleaseGateTests(unittest.TestCase):
                 with self.assertRaises(release.ReleaseError):
                     release.validate_configs(configs)
 
+    def test_deployed_rollout_matches_exact_strings_for_enabled_and_paused_releases(self):
+        configs = release.load_configs()
+        config = configs["production"]
+        for switch in ("true", "false"):
+            config["vars"]["BRIEFING_V5_AUTO_PUBLICATION_ENABLED"] = switch
+            release.validate_configs(configs)
+            expected = {k: v for k, v in config["vars"].items() if k.startswith("BRIEFING_V5_")}
+            values = {"RELEASE_SHA": SHA, **expected}
+
+            def check(live):
+                def cloudflare(path):
+                    self.assertEqual(path, "workers/scripts/distilled-news-production/settings")
+                    return {"bindings": [{"type": "plain_text", "name": k, "text": v} for k, v in live.items()]}
+                release.verify_rollout(config, SHA, cloudflare)
+
+            check(values)
+            for drift in ({"BRIEFING_V5_FEEDS_CREATED_FROM": "11/26/2026 19:54:12"},
+                          {"BRIEFING_V5_AUTO_PUBLICATION_ENABLED": "false" if switch == "true" else "true"},
+                          {"BRIEFING_V5_GENERATION_PROFILE": "missing"}, {"RELEASE_SHA": "b" * 40},
+                          {"BRIEFING_V5_STAGE_ROUTES_JSON": "{}"}):
+                with self.subTest(drift=drift), self.assertRaises(release.ReleaseError):
+                    check({**values, **drift})
+            with self.assertRaises(release.ReleaseError):
+                check({"RELEASE_SHA": SHA})
+        configs["production"]["vars"]["BRIEFING_V5_AUTO_PUBLICATION_ENABLED"] = "yes"
+        with self.assertRaises(release.ReleaseError):
+            release.validate_configs(configs)
+
     def test_migration_ledger_blocks_pending_ahead_and_duplicate_rows(self):
         release.check_migration_ledger(["a.sql", "b.sql"], rows("b.sql", "a.sql"))
         for applied in (rows("a.sql"), rows("a.sql", "b.sql", "c.sql"), rows("a.sql", "b.sql", "a.sql"), []):
