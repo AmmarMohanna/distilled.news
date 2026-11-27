@@ -23,8 +23,8 @@
     "DISTILLED_LLM_API_GATEWAY": "openrouter",
     "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
     "DISTILLED_WEB_OPERATOR_ENABLED": "false",
-    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
-    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "EMAIL_FROM": "Distilled.News <noreply@distilled.news>",
+    "MAIL_TRANSPORT": "CLOUDFLARE",
     "PRODUCT_FEEDS_ENABLED": "true",
     "PUBLIC_API_BASE_URL": "https://distilled-news-staging-campaign-pilot.distillednews-platform.workers.dev",
     "PUBLIC_WEB_BASE_URL": "https://distilled-news-staging-campaign-pilot.distillednews-platform.workers.dev",
@@ -60,7 +60,8 @@
     "V1_SYNTHESIS_MODEL_ENABLED": "true",
     // Pipeline behaviour copied from production (Nov 26) so results reflect the current product.
     // Deliberately NOT copied: paid provider budgets, web-search recommendations, the source
-    // execution service, Cloudflare Images and production mail/URLs (cost and isolation guards).
+    // execution service, Cloudflare Images and production URLs (cost and isolation guards).
+    // Verification email goes through the distilled.news domain, like production and dataset QA.
     "BRIEFING_COMPACT_VERIFICATION_ENABLED": "true",
     "BRIEFING_SOURCE_BINDINGS_ENABLED": "true",
     "CUTOFF_EDITIONS_ENABLED": "true",
@@ -77,6 +78,9 @@
     "AGENTOPS_CAMPAIGN_ISOLATED": "true",
     "AGENTOPS_CAMPAIGN_ALLOW_FAULTS": "false"
   },
+  "send_email": [
+    {"name": "EMAIL", "allowed_sender_addresses": ["noreply@distilled.news"]}
+  ],
   "d1_databases": [
     {
       "binding": "DB",
