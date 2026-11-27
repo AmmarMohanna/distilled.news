@@ -70,7 +70,6 @@ export function AppExperience(props: {
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
   const [channel, setChannel] = useState<ExploreChannel>();
   const [channelFailed, setChannelFailed] = useState(false);
-  const [channelMissing, setChannelMissing] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<UiMessage>("");
@@ -107,11 +106,10 @@ export function AppExperience(props: {
       active = request;
       if (channelName) {
         void getExploreChannel(channelName, request.signal)
-          .then(value => { if (!request.signal.aborted) { setChannel(value); setChannelFailed(!value); setChannelMissing(false); } })
-          .catch(error => {
+          .then(value => { if (!request.signal.aborted) { setChannel(value); setChannelFailed(!value); } })
+          .catch(() => {
             if (request.signal.aborted) return;
             setChannelFailed(true);
-            setChannelMissing(error instanceof ApiError && error.uiMessage.details.status === 404);
           });
       } else {
         const revealCatalog = () => {
@@ -226,6 +224,10 @@ export function AppExperience(props: {
   const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
   const ownChannel = Boolean(channel && props.account?.username === channel.username);
   const previewingChannel = ownChannel && new URLSearchParams(window.location.search).get("preview") === "1";
+  const emptyChannel = channel?.publicFeedCount === 0;
+  const channelFollow = channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel}
+    signedIn={Boolean(props.account)} onSignIn={props.onAccount}
+    onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>;
   const followedFeeds = visibleFeeds.filter(feed => feed.viewerHasStarred);
   const otherPublicFeeds = visibleFeeds.filter(feed => !props.account || !feed.viewerHasStarred);
   const illustratedEmpty = Boolean(props.account && (tab === "explore" || tab === "followed")
@@ -299,10 +301,7 @@ export function AppExperience(props: {
 
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href={!props.account && document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
-        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t(
-          channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
-            "Channel not available"
-        )}</p> : <div className="channel-hero" aria-busy="true">
+        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t("Channel not available")}</p> : <div className="channel-hero" aria-busy="true">
           <div className="channel-banner" aria-hidden="true"/>
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
@@ -311,13 +310,13 @@ export function AppExperience(props: {
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
-      {!illustratedEmpty && <div className={props.account ? "explore-controls" : "landing-controls"}>
+      {!illustratedEmpty && (!channelName || (channel && !emptyChannel)) && <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         {(!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
-          : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
-            onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
+          : channelFollow)}
       </div>}
+      {emptyChannel && <EmptyFeedPage view="channel" following={channel.viewerFollowing} action={channelFollow}/>}
       {catalogView && <button type="button" className="catalog-back" onClick={() => showCatalog()}><ChevronLeft size={17} aria-hidden/>{t("Back")}</button>}
       {!catalogView && showCatalogShelves && !props.account && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")} onShowAll={() => showCatalog("feeds")}>
@@ -336,7 +335,7 @@ export function AppExperience(props: {
       {channel?.viewerFollowing && !query.trim() && visibleFeeds.length > 0 && <CatalogShelf title={t("Followed feeds")}>
         {visibleFeeds.map(renderExploreFeed)}
       </CatalogShelf>}
-      {(!catalogView || catalogView === "feeds") && (!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
+      {(!channelName || (channel && !emptyChannel)) && (!catalogView || catalogView === "feeds") && (!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
         {channel && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {!channelName && !catalogView && !isExplorePage && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
@@ -432,17 +431,19 @@ function ChannelAvatar({ username }: { username: string }) {
 const emptyFeedCopy = {
   home: { title: "No feeds yet", description: "Create your first feed or explore topics you are interested in." },
   explore: { title: "Stay curious.", description: "No public feeds yet. Create a personalized feed around the topics you care about." },
-  followed: { title: "No followed feeds yet.", description: "Star feeds to find them here." }
+  followed: { title: "No followed feeds yet.", description: "Star feeds to find them here." },
+  channel: { title: "No public feeds yet", description: "Follow this account to get notified when it adds a public feed." }
 };
 
-function EmptyFeedPage({ view, onAction }: { view: keyof typeof emptyFeedCopy; onAction?: () => void }) {
+function EmptyFeedPage({ view, onAction, action, following }: { view: keyof typeof emptyFeedCopy; onAction?: () => void; action?: React.ReactNode; following?: boolean }) {
   const { t } = useLanguage();
   const { title, description } = emptyFeedCopy[view];
   const followed = view === "followed";
   return <div className={"feed-page-empty " + (view === "home" ? "feed-library-empty" : "community-feeds-empty")} data-empty-view={view}>
-    <img src={"/empty-feeds-" + view + "-cutout.webp"} alt="" />
+    <img src={"/empty-feeds-" + (view === "channel" ? "followed" : view) + "-cutout.webp"} alt="" />
     <h2>{t(title)}</h2>
-    <p>{t(description)}</p>
+    <p>{t(following ? "You’ll get notified when this account adds a public feed if notifications are enabled." : description)}</p>
+    {action}
     {onAction && <button type="button" className="primary-button" onClick={onAction}>
       {followed ? <Star size={20} aria-hidden/> : <Plus size={20} aria-hidden/>}
       {t(followed ? "Star feeds" : "Create feed")}

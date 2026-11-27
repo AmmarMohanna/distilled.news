@@ -247,29 +247,43 @@ for (const path of ["/", "/explore"]) test(`guest discovery shelves recover from
   await expect(trending.first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New feeds' })).toBeVisible();
 });
-test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
+for (const publicFeedCount of [0, 1]) test(`channel follow works for visitors and previews with ${publicFeedCount} public feeds`, async ({ page }) => {
   await mock(page);
   let following = false;
   await page.route('**/api/explore/channels/*', route => {
     const username = new URL(route.request().url()).pathname.split('/').at(-1);
-    return route.fulfill({ json: { channel: { username, publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+    return route.fulfill({ json: { channel: { username, publicFeedCount, followerCount: Number(following), viewerFollowing: following } } });
   });
   await page.route('**/api/me/channels/another/follow', route => {
     following = route.request().postDataJSON().following;
-    return route.fulfill({ json: { channel: { username: 'another', publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+    return route.fulfill({ json: { channel: { username: 'another', publicFeedCount, followerCount: Number(following), viewerFollowing: following } } });
   });
   await page.goto('/explore?channel=another');
+  if (publicFeedCount === 0) {
+    await expect(page.getByRole('heading', { name: '@another' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();
+    await expect.poll(() => page.locator('[data-empty-view="channel"] img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole('searchbox', { name: 'Search feeds' })).toHaveCount(0);
+  }
   const follow = page.getByRole('button', { name: 'Follow', exact: true });
   const before = await follow.boundingBox();
   await follow.click();
   const followed = page.getByRole('button', { name: 'Following', exact: true });
   await expect(followed).toBeEnabled();
-  expect(await followed.boundingBox()).toEqual(before);
+  const after = await followed.boundingBox();
+  if (publicFeedCount === 0) {
+    expect(after?.width).toEqual(before?.width);
+    expect(after?.x).toEqual(before?.x);
+    await expect(page.getByText('You’ll get notified when this account adds a public feed if notifications are enabled.')).toBeVisible();
+  } else {
+    expect(after).toEqual(before);
+  }
   for (const suffix of ['', '&preview=1']) {
     following = false;
     await page.goto('/explore?channel=joud' + suffix);
     await expect(page.getByRole('button', { name: 'Follow', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toHaveCount(0);
+    if (publicFeedCount === 0) await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
   }
 });
 test('discovery shelves link to a dedicated briefing with its published body', async ({ page }) => {
