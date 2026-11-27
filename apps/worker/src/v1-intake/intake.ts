@@ -1,6 +1,6 @@
 import {
   connectorHandoffRequestSchema, HandoffError, intakeReceiptSchema, timestampSchema,
-  evidenceTombstoneSchema, normalizedEvidenceItemSchema, validateHandoffResponse,
+  evidenceTombstoneSchema, normalizedEvidenceItemSchema, validateHandoffResponse, sha256,
   type CandidateIntakePort, type IntakeReceipt, type NormalizedEvidenceItem
 } from '@distilled/contracts';
 import { itemId, V1IntakeStore } from './store';
@@ -101,7 +101,7 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
     async acceptBatch(input) {
       const parsed=connectorHandoffRequestSchema.safeParse(input);
       if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
-      const request=parsed.data,canonical=canonicalRequest(request);
+      const request=parsed.data,canonical=canonicalRequest(request),digest=await sha256(canonical);
       return transact(store,request.coverage.feedSourceId,async tx=>{
         if(policy.expectedFeedRevision!==undefined && tx.snapshot.scope.feedRevision!==policy.expectedFeedRevision) throw new HandoffError('SCOPE_DENIED');
         if(tx.snapshot.scope.feedId!==request.coverage.feedId || request.observations.some(o=>o.sourceId!==tx.snapshot.scope.sourceId)) throw new HandoffError('SCOPE_DENIED');
@@ -117,9 +117,9 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
           if(evidence?.currentRevisionId)related.push({table:'revisions' as const,id:evidence.currentRevisionId});
         }
         await tx.prefetch(related);
-        const existing=await tx.read<{canonical:string}>('handoffs',key);
-        if(existing && existing.canonical!==canonical) throw new HandoffError('IDEMPOTENCY_CONFLICT');
-        if(!existing) tx.write('handoffs',key,{canonical},undefined,true);
+        const existing=await tx.read<{canonical:string}|{sha256:string}>('handoffs',key);
+        if(existing && ('canonical' in existing?existing.canonical!==canonical:existing.sha256!==digest)) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+        if(!existing) tx.write('handoffs',key,{sha256:digest},undefined,true);
         const feed=policy.deferInitialBacklog&&!existing?await store.db.prepare(
           "SELECT json_extract(json,'$.createdAt') AS createdAt FROM v1_feeds WHERE id=? AND json_extract(json,'$.paused')=0 AND json_extract(json,'$.deletedAt') IS NULL"
         ).bind(request.coverage.feedId).first<{createdAt:string}>():undefined;

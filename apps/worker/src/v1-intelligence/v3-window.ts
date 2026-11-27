@@ -1,6 +1,7 @@
+import {confirmedVerifierCancellation} from './cancelled-verifier';
 import {campaignInterruptAfterResult} from '../agentops-campaign-fault';
 import {CUTOFF_EDITION_POLICY,atScheduledCutoff,cutoffEvidenceAuthorized} from './cutoff-edition';
-import {generateBriefing,openAiCompatibleModel,priorMemoryCutoff,type BriefingInput,type BriefingModels,type BriefingResult,type ModelPort,type ModelRequest} from '@distilled/briefing';
+import {BriefingOutputError,generateBriefing,openAiCompatibleModel,priorMemoryCutoff,type BriefingInput,type BriefingModels,type BriefingResult,type BriefingReviewEvent,type ModelPort,type ModelRequest} from '@distilled/briefing';
 import {HandoffError,sha256,type EvidenceRevision} from '@distilled/contracts';
 import type {Env} from '../types';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -20,6 +21,8 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
+import {v5Generation,v5StageRouting} from './v5-generation';
+import {validateEditorApprovedEdition,type V5ReviewCase} from './v5-review-contract';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
 export type V3AdmissionReason='PUBLICATION_WINDOW'|'LATE_DISCOVERY'|'SOURCE_REVISION'|'VERIFICATION_RETRY'|'EDITORIAL_OVERFLOW'|'VERIFIED_UNPUBLISHED'|'UNRESOLVED_WINDOW';
@@ -30,7 +33,7 @@ const POLICY='v3-fixed-window-editor-verifier-v1';
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
-export interface V3WindowInput {noveltyWirePolicy?:'consistent-links-v2';editorSelectionPolicy?:'preserve-selected-developments-v1';noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1'|'isolate-unaccounted-sources-v2';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
+export interface V3WindowInput {v5PublicationPolicy?:'verified-automatic-v1';noveltyWirePolicy?:'consistent-links-v2';editorSelectionPolicy?:'preserve-selected-developments-v1';noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1'|'isolate-unaccounted-sources-v2';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 export interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3VerificationInputPolicy=(env:Pick<Env,'BRIEFING_COMPACT_VERIFICATION_ENABLED'|'BRIEFING_SOURCE_BINDINGS_ENABLED'>):BriefingInput['feed']['verificationInputPolicy']=>env.BRIEFING_COMPACT_VERIFICATION_ENABLED==='true'&&env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'reader-unit-context-v1':undefined;
@@ -41,11 +44,35 @@ export function productV3PromptVersion(env:Pick<Env,'BRIEFING_PROMPT_VERSION'>):
  if(env.BRIEFING_PROMPT_VERSION==='6')return 6;
  throw Error('INVALID_BRIEFING_PROMPT_VERSION');
 }
-export const productV3Models=(env:Env):BriefingModels=>({editor:env.BRIEFING_EDITOR_MODEL??'openai/gpt-4.1',verifier:env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?(env.BRIEFING_SOURCE_BINDINGS_MODEL??'openai/gpt-4.1'):(env.BRIEFING_VERIFIER_MODEL??'openai/gpt-4.1-mini')});
+export function productV3Models(env: Env, createdAt?: string): BriefingModels {
+ const base = {
+  editor: env.BRIEFING_EDITOR_MODEL ?? 'openai/gpt-4.1',
+  verifier: env.BRIEFING_SOURCE_BINDINGS_ENABLED === 'true'
+   ? env.BRIEFING_SOURCE_BINDINGS_MODEL ?? 'openai/gpt-4.1'
+   : env.BRIEFING_VERIFIER_MODEL ?? 'openai/gpt-4.1-mini',
+ };
+ const cutoff = env.BRIEFING_V5_FEEDS_CREATED_FROM;
+ if (cutoff !== undefined) {
+  const instant = Date.parse(cutoff);
+  if (!Number.isFinite(instant) || new Date(instant).toISOString() !== cutoff) {
+   throw Error('INVALID_BRIEFING_V5_FEEDS_CREATED_FROM');
+  }
+  const created = Date.parse(createdAt ?? '');
+  if (!Number.isFinite(created) || created < instant) return base;
+ }
+ const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
+ if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
+ if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
+ return {
+  ...base,
+  ...(generation ? { generation } : {}),
+  ...v5StageRouting(env.BRIEFING_V5_STAGE_ROUTES_JSON),
+ };
+}
 
 /** Read-through preparation is mechanical. The window is frozen only at close,
  * so arrivals during preparation are included without paying twice. */
-export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy']):Promise<V3WindowInput>{
+export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels|((createdAt:string)=>BriefingModels)={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2',identityFidelityPolicy?:'arabic-person-role-v1'|'source-bound-claims-v1'|'source-bound-claims-v2'|'source-bound-claims-v3',editorSelectionPolicy?:'preserve-selected-developments-v1',verificationInputPolicy?:BriefingInput['feed']['verificationInputPolicy'],v5PublicationPolicy?:V3WindowInput['v5PublicationPolicy']):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
@@ -81,7 +108,8 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
  const input:BriefingInput={feed:{...(verificationInputPolicy?{verificationInputPolicy}:{}),...(editorSelectionPolicy?{verificationOutputPolicy:'reader-load-batches-v1' as const}:{}),...(identityFidelityPolicy?{identityFidelityPolicy}:{}),...(verificationRecoveryPolicy?{verificationRecoveryPolicy}:{}),...(topicSelectionPolicy?{topicSelectionPolicy}:{}),...(wordingFidelityPolicy?{wordingFidelityPolicy}:{}),interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const selectedModels=typeof models==='function'?models(feed.createdAt):models;
+ const value={...(selectedModels.generation&&v5PublicationPolicy?{v5PublicationPolicy}:{}),...(editorSelectionPolicy?{editorSelectionPolicy,noveltyWirePolicy:'consistent-links-v2' as const}:{}),editorAccountingPolicy:editorSelectionPolicy?'complete-source-decisions-v3' as const:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:editorSelectionPolicy?'isolate-unaccounted-sources-v2' as const:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models:selectedModels,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
@@ -94,29 +122,58 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
   if(active>=limit)await new Promise<void>(resolve=>waiting.push(resolve));active++;
   try{
    const {signal:_,...state}=request;
-   const admission=admitModelOperation(request.model,state,{type:'object',properties:{},required:[],additionalProperties:false},modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON),request.maxTokens);
+   const generation = request.generation;
+   const stage = request.stageRoute;
+   const route = generation ?? stage?.route;
+   if (stage) {
+    const configured = snapshot.models.languageStageRoutes?.[snapshot.input.feed.language]?.[stage.stage]
+      ?? snapshot.models.stageRoutes?.[stage.stage];
+    if (generation || !snapshot.models.generation || !configured || request.model !== stage.route.model ||
+      request.maxTokens > configured.maxOutputTokens || canonicalJson(configured) !== canonicalJson(stage.route)) throw Error('V5_STAGE_SCOPE_MISMATCH');
+   }
+   const capability = route
+    ? {
+     contextTokens: route.contextTokens,
+     maxOutputTokens: route.maxOutputTokens,
+     inputUsdPerToken: route.price.prompt / 1_000_000,
+     outputUsdPerToken: route.price.completion / 1_000_000,
+     source: route.provider,
+    }
+    : modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
+   if (generation && (generation.model !== request.model || !snapshot.models.generation ||
+     canonicalJson(generation) !== canonicalJson(snapshot.models.generation))) throw Error('V5_GENERATION_SCOPE_MISMATCH');
+   const admission=admitModelOperation(request.model,state,{type:'object',properties:{},required:[],additionalProperties:false},capability,request.maxTokens);
    admission.providerLimits=configuredProviderLimits(env,'openrouter');
-   let usage={calls:1,costUsd:admission.reservationCostUsd,reported:false,tokensIn:0,tokensOut:0};
-   let intent:SemanticIntent|undefined,responseCheckpoint:ResponseCheckpoint|undefined,checkpointBookkeepingFailed=false;
-   const transport=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:env.OPENROUTER_API_KEY!,retries:0,reportCost:true,prices:{},fetcher:async(url,init)=>{
-    const response=await fetcher(url,init),header=providerResponseReceipt(response,'OPENROUTER',request.model);
-    if(response.ok){
-     // Save correlation concurrently, but a D1 refusal must not prevent reading
-     // and checkpointing the complete body. Keep handles for genuinely lost bodies.
-     let headerError:unknown;const headerSaved=captureProviderReceipt(header).catch(error=>{headerError=error});
-     const reader=response.body?.getReader();if(!reader){await headerSaved;throw Error('SEMANTIC_PROVIDER_BODY_MISSING')}let raw='',bytes=0;const decoder=new TextDecoder();try{for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>2_000_000)throw Error('SEMANTIC_PROVIDER_RESPONSE_TOO_LARGE');raw+=decoder.decode(part.value,{stream:true})}raw+=decoder.decode()}catch(error){await headerSaved;throw error}finally{await reader.cancel().catch(()=>{})}
-     if(env.RAW_ARCHIVE&&intent)try{responseCheckpoint=await saveV3Response(env.RAW_ARCHIVE,intent,raw,header)}catch(error){if(error instanceof Error&&/^SEMANTIC_RESPONSE_CHECKPOINT_/.test(error.message))throw error;console.warn(JSON.stringify({type:'V3_RESPONSE_CHECKPOINT_WRITE_UNAVAILABLE',operationId:intent.id}));}
-     try{
-      await headerSaved;if(headerError)throw headerError;
-      const body=JSON.parse(raw) as {id?:string;usage?:{cost?:number;prompt_tokens?:number;completion_tokens?:number}};const receipt=providerBodyReceipt(header,body.id);await captureProviderReceipt({...receipt,stage:'GENERATION'});
-      const cost=body.usage?.cost;if(typeof cost==='number'&&Number.isFinite(cost)&&cost>=0){usage={calls:1,costUsd:cost,reported:true,tokensIn:body.usage?.prompt_tokens??0,tokensOut:body.usage?.completion_tokens??0};await captureProviderReceipt({...receipt,stage:'USAGE',reportedCostUsd:cost,inputTokens:usage.tokensIn,outputTokens:usage.tokensOut})}
-     }catch(error){if(responseCheckpoint&&!(error instanceof Error&&/^SEMANTIC_PROVIDER_(RECEIPT|MODEL|RESPONSE)/.test(error.message))){checkpointBookkeepingFailed=true;throw new ResponseCheckpointPending()}throw error}
-     return new Response(raw,{status:response.status,headers:response.headers});
-    }await captureProviderReceipt(header);return response;
-   }});
-   const result=await durableSemanticOperation(store,{feedId:snapshot.feedId,feedRevision:snapshot.feedRevision,evidenceRevisionIds:snapshot.evidenceRevisionIds,kind:'V3_EDITOR_VERIFIER',policyVersion:POLICY,model:request.model,budgetKey:`v3:${windowId}`,state:{inputId:snapshot.fingerprint,...(snapshot.cutoffPolicy?{cutoffPolicy:snapshot.cutoffPolicy,cutoffInputId:snapshot.id}:{}),request:state}},async ownedIntent=>{
-    intent=ownedIntent;let value;try{value=await transport.complete(request)}catch(error){if(checkpointBookkeepingFailed)throw new ResponseCheckpointPending();throw error}if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage,responseCheckpoint};
-   },now(),()=>usage,{operationAdmission:admission,...(env.RAW_ARCHIVE?{recoverResponse:(owned:SemanticIntent)=>recoverV3Response(env.RAW_ARCHIVE,owned)}:{})});
+   const runOperation=async(cancelledVerifierId?:string)=>{
+    let usage={calls:1,costUsd:admission.reservationCostUsd,reported:false,tokensIn:0,tokensOut:0};
+    let intent:SemanticIntent|undefined,responseCheckpoint:ResponseCheckpoint|undefined,checkpointBookkeepingFailed=false;
+    const transport=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:env.OPENROUTER_API_KEY!,retries:0,reportCost:true,prices:{},fetcher:async(url,init)=>{
+     const response=await fetcher(url,init),header=providerResponseReceipt(response,'OPENROUTER',request.model);
+     if(response.ok){
+      // Save correlation concurrently, but a D1 refusal must not prevent reading
+      // and checkpointing the complete body. Keep handles for genuinely lost bodies.
+      let headerError:unknown;const headerSaved=captureProviderReceipt(header).catch(error=>{headerError=error});
+      const reader=response.body?.getReader();if(!reader){await headerSaved;throw Error('SEMANTIC_PROVIDER_BODY_MISSING')}let raw='',bytes=0;const decoder=new TextDecoder();try{for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>2_000_000)throw Error('SEMANTIC_PROVIDER_RESPONSE_TOO_LARGE');raw+=decoder.decode(part.value,{stream:true})}raw+=decoder.decode()}catch(error){await headerSaved;throw error}finally{await reader.cancel().catch(()=>{})}
+      if(env.RAW_ARCHIVE&&intent)try{responseCheckpoint=await saveV3Response(env.RAW_ARCHIVE,intent,raw,header)}catch(error){if(error instanceof Error&&/^SEMANTIC_RESPONSE_CHECKPOINT_/.test(error.message))throw error;console.warn(JSON.stringify({type:'V3_RESPONSE_CHECKPOINT_WRITE_UNAVAILABLE',operationId:intent.id}));}
+      try{
+       await headerSaved;if(headerError)throw headerError;
+       const body=JSON.parse(raw) as {id?:string;usage?:{cost?:number;prompt_tokens?:number;completion_tokens?:number}};const receipt=providerBodyReceipt(header,body.id);await captureProviderReceipt({...receipt,stage:'GENERATION'});
+       const cost=body.usage?.cost;if(typeof cost==='number'&&Number.isFinite(cost)&&cost>=0){usage={calls:1,costUsd:cost,reported:true,tokensIn:body.usage?.prompt_tokens??0,tokensOut:body.usage?.completion_tokens??0};await captureProviderReceipt({...receipt,stage:'USAGE',reportedCostUsd:cost,inputTokens:usage.tokensIn,outputTokens:usage.tokensOut})}
+      }catch(error){if(responseCheckpoint&&!(error instanceof Error&&/^SEMANTIC_PROVIDER_(RECEIPT|MODEL|RESPONSE)/.test(error.message))){checkpointBookkeepingFailed=true;throw new ResponseCheckpointPending()}throw error}
+      return new Response(raw,{status:response.status,headers:response.headers});
+     }await captureProviderReceipt(header);return response;
+    }});
+    return durableSemanticOperation(store,{feedId:snapshot.feedId,feedRevision:snapshot.feedRevision,evidenceRevisionIds:snapshot.evidenceRevisionIds,kind:'V3_EDITOR_VERIFIER',policyVersion:POLICY,model:request.model,budgetKey:`v3:${windowId}`,state:{...(cancelledVerifierId?{cancelledVerifierId}:{}),inputId:snapshot.fingerprint,...(snapshot.cutoffPolicy?{cutoffPolicy:snapshot.cutoffPolicy,cutoffInputId:snapshot.id}:{}),request:state}},async ownedIntent=>{
+     intent=ownedIntent;let value;try{value=await transport.complete(request)}catch(error){if(checkpointBookkeepingFailed)throw new ResponseCheckpointPending();throw error}if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage,responseCheckpoint};
+    },now(),()=>usage,{operationAdmission:admission,...(env.RAW_ARCHIVE?{recoverResponse:(owned:SemanticIntent)=>recoverV3Response(env.RAW_ARCHIVE,owned)}:{})});
+   };
+   let result=await runOperation();
+   const cancellation=result.status==='DEFERRED'&&result.usage.calls===1&&!result.value
+    ?await confirmedVerifierCancellation(store.db,snapshot.feedId,result.id):null;
+   if(cancellation){
+    // Redeliveries derive the same child identity and reuse its durable result.
+    result=await runOperation(result.id);
+   }
    operations.add(result.id);
    if(result.status!=='SUCCEEDED'&&result.usage.calls===1&&!result.usage.reported){
     const isolated=await store.db.prepare("SELECT 1 FROM v1_feed_documents q JOIN v1_model_spending_reservations r ON r.id=q.id WHERE q.kind='model_execution_quarantines' AND q.id=? AND q.feed_id=? AND r.feed_id=q.feed_id AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token").bind('semantic_intents:'+result.id,snapshot.feedId).first();
@@ -124,7 +181,8 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
    }
    if(result.status==='DEFERRED'&&result.failure==='SEMANTIC_PROVIDER_FAILURE'&&result.usage.calls===1&&result.usage.reported)throw new SettledV3CallFailure(result.id);
    if(result.status!=='SUCCEEDED'||!result.value)throw new ModelSpendingWait(!result.usage.reported?'SEMANTIC_OUTCOME_UNKNOWN':result.failure??'SEMANTIC_PROVIDER_FAILURE');
-   return result.value;
+   // Keep per-attempt receipts exact and include both charges in edition usage.
+   return cancellation?{...result.value,costUsd:cancellation.costUsd+result.usage.costUsd}:result.value;
   }finally{active--;waiting.shift()?.()}
  };
  const inFlight=new Set<Promise<unknown>>();
@@ -145,18 +203,18 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env));snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),createdAt=>productV3Models(env,createdAt),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env),env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED==='true'&&env.BRIEFING_V5_FEEDS_CREATED_FROM?'verified-automatic-v1':undefined);snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;
   })}
   // Refresh only unstarted work; retain the predecessor and its paid identity.
   // A deleted/revoked source never supplies authority for a replacement input.
-  const activeIds=await store.activeEvidenceRevisionIds(feedId);
+  const activeIds=snapshot.cutoffPolicy ? undefined : await store.activeEvidenceRevisionIds(feedId,snapshot.evidenceRevisionIds);
   if(snapshot.cutoffPolicy){
    if(!await cutoffEvidenceAuthorized(store,snapshot))throw new HandoffError('SCOPE_DENIED');
-  }else if(snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
-   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy,snapshot.input.feed.wordingFidelityPolicy,snapshot.input.feed.verificationRecoveryPolicy,snapshot.input.feed.identityFidelityPolicy,snapshot.editorSelectionPolicy,snapshot.input.feed.verificationInputPolicy),priorSnapshot=snapshot;
+  }else if(activeIds && snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
+   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy,snapshot.input.feed.wordingFidelityPolicy,snapshot.input.feed.verificationRecoveryPolicy,snapshot.input.feed.identityFidelityPolicy,snapshot.editorSelectionPolicy,snapshot.input.feed.verificationInputPolicy,snapshot.v5PublicationPolicy),priorSnapshot=snapshot;
    if(prepared.feedRevision!==priorSnapshot.feedRevision)throw new HandoffError('SCOPE_DENIED');
    for(const ref of priorSnapshot.evidenceRevisionIds.filter(ref=>!activeIds.has(ref))){
     const revision=await store.revision(feedId,ref);
@@ -177,11 +235,62 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
-  if(!saved){const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);let result:BriefingResult;
-   try{result=await generateBriefing(frozen.input,port,frozen.models,{noveltyWirePolicy:frozen.noveltyWirePolicy,editorSelectionPolicy:frozen.editorSelectionPolicy,editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
-   saved={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
-   await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
+  const automaticV5=frozen.models.generation?.prompt==='v5-source-first-v5'&&frozen.v5PublicationPolicy==='verified-automatic-v1';
+  if(automaticV5&&env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED!=='true')return undefined;
+  const editorialReview=Boolean(frozen.models.generation)&&!automaticV5&&env.BRIEFING_V5_EDITOR_REVIEW_ENABLED==='true';
+  let blocked:{code:string;operationIds:string[]}|undefined;
+  if(!saved){
+   const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);
+   let hasDrafts=false;
+   const checkpoint=async (event:BriefingReviewEvent)=>{
+    const checkpointId=frozen.id+':'+await sha256(canonicalJson(event));
+    await feedTransact(store,feedId,async tx=>{
+     const current=await tx.read<BriefingRequest>('briefing_requests',id);
+     if(!current||current.state!=='PENDING'||(current.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+     await tx.write('v5_review_checkpoints',checkpointId,{id:checkpointId,feedId,inputId:frozen.id,event});
+    });
+    if(event.candidates?.length)hasDrafts=true;
+   };
+   try{
+    const result=await generateBriefing(frozen.input,port,frozen.models,{
+     noveltyWirePolicy:frozen.noveltyWirePolicy,editorSelectionPolicy:frozen.editorSelectionPolicy,editorSourcePolicy:frozen.editorSourcePolicy,
+     editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,
+     noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),
+     promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),
+     prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01},
+     ...(editorialReview?{reviewCheckpoint:checkpoint}:{}),
+    });
+    await port.drain();
+    const generated:V3WindowResult={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
+    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,generated));
+    saved=generated;
+   }catch(error){
+    await port.drain();
+    if(!editorialReview||!hasDrafts||!(error instanceof BriefingOutputError||error instanceof SettledV3CallFailure||error instanceof ModelSpendingWait))throw error;
+    // Editorial handoff ends automated generation for this window. Provider
+    // receipt recovery and unsettled reservations remain in their own ledger.
+    const reason=error instanceof BriefingOutputError?error.validationFailure:error.message;
+    blocked={code:reason?.match(/^[A-Z][A-Z_]+(?=:|$)/)?.[0]??'STAGE_FAILED',operationIds:[...operations].sort()};
+   }
   }
+  // Preserve shadow and editorial windows frozen before automatic publication.
+  if(frozen.models.generation&&!automaticV5){
+   await feedTransact(store,feedId,async tx=>{
+    const request=await tx.read<BriefingRequest>('briefing_requests',id);
+    if(!request||request.state!=='PENDING'||request.engine!=='v3'||(request.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+    const completedAt=now();
+    if(editorialReview){
+     const attempts=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.state.inputId')=? AND json_extract(json,'$.input.budgetKey')=? ORDER BY id").bind(feedId,frozen.fingerprint,'v3:'+id).all<{id:string}>();
+     const operationIds=[...new Set([...(saved?.operationIds??blocked?.operationIds??[]),...attempts.results.map(row=>row.id)])].sort();
+     const review:V5ReviewCase={id,feedId,inputId:frozen.id,fingerprint:frozen.fingerprint,openedAt:completedAt,
+      operationIds,...(blocked?{failure:blocked.code}:{})};
+     await tx.write('v5_review_cases',id,review);
+    }
+    await tx.write('briefing_requests',id,{...request,state:'DONE',result:'DEFERRED',reason:'V5_SHADOW_REVIEW_REQUIRED',completedAt});
+   });
+   return undefined;
+  }
+  if(!saved)throw new HandoffError('TEMPORARY_UNAVAILABLE');
   const completed=saved;
   // Opt-in chaos test after the durable result: retries reuse original paid
   // operation identities. No hook query or behavior change in normal deployments.
@@ -207,7 +316,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   return feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
-   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.state!=='PENDING'||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.state!=='PENDING'||request.engine!=='v3'||(request.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:true,now:now(),start:window.start,deferIntake:frozen.cutoffPolicy===CUTOFF_EDITION_POLICY,deferAcquisition:completed.result.status==='published'&&Boolean(window.scheduledFor)&&Date.parse(now())>=Date.parse(window.scheduledFor!)});if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
     const collection=await pendingWindowCollections(env.DB,feedId,window.end,true,{scheduledFor:window.scheduledFor,now:Date.parse(now())});
@@ -217,38 +326,53 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     if(collection.unavailable){coverage.state='INCOMPLETE';coverage.failures.push({kind:'COLLECTION',code:'COLLECTION_BACKPRESSURE_AT_DEADLINE',count:collection.unavailable});coverage.unavailableCollections=collection.unavailableSources;}
    }
    if(frozen.cutoffPolicy){if(!await cutoffEvidenceAuthorized(store,frozen))throw new HandoffError('SCOPE_DENIED');}
-   else{const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
+   else{const active=await store.activeEvidenceRevisionIds(feedId,frozen.evidenceRevisionIds);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
    const result=completed.result;
    if(result.status!=='published'){
-    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?(result.dropped.some(d=>/EDITOR_ACCOUNTING/.test(d.reason))?'V3_EDITOR_ACCOUNTING_INCOMPLETE':result.dropped.some(d=>d.reason.startsWith('EDITORIAL_RECOVERY_COVERAGE:'))?'V3_EDITORIAL_COVERAGE_INCOMPLETE':'V3_VERIFICATION_REJECTED'):coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
+    const v5Failure=frozen.models.generation&&result.dropped.map(d=>d.reason.split(':',1)[0]).find(reason=>['V5_EDITOR_CONTRACT','V5_CONSOLIDATION_CONTRACT','V5_READER_WORD_BUDGET'].includes(reason));
+    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?(v5Failure||(result.dropped.some(d=>/EDITOR_ACCOUNTING/.test(d.reason))?'V3_EDITOR_ACCOUNTING_INCOMPLETE':result.dropped.some(d=>d.reason.startsWith('EDITORIAL_RECOVERY_COVERAGE:'))?'V3_EDITORIAL_COVERAGE_INCOMPLETE':'V3_VERIFICATION_REJECTED')):coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
    }
    await tx.preloadRevisions(frozen.evidenceRevisionIds);
    const edition=stagedEdition??await v3Edition(ref=>tx.revision(ref),id,frozen,completed,now());
    if(stagedArtifact)tx.editionDelivery={id,...stagedArtifact};
-   await tx.write('editions',id,edition);await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
+   await writeV3EditionForDelivery(tx,edition);
    await tx.write('fidelity_results',id,{id,feedId,passed:true,protocol:POLICY,resultId:completed.id});
-   await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt:edition.createdAt});
-   // The edition itself is V3's reader memory. Do not fabricate canonical Events.
-   await tx.write('ledger_projections',JSON.stringify([id,'grounded-communication-ledger-v1']),{id:JSON.stringify([id,'grounded-communication-ledger-v1']),feedId,editionId:id,entryIds:[],policyVersion:POLICY});
    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:'PUBLISHED',reason:undefined,completedAt:edition.createdAt});return edition;
   },completed.result.status==='published',true);
  });
 }
 
+export async function writeV3EditionForDelivery(tx:FeedTransaction,edition:BriefingEditionRecord){
+ const {id,feedId,createdAt,selectionPolicyVersion}=edition;
+ await tx.write('editions',id,edition);
+ await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:createdAt});
+ await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt});
+ // The edition itself is V3's reader memory. No fabricated canonical events.
+ const ledgerId=JSON.stringify([id,'grounded-communication-ledger-v1']);
+ await tx.write('ledger_projections',ledgerId,{id:ledgerId,feedId,editionId:id,entryIds:[],policyVersion:selectionPolicyVersion});
+}
+
 async function v3Edition(revision:(id:string)=>Promise<EvidenceRevision|undefined>,id:string,input:V3WindowInput,saved:V3WindowResult,now:string):Promise<BriefingEditionRecord>{
  const revisions=new Map<string,EvidenceRevision>();for(const ref of input.evidenceRevisionIds){const r=await revision(ref);if(!r)throw new HandoffError('SCOPE_DENIED');revisions.set(ref,r)}
+ const generation=input.models.generation;
+ const models=[...new Set([generation?.model,input.models.editor,input.models.verifier].filter(Boolean))];
+ const modelLabel=generation?models.join(';'):`${input.models.editor};${input.models.verifier}`;
  const stories=saved.result.items.map((item,i)=>({...(input.editorSelectionPolicy?{relation:item.relation,...(item.updatesId?{updatesId:item.updatesId}:{})}:{}),candidateId:`${id}:${i}`,claims:[{id:`${id}:${i}:text`,text:`${item.headline}\n${item.body}`,support:item.sourceIds.map(ref=>{const r=revisions.get(ref);if(!r)throw new HandoffError('SCOPE_DENIED');return {evidenceRevisionId:ref,quote:r.body??r.title??''}})}]}));
- return {engine:'v3',id,...(input.id!==id?{v3InputId:input.id}:{}),feedId:input.feedId,feedRevision:input.feedRevision,windowStart:input.input.windowStart,windowEnd:input.input.windowEnd,...(input.scheduledFor?{scheduledFor:input.scheduledFor}:{}),language:input.input.feed.language,selectionId:id,selectedCandidateIds:stories.map(s=>s.candidateId),eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[...new Set(stories.flatMap(s=>s.claims.flatMap(c=>c.support.map(r=>r.evidenceRevisionId))))].sort(),stories,generation:{model:`${input.models.editor};${input.models.verifier}`,provider:'OPENROUTER',promptVersion:POLICY,routerVersion:POLICY,tokensIn:saved.result.usage.inputTokens,tokensOut:saved.result.usage.outputTokens,cost:saved.result.usage.costUsd??0,latencyMs:saved.result.timings.totalMs,usageConfirmed:true,verificationId:id},selectionPolicyVersion:POLICY,groundingPolicyVersion:POLICY,createdAt:now};
+ return {engine:'v3',id,...(input.id!==id?{v3InputId:input.id}:{}),feedId:input.feedId,feedRevision:input.feedRevision,windowStart:input.input.windowStart,windowEnd:input.input.windowEnd,...(input.scheduledFor?{scheduledFor:input.scheduledFor}:{}),language:input.input.feed.language,selectionId:id,selectedCandidateIds:stories.map(s=>s.candidateId),eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[...new Set(stories.flatMap(s=>s.claims.flatMap(c=>c.support.map(r=>r.evidenceRevisionId))))].sort(),stories,generation:{model:modelLabel,provider:'OPENROUTER',promptVersion:generation?.prompt??POLICY,routerVersion:POLICY,tokensIn:saved.result.usage.inputTokens,tokensOut:saved.result.usage.outputTokens,cost:saved.result.usage.costUsd??0,latencyMs:saved.result.timings.totalMs,usageConfirmed:true,verificationId:id},selectionPolicyVersion:POLICY,groundingPolicyVersion:POLICY,createdAt:now};
 }
 
 /** The V3 edition is a projection of an immutable verified result, never a
  * bypass around the V2 selection graph validator. Source scope remains live. */
 export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditionRecord):Promise<void>{
+ if(edition.editorialApprovalId)return validateEditorApprovedEdition(tx,edition);
  const inputId=edition.v3InputId??edition.id;
  const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');
+ if(input.models.generation&&(input.v5PublicationPolicy!=='verified-automatic-v1'||
+    input.models.generation.prompt!=='v5-source-first-v5'||input.input.feed.identityFidelityPolicy!=='source-bound-claims-v3'||
+    !saved.result.items.length||saved.result.items.some(item=>!item.sourceIds.length)))throw new HandoffError('SCOPE_DENIED');
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
- else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
+ else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId,input.evidenceRevisionIds);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}
  await tx.preloadRevisions(input.evidenceRevisionIds);
  if(!saved.operationIds.length||canonicalJson(edition)!==canonicalJson(await v3Edition(ref=>tx.revision(ref),edition.id,input,saved,edition.createdAt)))throw new HandoffError('SCOPE_DENIED');

@@ -1,9 +1,11 @@
+import {V5ReviewError} from './v1-intelligence/v5-review-contract';
 import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
+import {authorizeConnectorStorageCanary} from './connector-storage-recovery';
 import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
 import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
@@ -303,6 +305,9 @@ export function createApp(options: AppOptions = {}) {
   let activeTraces = 0;
 
   app.onError((error, c) => {
+    if(error instanceof V5ReviewError)return c.json({error:error.code},error.status);
+    if(error instanceof HandoffError&&c.req.path.startsWith('/api/admin/v5-editorial/'))
+      return c.json({error:error.code},error.code==='SCOPE_DENIED'?403:409);
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
@@ -591,11 +596,24 @@ export function createApp(options: AppOptions = {}) {
     return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
   });
 
+  app.get("/api/health/release", async (c) => {
+    c.header("Cache-Control", "no-store");
+    if (!c.env.RELEASE_SHA) return c.json({ status: "unavailable" }, 503);
+    // Check that the account schema is readable without returning account data.
+    await c.env.DB.prepare("SELECT 1 FROM accounts LIMIT 1").first();
+    return c.json({
+      status: "ok",
+      sha: c.env.RELEASE_SHA,
+      readOnly: c.env.CI_STAGING_READ_ONLY === "true"
+    });
+  });
+
   app.get("/api/auth/session", async (c) => {
     const repo = repoFor(c);
-    const setupRequired = (await repo.countAdmins()) === 0;
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const account = claims ? await repo.getAccountById(claims.sub) : null;
+    const { setupRequired, account } = repo instanceof D1Repository
+      ? await repo.readSession(claims?.sub)
+      : { setupRequired: (await repo.countAdmins()) === 0, account: claims ? await repo.getAccountById(claims.sub) : null };
     const authenticated = Boolean(account && !account.disabledAt);
     return c.json({
       authenticated,
@@ -763,6 +781,47 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
+  app.use('/api/admin/v5-editor/*',async (c,next)=>{
+    c.header('Cache-Control','private, no-store');
+    c.header('X-Content-Type-Options','nosniff');
+    if(c.env.BRIEFING_V5_EDITOR_REVIEW_ENABLED!=='true')return c.notFound();
+    await next();
+  });
+  app.get('/api/admin/v5-editor/workbench',async c=>{
+    const {v5WorkbenchHtml}=await import('./v1-intelligence/v5-workbench');
+    c.header('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    c.header('Referrer-Policy','no-referrer');
+    return c.html(v5WorkbenchHtml);
+  });
+  app.get('/api/admin/v5-editor/workbench.js',async c=>{
+    const {v5WorkbenchScript}=await import('./v1-intelligence/v5-workbench');
+    return c.body(v5WorkbenchScript,200,{'Content-Type':'text/javascript; charset=utf-8'});
+  });
+  app.use('/api/admin/v5-editorial/*',async(c,next)=>{
+    c.header('Cache-Control','private, no-store');
+    if(c.env.BRIEFING_V5_EDITOR_REVIEW_ENABLED!=='true')return c.notFound();
+    await next();
+  });
+  app.get('/api/admin/v5-editorial/:feedId',async c=>{
+    const {listV5Reviews}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await listV5Reviews(c.env,c.req.param('feedId'),c.get('account')!.id));
+  });
+  app.get('/api/admin/v5-editorial/:feedId/:windowId',async c=>{
+    const {getV5Review}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await getV5Review(c.env,c.req.param('feedId'),c.req.param('windowId'),c.get('account')!.id));
+  });
+  app.post('/api/admin/v5-editorial/:feedId/:windowId',async c=>{
+    if(c.req.header('Origin')!==new URL(c.req.url).origin||!c.req.header('Content-Type')?.startsWith('application/json'))
+      return c.json({error:'INVALID_EDITOR_REQUEST'},403);
+    const raw=await c.req.text();
+    if(raw.length>64000)return c.json({error:'EDITOR_REQUEST_TOO_LARGE'},413);
+    let body:unknown;try{body=JSON.parse(raw);}catch{return c.json({error:'INVALID_JSON'},400);}
+    const {reviewActionSchema}=await import('./v1-intelligence/v5-review-contract');
+    const action=reviewActionSchema.safeParse(body);
+    if(!action.success)return c.json({error:'INVALID_REVIEW_ACTION'},400);
+    const {updateV5Review}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await updateV5Review(c.env,c.req.param('feedId'),c.req.param('windowId'),c.get('account')!.id,action.data,nowFor().toISOString()));
+  });
   app.get('/api/admin/source-execution-status',async c=>{
     const sourceUrl=c.req.query('sourceUrl');
     if(sourceUrl){
@@ -1536,14 +1595,19 @@ export function createApp(options: AppOptions = {}) {
     const followed = c.req.query("followed") === "1";
     if (followed && (!viewer || viewer.disabledAt)) return c.json({ feeds: [], nextOffset: null });
     const excludedOwner=!owner&&viewer&&!viewer.disabledAt?viewer.id:undefined;
-    const before=await repo.getExploreRevision();
+    const voterId = await getVoterId(c) ?? undefined;
+    const viewerId = viewer && !viewer.disabledAt ? viewer.id : undefined;
+    const snapshot = offset === 0 && repo instanceof D1Repository
+      ? await repo.firstExplorePage(101, excludedOwner, voterId, owner?.id, viewerId, followed)
+      : undefined;
+    const before = snapshot?.before ?? await repo.getExploreRevision();
     const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null,followed]));
     const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
     if(offset>0&&expected!==undefined&&expected!==revision)return changed();
-    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id, viewer && !viewer.disabledAt ? viewer.id : undefined, followed);
+    const feeds = snapshot?.feeds ?? await repo.listExploreBriefings(101, offset, excludedOwner, voterId, owner?.id, viewerId, followed);
     // The revision bookends the query, so a page cannot be labelled with a
     // revision from before or after a concurrent membership/ranking change.
-    if(await repo.getExploreRevision()!==before)return changed();
+    if(!snapshot && await repo.getExploreRevision()!==before)return changed();
     return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, viewerFollowsChannel: feed.viewerFollowsChannel, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
   });
 
@@ -1616,13 +1680,20 @@ export function createApp(options: AppOptions = {}) {
     // Match legacy search's bounded window so withdrawals outside the recent
     // page change the marker too. The reader still receives only 50 editions.
     const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true,new Date(),100);
-    const editions = legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
+    const productEnabled = c.env.PRODUCT_FEEDS_ENABLED === 'true';
+    const [editions, diagnostics, publicationState, publicationProgress, viewerHasStarred] = await Promise.all([
+      legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : publishedProductEditions(c.env,briefing),
+      productEnabled ? viewerSeesSourceHealth(c, briefing.ownerAccountId).then(allowed => allowed ? readSourceDiagnostics(c.env, briefing.id) : {}) : {},
+      productEnabled ? productPublicationState(c.env, briefing.id) : undefined,
+      productEnabled ? productPublicationProgress(c.env, briefing.id) : undefined,
+      voterId ? repo.hasBriefingStar(briefing.id, voterId) : false
+    ]);
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      ...(c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await readSourceDiagnostics(c.env,briefing.id) : {}),
-      publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
-      publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
+      ...diagnostics,
+      publicationState,
+      publicationProgress,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       editionsComplete:legacyEditions?legacyEditions.length<=50:true,
       ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
@@ -1866,6 +1937,14 @@ export function createApp(options: AppOptions = {}) {
       return object?new Response(object.body,{headers:{'content-type':'application/json','cache-control':'private, no-store'}}):c.json({error:'archive not found or expired'},404);
     }
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json(await storageMaintenanceStatus(c.env));
+    if(c.req.param('action')==='collection-canary'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true'&&c.env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+      const input=z.object({feedId:z.string().min(1).max(256),sourceId:z.string().min(1).max(256)}).strict()
+        .safeParse(await c.req.json().catch(()=>null));
+      if(!input.success)return c.json({error:'invalid canary scope'},400);
+      const {feedId,sourceId}=input.data;
+      const admitted=await authorizeConnectorStorageCanary(c.env.DB,feedId,sourceId);
+      return c.json({admitted},admitted?202:409);
+    }
     if(c.req.param('action')==='run'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true')return c.json(await runStorageMaintenance(c.env));
     return c.json({error:'not found'},404);
   });

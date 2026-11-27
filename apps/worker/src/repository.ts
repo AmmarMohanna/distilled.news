@@ -388,6 +388,17 @@ export class D1Repository implements Repository {
     return account;
   }
 
+  async readSession(accountId?: string) {
+    const row = await this.db.prepare(`
+      SELECT a.*, NOT EXISTS (
+        SELECT 1 FROM accounts WHERE role = 'admin' AND disabled_at IS NULL
+      ) AS setup_required
+      FROM (SELECT 1) LEFT JOIN accounts a ON a.id = ?
+    `).bind(accountId ?? null).first<AccountRow & { setup_required: number }>();
+    if (!row) throw new Error("Session lookup returned no result");
+    return { account: row.id ? rowToAccount(row) : null, setupRequired: Boolean(row.setup_required) };
+  }
+
   async countAdmins(): Promise<number> {
     const row = await first<{ count: number }>(
       this.db.prepare("SELECT COUNT(*) as count FROM accounts WHERE role = 'admin' AND disabled_at IS NULL")
@@ -569,9 +580,23 @@ export class D1Repository implements Repository {
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     if (limit <= 0) return [];
-    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; viewer_follows_channel: number; saved_for_account: number}>(
-      this.db
-        .prepare(
+    const rows = await all<ExploreBriefingRow>(this.exploreStatement(limit, offset, excludeOwnerId, voterId, ownerId, viewerId, starredOnly));
+    return rows.map(rowToExploreBriefing);
+  }
+
+  async firstExplorePage(limit: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
+    // Both reads share a transaction so the revision identifies precisely this page.
+    const [revision, page] = await this.db.batch<{ revision: number } | ExploreBriefingRow>([
+      this.db.prepare('SELECT revision FROM explore_catalog_revision WHERE singleton=1'),
+      this.exploreStatement(limit, 0, excludeOwnerId, voterId, ownerId, viewerId, starredOnly)
+    ]);
+    if (!revision.results[0] || !('revision' in revision.results[0])) throw new Error('Explore catalog migration is required');
+    return { before: String(revision.results[0].revision), feeds: (page.results as ExploreBriefingRow[]).map(rowToExploreBriefing) };
+  }
+
+  private exploreStatement(limit: number, offset: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
+    return this.db
+      .prepare(
           `SELECT briefings.*, accounts.username as owner_username,
           ${BRIEFING_CARD_FIELDS},
           EXISTS (SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?) AS viewer_follows_channel,
@@ -585,9 +610,8 @@ export class D1Repository implements Repository {
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(voterId ?? null, viewerId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null, viewerId ?? null] : []), limit, offset)
-    );
-    return rows.map(row => ({...rowToBriefingCard(row), viewerHasStarred: Boolean(row.viewer_starred || row.saved_for_account), viewerFollowsChannel: Boolean(row.viewer_follows_channel)}));
+<<<<<<< HEAD
+        .bind(voterId ?? null, viewerId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null, viewerId ?? null] : []), limit, offset);
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -3032,6 +3056,20 @@ async function first<T>(statement: D1PreparedStatement): Promise<T | null> {
 async function all<T>(statement: D1PreparedStatement): Promise<T[]> {
   const result = await statement.all<T>();
   return result.results ?? [];
+}
+
+type ExploreBriefingRow = BriefingRow & {
+  viewer_starred: number;
+  viewer_follows_channel: number;
+  saved_for_account: number;
+};
+
+function rowToExploreBriefing(row: ExploreBriefingRow) {
+  return {
+    ...rowToBriefingCard(row),
+    viewerHasStarred: Boolean(row.viewer_starred || row.saved_for_account),
+    viewerFollowsChannel: Boolean(row.viewer_follows_channel)
+  };
 }
 
 function rowToBriefingCard(row:BriefingRow & {viewer_starred?:number;latest_updated_at?:string|null}) {

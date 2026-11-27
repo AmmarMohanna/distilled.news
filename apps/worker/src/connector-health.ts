@@ -1,4 +1,7 @@
 import {unresolvedProviderOperationSql} from '@distilled/connectors';
+
+export const batchObservationCountSql = "COALESCE(json_extract(data,'$.observationCount'),json_array_length(json_extract(data,'$.request.observations')))";
+export const batchProposalCountSql = "COALESCE(json_extract(data,'$.proposalCount'),json_array_length(json_extract(data,'$.request.proposals')))";
 /** Read-only connector diagnostics. Do not expose raw provider responses or
  * operation identifiers: they can contain source data and paid credentials. */
 export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId:string,now=new Date()){
@@ -7,15 +10,15 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
   db.prepare('SELECT started_at AS startedAt,sequence FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId,sourceId).first<{startedAt:string;sequence:number}>(),
   db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,
     json_extract(data,'$.request.coverage.status') AS coverage,
-    json_array_length(json_extract(data,'$.request.observations')) AS observations,
-    json_array_length(json_extract(data,'$.request.proposals')) AS proposals,
+    ${batchObservationCountSql} AS observations,
+    ${batchProposalCountSql} AS proposals,
     json_extract(data,'$.request.coverage.createdAt') AS checkedAt,
     receipts IS NOT NULL AS accepted
     FROM connector_provider_batches WHERE feed_id=? AND feed_source_id=?
     ORDER BY json_extract(data,'$.request.coverage.fetchStartSequence') DESC LIMIT 1`).bind(feedId,sourceId).first<{provider:string;coverage:string;observations:number;proposals:number;checkedAt:string;accepted:number}>(),
   db.prepare(`SELECT json_extract(data,'$.request.coverage.status') AS coverage,
-    json_array_length(json_extract(data,'$.request.observations')) AS observations,
-    json_array_length(json_extract(data,'$.request.proposals')) AS proposals,
+    ${batchObservationCountSql} AS observations,
+    ${batchProposalCountSql} AS proposals,
     json_extract(data,'$.request.coverage.createdAt') AS checkedAt,
     receipts IS NOT NULL AS accepted
     FROM connector_batches WHERE feed_id=? AND feed_source_id=?
@@ -24,11 +27,11 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
     WHERE feed_id=? AND feed_source_id=? AND receipts IS NOT NULL ORDER BY json_extract(data,'$.request.coverage.createdAt') DESC LIMIT 1`).bind(feedId,sourceId).first<{checkedAt:string;sequence:number}>(),
   db.prepare(`SELECT json_extract(data,'$.request.coverage.createdAt') AS checkedAt,json_extract(data,'$.request.coverage.fetchStartSequence') AS sequence FROM connector_batches
     WHERE feed_id=? AND feed_source_id=? AND receipts IS NOT NULL ORDER BY json_extract(data,'$.request.coverage.createdAt') DESC LIMIT 1`).bind(feedId,sourceId).first<{checkedAt:string;sequence:number}>(),
-  db.prepare(`SELECT COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations,
-    COALESCE(SUM(CASE WHEN receipts IS NOT NULL THEN json_array_length(json_extract(data,'$.request.proposals')) ELSE 0 END),0) AS proposed
+  db.prepare(`SELECT COALESCE(SUM(${batchObservationCountSql}),0) AS observations,
+    COALESCE(SUM(CASE WHEN receipts IS NOT NULL THEN ${batchProposalCountSql} ELSE 0 END),0) AS proposed
     FROM connector_provider_batches WHERE feed_id=? AND feed_source_id=?`).bind(feedId,sourceId).first<{observations:number;proposed:number}>(),
-  db.prepare(`SELECT COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations,
-    COALESCE(SUM(CASE WHEN receipts IS NOT NULL THEN json_array_length(json_extract(data,'$.request.proposals')) ELSE 0 END),0) AS proposed
+  db.prepare(`SELECT COALESCE(SUM(${batchObservationCountSql}),0) AS observations,
+    COALESCE(SUM(CASE WHEN receipts IS NOT NULL THEN ${batchProposalCountSql} ELSE 0 END),0) AS proposed
     FROM connector_batches WHERE feed_id=? AND feed_source_id=?`).bind(feedId,sourceId).first<{observations:number;proposed:number}>(),
   db.prepare('SELECT provider_id AS provider,cursor,sequence FROM connector_provider_cursors WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId,sourceId).first<{provider:string;cursor:string;sequence:number}>(),
   db.prepare('SELECT sequence,data FROM connector_checkpoints WHERE feed_id=? AND feed_source_id=?').bind(feedId,sourceId).first<{sequence:number;data:string}>(),
@@ -120,7 +123,7 @@ export async function feedCollectionAlerts(db:D1Database,feedId:string,now=new D
   db.prepare('SELECT feed_source_id AS sourceId,MIN(started_at) AS first,MAX(started_at) AS last,COUNT(*) AS checks FROM connector_fetch_runs WHERE feed_id=? GROUP BY feed_source_id').bind(feedId),
   ...['connector_provider_batches','connector_batches'].map(table=>db.prepare(`SELECT feed_source_id AS sourceId,
    MAX(CASE WHEN receipts IS NOT NULL THEN json_extract(data,'$.request.coverage.createdAt') END) AS accepted,
-   COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations
+   COALESCE(SUM(${batchObservationCountSql}),0) AS observations
    FROM ${table} WHERE feed_id=? GROUP BY feed_source_id`).bind(feedId)),
  ]);
  for(const row of runs.results){const h=entry(row.sourceId);h.firstCheckedAt=row.first??null;h.lastCheckedAt=row.last??null;h.checks=row.checks??0;}

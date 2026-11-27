@@ -1,8 +1,9 @@
 import {createApp} from './app';
 import {readEditionDelivery} from './v1-intelligence/delivery-status';
+import {profileD1} from './perf/d1-profile';
 import {connectorSourceHealth} from './connector-health';
 import {publishedProductEditions} from './product-feeds';
-import {HandoffError,sha256,hashContent,handoffFixture} from '@distilled/contracts';
+import {HandoffError,sha256,hashContent,handoffFixture,receiptFixture} from '@distilled/contracts';
 import {D1Repository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase,testPolicy} from './v1-intake/test-utils';
@@ -15,9 +16,12 @@ import {V1IntakeStore} from './v1-intake/store';
 import {V1FeedStore} from './v1-intelligence/store';
 import {processV1Briefing,processV1Reassessment} from './v1-intelligence/runtime';
 import type {SourceFetchRequest} from '@distilled/connectors';
-import {buildGoogleNewsRssUrl,TESTED_ACTORS,D1ProviderPollScheduler,sourceSqlFromD1} from '@distilled/connectors';
+import {buildGoogleNewsRssUrl,TESTED_ACTORS,D1ProviderPollScheduler,D1ProviderSourceRepository,FallbackSourceCollector,ConnectorBatchArchive,R2SourcePayloadStore,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
 import {freezeCollectionWindow,approvedCollectionBounds,initialCollectionStart} from './connector-collection-window';
+import {expireCompletedConnectorBatches} from './connector-batch-expiry';
+import {authorizeConnectorStorageCanary} from './connector-storage-recovery';
+import {connectorBatchPayloads,sweepConnectorBatchUploads} from './connector-batch-uploads';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
 it('freezes X date windows, advances only finished scans, and refuses invented scope or run identities',async()=>{
@@ -76,6 +80,134 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('defers new collection at the storage threshold and resumes with the normal identity',async()=>{
+ const due=new Date('2026-10-03T13:00:00Z');
+ const pressured=new Proxy(ctx.db,{get(target,key){
+  if(key==='prepare')return (sql:string)=>sql==='SELECT 1'?{run:async()=>({meta:{size_after:9_000_000_000}})}:target.prepare(sql);
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const guarded={...env,STORAGE_MAINTENANCE_ENABLED:'true'};
+ expect(await runConnectorMaintenance({...guarded,DB:pressured},due,{scheduleOnly:true})).toMatchObject({scheduled:[]});
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS count FROM connector_rss_poll_jobs').first()).toEqual({count:0});
+ const resumed=await runConnectorMaintenance(guarded,due,{scheduleOnly:true});
+ expect(resumed?.scheduled).toHaveLength(1);
+ expect((await runConnectorMaintenance(guarded,due,{scheduleOnly:true}))?.scheduled).toEqual(resumed?.scheduled);
+},20_000);
+it('admits only one named poll after a verified storage recovery and preserves other due work',async()=>{
+ const now=Date.now(),allocated=9_020_000_000;
+ const measured=new Proxy(ctx.db,{get(target,key){
+  if(key==='prepare')return (sql:string)=>sql==='SELECT 1'?{run:async()=>({meta:{size_after:allocated}})}:target.prepare(sql);
+  if(key==='batch')return async(statements:D1PreparedStatement[])=>(await target.batch(statements)).map(result=>
+   ({...result,meta:{...result.meta,size_after:allocated}}));
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const guarded={...env,DB:measured,STORAGE_MAINTENANCE_ENABLED:'true'};
+ const options={scheduleOnly:true,feedId:'feed-1'};
+ expect((await runConnectorMaintenance(guarded,new Date(now),options))?.scheduled).toHaveLength(0);
+ expect(await authorizeConnectorStorageCanary(measured,'other-feed','feed-source-1',now)).toBe(false);
+ expect(await authorizeConnectorStorageCanary(measured,'feed-1','feed-source-1',now)).toBe(true);
+ expect(await authorizeConnectorStorageCanary(measured,'feed-1','feed-source-1',now)).toBe(false);
+ const outcomes=await Promise.all([0,1].map(()=>runConnectorMaintenance(guarded,new Date(now),options)));
+ expect(outcomes.map(result=>result?.scheduled.length).sort()).toEqual([0,1]);
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS count FROM connector_storage_probe').first()).toEqual({count:0});
+ expect((await runConnectorMaintenance(guarded,new Date(now+60_000),options))?.storageDeferred).toBe(true);
+},20_000);
+it('expires a completed batch, preserves health metadata, and leaves pending poll payloads intact',async()=>{
+ const now=new Date(),xml='<rss><channel>'+Array.from({length:4},(_,i)=>`<item><guid>story-${i}</guid><title>Story ${i}</title><link>https://example.com/articles/${i}</link><description>One new development per story.</description></item>`).join('')+'</channel></rss>';
+ const runtime=createConnectorRuntime(env,vi.fn(async()=>new Response(xml)) as typeof fetch);
+ const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:'expiry-fixture',url:request.source.locator,maxItems:30};
+ await runtime.rssScheduler.schedule(rss.runId,rss,now.toISOString());
+ expect(await runtime.rssScheduler.runOne(120000,rss.runId)).toBe('DONE');
+ const original=await ctx.db.prepare("SELECT handoff_id,json_extract(data,'$.archiveRef') ref FROM connector_batches").first<{handoff_id:string;ref:string}>();
+ expect(original?.ref).toMatch(/^connector-batches\/v2\//);
+ const [due]= (await ctx.db.prepare('SELECT batch_id,expires_at FROM connector_batch_expiry').all<{batch_id:string;expires_at:number}>()).results;
+ expect(due.batch_id).toBe(original?.handoff_id);
+ const expireAt=new Date((due.expires_at+1)*1000);
+ const remove=vi.fn(async(key:string)=>{objects.delete(key);});
+ const bucket={delete:remove} as unknown as R2Bucket;
+ expect(await expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},now)).toBe(0);
+ await ctx.db.prepare("INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES('feed-1','feed-source-1','pending','{}')").run();
+ remove.mockRejectedValueOnce(Error('simulated archive outage'));
+ expect(await expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},expireAt)).toBe(0);
+ expect(objects.has(original!.ref)).toBe(true);
+ expect(await expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},new Date(expireAt.getTime()+120_000))).toBe(1);
+ expect(objects.has(original!.ref)).toBe(false);
+ expect(await connectorSourceHealth(ctx.db,'feed-1','feed-source-1')).toMatchObject({lastBatch:{observations:4,accepted:true},cumulative:{observations:4}});
+ expect(await ctx.db.prepare("SELECT data FROM connector_batches WHERE handoff_id='pending'").first()).toEqual({data:'{}'});
+ await expect(runtime.collectRss(rss)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+},25_000);
+it('recovers and expires a completed provider batch while isolating malformed references',async()=>{
+ let now=Date.now();
+ const storage={DB:ctx.db,RAW_ARCHIVE:{...env.RAW_ARCHIVE,delete:vi.fn(async(key:string)=>{objects.delete(key);})} as unknown as R2Bucket};
+ const batchArchive=new ConnectorBatchArchive(connectorBatchPayloads(storage));
+ const sql=sourceSqlFromD1(ctx.db),repository=new D1ProviderSourceRepository(sql,batchArchive);
+ const input:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com'},runId:'provider-expiry'};
+ const fetch=vi.fn(async()=>({items:Array.from({length:4},(_,index)=>({sourceItemKey:`story-${index}`,body:`Reported development ${index}`,url:`https://example.com/${index}`,representation:'ARTICLE_EXCERPT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true})),raw:new Uint8Array([1]),complete:true,requests:1,latencyMs:1,providerCostUsd:0}));
+ const acceptBatch=vi.fn(async(batch:ReturnType<typeof handoffFixture>)=>({contractVersion:batch.contractVersion,handoffId:batch.handoffId,durable:true as const,receipts:batch.observations.map(receiptFixture)}));
+ const makeScheduler=()=>new D1ProviderPollScheduler(sql,new FallbackSourceCollector(new D1ProviderSourceRepository(sql,batchArchive),new R2SourcePayloadStore(storage.RAW_ARCHIVE),
+  {acceptBatch},[{id:'website_http',families:['website'],fetch}]),async()=>true,()=>now);
+ const scheduler=makeScheduler();
+ await scheduler.schedule(input.runId,input,new Date(now).toISOString(),['website_http']);
+ acceptBatch.mockRejectedValueOnce(Error('interrupted intake'));
+ expect(await scheduler.runOne(300000,input.runId)).toBe('RETRY');
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_batch_expiry').first()).toEqual({n:0});
+ const row=(await ctx.db.prepare("SELECT batch_key,json_extract(data,'$.archiveRef') ref FROM connector_provider_batches").first<{batch_key:string;ref:string}>())!;
+ expect(row.ref).toMatch(/^connector-batches\/v2\//);
+ const original=(await repository.loadProviderBatch(input.scope,row.batch_key))!;
+ now+=30_000;
+ expect(await makeScheduler().runOne(300000,input.runId)).toBe('DONE');
+ expect(fetch).toHaveBeenCalledTimes(1);
+ expect(await repository.loadProviderReceipts(input.scope,row.batch_key)).toMatchObject({durable:true});
+ const health=await connectorSourceHealth(ctx.db,input.scope.feedId,input.scope.feedSourceId);
+ expect(health).toMatchObject({provider:'website_http',lastBatch:{observations:4,accepted:true}});
+ const journal=(await ctx.db.prepare('SELECT expires_at FROM connector_batch_expiry WHERE batch_id=?').bind(row.batch_key).first<{expires_at:number}>())!;
+ const malformed='not-a-connector-key';
+ await ctx.db.prepare('INSERT INTO connector_provider_batches VALUES(?,?,?,?,?)')
+  .bind(input.scope.feedId,input.scope.feedSourceId,'malformed',JSON.stringify({archiveRef:malformed}),'{}').run();
+ await ctx.db.prepare("INSERT INTO connector_batch_expiry(kind,feed_id,feed_source_id,batch_id,expires_at) VALUES('provider',?,?,?,?)")
+  .bind(input.scope.feedId,input.scope.feedSourceId,'malformed',journal.expires_at-1).run();
+ expect(await expireCompletedConnectorBatches(storage,new Date(journal.expires_at*1000))).toBe(1);
+ expect(storage.RAW_ARCHIVE.delete).toHaveBeenCalledExactlyOnceWith(row.ref);
+ expect(await ctx.db.prepare("SELECT quarantine_reason FROM connector_batch_expiry WHERE batch_id='malformed'").first()).toEqual({quarantine_reason:'INVALID_ARCHIVE_REFERENCE'});
+ expect(await ctx.db.prepare("SELECT data FROM connector_provider_batches WHERE batch_key='malformed'").first()).toEqual({data:JSON.stringify({archiveRef:malformed})});
+ expect(await connectorSourceHealth(ctx.db,input.scope.feedId,input.scope.feedSourceId)).toMatchObject({lastBatch:health.lastBatch,cumulative:health.cumulative});
+ await expect(repository.loadProviderBatch(input.scope,row.batch_key)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+ await expect(repository.saveProviderBatch(row.batch_key,original)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+ expect(await repository.loadProviderReceipts(input.scope,row.batch_key)).toBeUndefined();
+ const orphan=(await ctx.db.prepare("SELECT object_key FROM connector_batch_uploads WHERE state='VERIFIED'").first<{object_key:string}>())!;
+ expect(objects.has(orphan.object_key)).toBe(true);
+ await ctx.db.prepare('UPDATE connector_batch_uploads SET cleanup_at=0').run();
+ expect(await sweepConnectorBatchUploads(storage)).toBe(1);
+ expect(objects.has(orphan.object_key)).toBe(false);
+ expect(fetch).toHaveBeenCalledTimes(1);
+},30_000);
+
+it('collects abandoned uploads after a failed D1 attach, and fences late attachment during cleanup',async()=>{
+ const remove=vi.fn(async(key:string)=>{objects.delete(key);});
+ const storage={DB:ctx.db,RAW_ARCHIVE:{...env.RAW_ARCHIVE,delete:remove} as unknown as R2Bucket};
+ const payloads=connectorBatchPayloads(storage);
+ const scope={...request.scope,sourceId:request.scope.feedSourceId};
+ const bytes=new TextEncoder().encode('private batch');
+ const attached=await payloads.put(scope,bytes,'application/json');
+ const save=(key:string,batchId:string)=>ctx.db.prepare('INSERT INTO connector_provider_batches(feed_id,feed_source_id,batch_key,data) VALUES(?,?,?,?)')
+  .bind(scope.feedId,scope.feedSourceId,batchId,JSON.stringify({archiveRef:key})).run();
+ await save(attached.ref,'attached');
+ const abandoned=await payloads.put(scope,bytes,'application/json');
+ await expect(save(abandoned.ref,'attached')).rejects.toThrow();
+ const racing=await payloads.put(scope,bytes,'application/json');
+ await ctx.db.prepare('UPDATE connector_batch_uploads SET cleanup_at=0').run();
+ remove.mockImplementation(async key=>{
+  if(key===racing.ref)await expect(save(key,'late-attach')).rejects.toThrow('CONNECTOR_UPLOAD_NOT_VERIFIED');
+  objects.delete(key);
+ });
+ expect(await sweepConnectorBatchUploads(storage)).toBe(2);
+ expect(objects.has(attached.ref)).toBe(true);
+ expect(await payloads.get(scope,attached.ref)).toEqual(bytes);
+ expect(objects.has(abandoned.ref)).toBe(false);
+ expect(objects.has(racing.ref)).toBe(false);
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS count FROM connector_batch_uploads').first()).toEqual({count:0});
+},25_000);
+
 it('collects RSS from publishers requiring the same bot identity used during assessment',async()=>{
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
   const headers=new Headers(init?.headers);
@@ -396,6 +528,24 @@ it('maps approved X profile and topic inputs to their exact connector identities
  env.V1_DOWNSTREAM_FEED_SOURCE_IDS='x-topic';
  expect(await authorizeConnectorSource(env,{scope:{feedId:'feed-1',feedSourceId:'x-topic',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'topic-run',source:{family:'x_search',locator:'Lebanon electricity'},requestedBounds:{},limit:20})).toBe(true);
 },15000);
+it('checks recovery candidates once per feed and only probes a source with blocked work',async()=>{
+ const ids=['google-a','google-b'],now=testPolicy.now();
+ for(const id of ids){
+  const url=buildGoogleNewsRssUrl(id,{geo:'US',language:'en'});
+  await ctx.db.prepare(`INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at)
+   VALUES(?,'feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)`).bind(id,url,'news: '+id,now,now,now).run();
+ }
+ await ctx.db.prepare(`INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,state,last_error)
+   VALUES('blocked-google',?,'hash','[]',?,'BLOCKED','UNCERTAIN_PAID_SUBMISSION')`)
+   .bind(JSON.stringify({scope:{feedId:'feed-1',feedSourceId:ids[1]}}),now).run();
+ const measured=profileD1(ctx.db);
+ await runConnectorMaintenance({...env,DB:measured.db,SOURCE_QUEUE_SCHEDULING_ENABLED:'true',
+  APIFY_API_TOKEN:'fixture-only',V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(',')},new Date(now),{scheduleOnly:true,feedId:'feed-1'});
+ const discovery=measured.log.filter(entry=>entry.sql.includes('SELECT DISTINCT json_extract(request'));
+ expect(discovery).toHaveLength(1);
+ const probes=measured.log.filter(entry=>entry.sql.includes('SELECT p.job_id FROM connector_provider_poll_jobs p'));
+ expect(probes.map(entry=>entry.binds.slice(0,2))).toEqual([['feed-1','google-b']]);
+});
 it('accepts an approved Google News query through the free RSS path and rejects a changed query URL',async()=>{
  const now=new Date().toISOString(),url=buildGoogleNewsRssUrl('Lebanon electricity',{geo:'US',language:'en'});
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('google-source','feed-1','Google News','channel','rss','google_news',?,?,1,'connector',?,?,?)").bind(url,'news: Lebanon electricity',now,now,now).run();
