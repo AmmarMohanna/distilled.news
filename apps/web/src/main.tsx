@@ -2226,6 +2226,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const [result, setResult] = useState<Awaited<ReturnType<typeof getBriefingPage>>>();
   const [error, setError] = useState<UiMessage>("");
   const [photoIndex, setPhotoIndex] = useState(0);
+  const photoTouch = useRef<{x: number; y: number} | null>(null);
   const [readerAccount, setReaderAccount] = useState<AccountRecord | null>();
   const [profileOpen, setProfileOpen] = useState(false);
   const [readerSessionConfirmed, setReaderSessionConfirmed] = useState(false);
@@ -2295,8 +2296,29 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
     </header>
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
       {photo && <figure className="briefing-detail-photo">
-        <PublisherPhoto key={photo.url} photo={photo}/>
-        <figcaption><bdi>{photo.source}</bdi>{photos.length > 1 && <button type="button" aria-label={t("Next image")} onClick={() => setPhotoIndex(index => (index + 1) % photos.length)}><ChevronRight size={18} aria-hidden/></button>}</figcaption>
+        <div className="briefing-photo-viewport catalog-shelf-viewport" dir={textDirection(language)}
+          onTouchStart={event => {
+            const touch = event.touches[0];
+            photoTouch.current = event.touches.length === 1 ? {x: touch.clientX, y: touch.clientY} : null;
+          }}
+          onTouchEnd={event => {
+            const start = photoTouch.current;
+            photoTouch.current = null;
+            if (!start || event.touches.length) return;
+            const touch = event.changedTouches[0];
+            const distance = start.x - touch.clientX;
+            if (Math.abs(distance) < 35 || Math.abs(distance) <= Math.abs(start.y - touch.clientY)) return;
+            const step = Math.sign(distance) * (language === "ar" ? -1 : 1);
+            setPhotoIndex(index => Math.max(0, Math.min(photos.length - 1, index + step)));
+          }}
+          onTouchCancel={() => { photoTouch.current = null; }}>
+          <PublisherPhoto key={photo.url} photo={photo}/>
+          {photoIndex > 0 && <button type="button" className="catalog-edge catalog-edge-back"
+            aria-label={t("Previous image")} onClick={() => setPhotoIndex(photoIndex - 1)}><ChevronRight size={18} aria-hidden/></button>}
+          {photoIndex < photos.length - 1 && <button type="button" className="catalog-edge catalog-edge-forward"
+            aria-label={t("Next image")} onClick={() => setPhotoIndex(photoIndex + 1)}><ChevronRight size={18} aria-hidden/></button>}
+        </div>
+        <figcaption><bdi>{photo.source}</bdi></figcaption>
       </figure>}
       {hasSeparateSummary && <div className="briefing-detail-summary">{renderBody(summary)}</div>}
       {hasSeparateSummary ? edition.sections.map((section, index) => <div className="news-story" key={index}>

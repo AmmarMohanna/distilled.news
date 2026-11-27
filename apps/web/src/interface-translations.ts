@@ -146,6 +146,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Follow': ['Suivre', 'تابع'],
   'Source preview': ['Aperçu de la source', 'معاينة المصدر'],
   'Read full article': ['Lire l’article complet', 'قراءة المقال كاملاً'],
+  'Previous image': ['Image pr?c?dente', '?????? ???????'],
   'Next image': ['Image suivante', 'الصورة التالية'],
   'Followed': ['Abonnements', 'المتابعة'],
   'Followed channels': ['Chaînes suivies', 'القنوات المتابَعة'],

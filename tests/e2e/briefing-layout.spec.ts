@@ -160,7 +160,12 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   if (language === "ar") expect(menu.x).toBeCloseTo(photo.x, 0);
   else expect(menu.x + menu.width).toBeCloseTo(photo.x + photo.width, 0);
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+    await page.locator(".briefing-photo-viewport").hover();
+  }
   await page.getByRole("button", { name: "Next image" }).click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
+  await page.getByRole("button", { name: "Previous image" }).click();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
   expect(photoRequests).toBe(1);
 });
