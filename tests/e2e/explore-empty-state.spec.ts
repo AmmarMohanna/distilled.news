@@ -84,6 +84,43 @@ test('empty Explore and Top channels fit together on a short desktop viewport', 
   await expect(page.locator('.channel-shelf')).toBeInViewport({ratio:1});
 });
 
+test('switching to empty Explore and Followed does not show search while results arrive', async ({ page }) => {
+  let releaseExplore!: () => void;
+  let releaseFollowedChannels!: () => void;
+  const exploreListing = new Promise<void>(resolve => { releaseExplore = resolve; });
+  const followedChannels = new Promise<void>(resolve => { releaseFollowedChannels = resolve; });
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/session') return route.fulfill({ json: { authenticated: true, account: { id: 'reader', username: 'reader', role: 'user' } } });
+    if (url.pathname === '/api/explore/feeds' && !url.searchParams.has('followed')) await exploreListing;
+    if (url.pathname === '/api/explore/channels' && url.searchParams.has('followed')) await followedChannels;
+    return route.fulfill({ json: { feeds: [], briefings: [], channels: [], nextOffset: null } });
+  });
+  try {
+    await page.goto('/');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    const catalog = page.locator('.explore-view');
+    await nav.getByRole('button', { name: 'Explore' }).click();
+    await expect(catalog.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
+    await expect(catalog.getByRole('searchbox')).toHaveCount(0);
+    await expect(catalog.getByRole('button', { name: 'Create feed' })).toHaveCount(0);
+    releaseExplore();
+    await expect(catalog.getByRole('heading', { name: 'Stay curious.' })).toBeVisible();
+    const listing = page.waitForResponse(response => response.url().includes('/api/explore/feeds?') && response.url().includes('followed=1'));
+    await nav.getByRole('button', { name: 'Followed' }).click();
+    await listing;
+    await expect(catalog).toHaveAttribute('aria-busy', 'true');
+    await expect(catalog.getByRole('searchbox')).toHaveCount(0);
+    await expect(catalog.getByRole('heading', { name: 'No followed feeds yet.' })).toHaveCount(0);
+    releaseFollowedChannels();
+    await expect(catalog.getByRole('heading', { name: 'No followed feeds yet.' })).toBeVisible();
+    await expect(catalog.getByRole('searchbox')).toHaveCount(0);
+  } finally {
+    releaseExplore();
+    releaseFollowedChannels();
+  }
+});
+
 test('a followed channel shows a horizontal shelf above its public feeds', async ({page}) => {
   let following=false;
   const feed={id:'science',title:'Science',ownerUsername:'owner',slug:'science',publicFeedEnabled:true,paused:false};
@@ -122,6 +159,9 @@ test('own public profile preview shows Follow without offering to follow yoursel
   await page.goto('/explore?channel=owner&preview=1');
   await expect(page.getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
   await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toHaveCount(0);
   await page.goto('/explore?channel=owner');
   await expect(page.locator('.explore-controls').getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Upload cover photo' })).toBeVisible();
 });

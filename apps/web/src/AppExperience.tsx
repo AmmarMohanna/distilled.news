@@ -64,7 +64,7 @@ export function AppExperience(props: {
     document.querySelector(".app-pages > .screen-page-viewport")?.scrollTo({ top: 0 });
   }
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
-  const [catalogReady, setCatalogReady] = useState(false);
+  const [readyCatalogs, setReadyCatalogs] = useState<ReadonlySet<string>>(() => new Set());
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
   const channelSnapshots = useRef(new Map<string, ExploreChannel[]>());
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
@@ -75,10 +75,15 @@ export function AppExperience(props: {
   const [archiveError, setArchiveError] = useState<UiMessage>("");
   const [archiveStatus, setArchiveStatus] = useState("");
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; viewerFollowsChannel?: boolean; latestUpdatedAt?: string }>>([]);
-  const feedSnapshots = useRef(new Map<string, typeof feeds>());
+  const feedSnapshots = useRef(new Map<string, { feeds: typeof feeds; nextOffset: number | null }>());
   const currentFeeds=useRef(feeds);currentFeeds.current=feeds;
   const confirmedVotes=useRef(new Map<string,FeedStarResult>());
+  const signedIn = Boolean(props.account);
   const voteScope=JSON.stringify(props.account?['account',props.account.id??props.account.username]:['anonymous']);
+  const catalogScope = JSON.stringify([voteScope, tab]);
+  const catalogReady = readyCatalogs.has(catalogScope);
+  const followedView = tab === "followed";
+  const listingScope = JSON.stringify([voteScope, channelName, followedView]);
   const previousVoteScope=useRef(voteScope);
   if(previousVoteScope.current!==voteScope){confirmedVotes.current.clear();previousVoteScope.current=voteScope;}
   const [loading, setLoading] = useState(true);
@@ -97,8 +102,7 @@ export function AppExperience(props: {
   const { theme, setTheme } = useTheme();
   useLayoutEffect(() => {
     if (tab !== "explore" && tab !== "followed") return;
-    const scope = JSON.stringify([voteScope, tab]);
-    setChannels(channelSnapshots.current.get(scope) ?? []);
+    setChannels(channelSnapshots.current.get(catalogScope) ?? []);
     let active: AbortController | undefined;
     const loadChannel = () => {
       active?.abort();
@@ -113,18 +117,18 @@ export function AppExperience(props: {
           });
       } else {
         const revealCatalog = () => {
-          if (!request.signal.aborted) setCatalogReady(true);
+          if (!request.signal.aborted) setReadyCatalogs(current => current.has(catalogScope) ? current : new Set([...current, catalogScope]));
         };
-        const deadline = window.setTimeout(revealCatalog, 1800);
+        const deadline = signedIn ? undefined : window.setTimeout(revealCatalog, 1800);
         request.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true });
         void Promise.allSettled([
-          getExploreChannels(request.signal, tab === "followed").then(result => {
+          getExploreChannels(request.signal, followedView).then(result => {
             if (!request.signal.aborted) {
-              channelSnapshots.current.set(scope, result);
+              channelSnapshots.current.set(catalogScope, result);
               setChannels(result);
             }
           }),
-          getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
+          !followedView && getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
             if (!request.signal.aborted) setHighlights({ trending, newest });
           }),
         ]).then(() => {
@@ -138,11 +142,10 @@ export function AppExperience(props: {
     loadChannel();
     window.addEventListener(EXPLORE_CHANGED_EVENT, loadChannel);
     return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
-  }, [tab, channelName, voteScope]);
+  }, [tab, channelName, catalogScope, followedView, signedIn]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.pageTitle ?? (props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."); }, [tab, language, props.account, props.pageTitle]);
   useLayoutEffect(() => {
     let active = true;
-    const scope = JSON.stringify([voteScope, channelName, tab === "followed"]);
     let version = 0;
     let inFlight = false;
     let refreshRequested = false;
@@ -157,7 +160,7 @@ export function AppExperience(props: {
       try {
         const result = channelName
           ? await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, channelName)
-          : await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, undefined, tab === "followed");
+          : await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, undefined, followedView);
         if (!active || version !== request) return;
         if(offset>0&&listingRevision!==undefined&&result.revision!==listingRevision){refreshRequested=true;setNextOffset(null);return;}
         if(offset>0&&result.feeds.some(feed=>loadedIds.has(feed.id))){
@@ -174,8 +177,8 @@ export function AppExperience(props: {
           if(feed.viewerHasStarred===confirmed.viewerHasStarred){confirmedVotes.current.delete(key);return feed;}
           return {...feed,...confirmed};
         });
-        const snapshot = offset === 0 ? page : [...new Map([...(feedSnapshots.current.get(scope) ?? []), ...page].map(feed => [feed.id, feed])).values()];
-        feedSnapshots.current.set(scope, snapshot);
+        const snapshot = offset === 0 ? page : [...new Map([...(feedSnapshots.current.get(listingScope)?.feeds ?? []), ...page].map(feed => [feed.id, feed])).values()];
+        feedSnapshots.current.set(listingScope, { feeds: snapshot, nextOffset: result.nextOffset });
         setFeeds(snapshot);
         setNextOffset(result.nextOffset);
       } catch (cause) {
@@ -202,12 +205,12 @@ export function AppExperience(props: {
       version++;setNextOffset(null);
       if(inFlight)refreshRequested=true;else void load();
     };
-    setFeeds(feedSnapshots.current.get(scope) ?? []);
+    setFeeds(feedSnapshots.current.get(listingScope)?.feeds ?? []);
     setNextOffset(null);
     void load();
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
-  }, [channelName, tab === "followed", voteScope]);
+  }, [channelName, followedView, listingScope]);
   const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
   const ownListReady = !props.briefingsState || props.briefingsState === 'ready';
   const emptyLibrary = ownListReady && props.briefings.length === 0;
@@ -230,9 +233,12 @@ export function AppExperience(props: {
     onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>;
   const followedFeeds = visibleFeeds.filter(feed => feed.viewerHasStarred);
   const otherPublicFeeds = visibleFeeds.filter(feed => !props.account || !feed.viewerHasStarred);
-  const illustratedEmpty = Boolean(props.account && (tab === "explore" || tab === "followed")
-    && !channelName && !catalogView && !query.trim() && !waitingForCatalog && !loading && !exploreError && nextOffset === null
-    && (tab === "followed" ? !followedFeeds.length && !visibleChannels.length : !otherPublicFeeds.length && !trendingFeeds.length));
+  const canShowIllustratedEmpty = Boolean(props.account && (tab === "explore" || followedView)
+    && !channelName && !catalogView && !query.trim() && !exploreError);
+  const hasCatalogItems = followedView ? followedFeeds.length > 0 || visibleChannels.length > 0 : otherPublicFeeds.length > 0 || trendingFeeds.length > 0;
+  const catalogPending = canShowIllustratedEmpty && !hasCatalogItems
+    && (!catalogReady || (loading && feedSnapshots.current.get(listingScope)?.nextOffset !== null));
+  const illustratedEmpty = canShowIllustratedEmpty && !catalogPending && !hasCatalogItems && nextOffset === null;
   const renderExploreFeed = (feed: (typeof visibleFeeds)[number]) => <FeedTile
     key={feed.id}
     feed={feed}
@@ -297,7 +303,7 @@ export function AppExperience(props: {
         </>}
       </section>
     </div>}
-    <section className="explore-view" aria-busy={loading || waitingForCatalog} style={tab !== "explore" && tab !== "followed" && props.account ? { display: "none" } : undefined}>
+    <section className="explore-view" aria-busy={loading || waitingForCatalog || catalogPending} style={tab !== "explore" && tab !== "followed" && props.account ? { display: "none" } : undefined}>
 
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href={!props.account && document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
@@ -310,7 +316,7 @@ export function AppExperience(props: {
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
-      {!illustratedEmpty && (!channelName || (channel && !emptyChannel)) && <div className={props.account ? "explore-controls" : "landing-controls"}>
+      {!catalogPending && !illustratedEmpty && (!channelName || (channel && !emptyChannel)) && <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         {(!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
@@ -351,7 +357,7 @@ export function AppExperience(props: {
               {otherPublicFeeds.map(renderExploreFeed)}
             </CatalogShelf>}
           </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
-        ) : !loading && !exploreError && (query.trim() || nextOffset === null) && (
+        ) : !catalogPending && (!loading || illustratedEmpty) && !exploreError && (query.trim() || nextOffset === null) && (
           query.trim() || channelName ? (
             <p className="empty-copy" role="status">{t(query.trim()
               ? nextOffset !== null ? "No matches in loaded feeds. Load more feeds to continue searching." : "No feeds match your search."
