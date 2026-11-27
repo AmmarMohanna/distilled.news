@@ -1,6 +1,7 @@
 import type { BriefingConfig } from '@distilled/core';
 
 const day = 86_400_000;
+const maxCatchUpDays = 60;
 const legacyIntervals = { hourly: 60, daily: 1440, weekly: 10_080, monthly: 43_200 };
 
 export interface EditionCursor {
@@ -13,6 +14,7 @@ export interface EditionWindow {
   until: string;
   limit: number;
   before?: EditionCursor;
+  excludeOpenedBy?: string;
 }
 
 export async function readerInterval(feed: BriefingConfig, db?: D1Database): Promise<number> {
@@ -27,7 +29,17 @@ export function readerHistoryDays(minutes: number): number {
 }
 
 export function catchUpHistoryDays(minutes: number): number {
-  return Math.min(60, Math.max(readerHistoryDays(minutes), Math.ceil(minutes * 2 / 1440)));
+  return Math.min(maxCatchUpDays, Math.max(readerHistoryDays(minutes), Math.ceil(minutes * 2 / 1440)));
+}
+
+export function catchUpOpenExpiry(publishedAt:string):string {
+  return new Date(Date.parse(publishedAt)+maxCatchUpDays*day).toISOString();
+}
+
+export async function expireCatchUpOpens(db:D1Database,now:Date) {
+  await db.prepare(`DELETE FROM catch_up_opened_editions WHERE rowid IN (
+    SELECT rowid FROM catch_up_opened_editions WHERE expires_at<? ORDER BY expires_at LIMIT 500
+  )`).bind(now.toISOString()).run();
 }
 
 export function editionWindow(now: Date, days: number, limit: number, before?: EditionCursor): EditionWindow {

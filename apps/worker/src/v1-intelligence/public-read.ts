@@ -166,13 +166,17 @@ export async function recentV1Editions(db:D1Database,feedId:string,window:Editio
    WHERE p.kind='publication_status' AND p.feed_id=? AND json_extract(p.json,'$.status')='PUBLISHED'
      AND ${publishedAt}>=? AND ${publishedAt}<=?
      ${before?`AND (${publishedAt},p.id)<(?,?)`:''}
+     ${window.excludeOpenedBy?`AND NOT EXISTS (SELECT 1 FROM catch_up_opened_editions o
+       WHERE o.account_id=? AND o.feed_id=p.feed_id AND o.edition_id=p.id
+         AND o.published_at=${publishedAt} AND o.expires_at>=?)`:''}
    ORDER BY ${publishedAt} DESC,p.id DESC LIMIT ?
  )
  SELECT p.id,p.feed_id,p.published_at,a.object_key,a.sha256,a.byte_count,a.schema_version FROM recent p
  LEFT JOIN v1_visible_edition_delivery d ON d.edition_id=p.id AND d.feed_id=p.feed_id AND d.published_at=p.published_at
  LEFT JOIN v1_verified_archives a ON a.object_key=d.object_key AND a.state='REFERENCED'
  ORDER BY p.published_at DESC,p.id DESC`)
-   .bind(feedId,window.since,window.until,...(before?[before.publishedAt,before.id]:[]),window.limit).all<DeliveryRow>();
+   .bind(feedId,window.since,window.until,...(before?[before.publishedAt,before.id]:[]),
+     ...(window.excludeOpenedBy?[window.excludeOpenedBy,window.until]:[]),window.limit).all<DeliveryRow>();
  return publishedFromDeliveryRows(db,feedId,results,bucket);
 }
 

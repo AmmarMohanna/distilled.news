@@ -21,18 +21,36 @@ interface SummaryStory {
   sources:{source:string;quote:string}[];
 }
 export interface SummaryInput {language:string;briefings:{id:string;publishedAt:string;stories:SummaryStory[]}[]}
-export function prepareCatchUpSummary(editions:BriefingEdition[],language:string,since:string,now=Date.now()):SummaryInput {
+const storyText=(story:Pick<SummaryStory,'title'|'summary'>)=>JSON.stringify([story.title.trim(),story.summary.replace(/\s+/gu,' ').trim()]);
+const sectionId=(edition:BriefingEdition,section:BriefingEditionSection,index:number)=>section.storyId??`${edition.id}:section:${index}`;
+
+export function prepareCatchUpSummary(editions:BriefingEdition[],language:string,since:string,now=Date.now(),openedCorrectionTargets:string[]=[]):SummaryInput {
   const briefings:SummaryInput['briefings']=[];
   const encoder=new TextEncoder();
-  for(const edition of [...editions].sort((a,b)=>(Date.parse(b.publishedAt)-Date.parse(a.publishedAt))||(a.id<b.id?1:a.id>b.id?-1:0))){
-    if(briefings.length===CATCH_UP_MAX_EDITIONS)break;
+  const eligible=editions.filter(edition=>{
     const at=Date.parse(edition.publishedAt);
-    if(edition.status!=='published'||!Number.isFinite(at)||at>now||at<Date.parse(since))continue;
+    return edition.status==='published'&&Number.isFinite(at)&&at<=now&&at>=Date.parse(since);
+  });
+  // Previously opened corrections still suppress stale stories. Their prose
+  // and citations never enter the request, including when a correction was repeated.
+  const suppressed=new Set(openedCorrectionTargets),supersededText=new Set<string>();
+  if(suppressed.size){
+    const sections=new Map(eligible.flatMap(edition=>edition.sections.map((section,index)=>[sectionId(edition,section,index),section] as const)));
+    for(const id of suppressed){
+      const section=sections.get(id);
+      if(section){
+        supersededText.add(storyText(section));
+        if(section.relation==='correction'&&section.updatesId)suppressed.add(section.updatesId);
+      }
+    }
+  }
+  for(const edition of eligible.sort((a,b)=>(Date.parse(b.publishedAt)-Date.parse(a.publishedAt))||(a.id<b.id?1:a.id>b.id?-1:0))){
+    if(briefings.length===CATCH_UP_MAX_EDITIONS)break;
     const stories=edition.sections.map((section,index)=>({
-      id:section.storyId??`${edition.id}:section:${index}`,title:section.title,summary:section.summary,
+      id:sectionId(edition,section,index),title:section.title,summary:section.summary,
       relation:section.relation,updatesId:section.updatesId,
       sources:section.evidence.map(source=>({source:source.sourceTitle,quote:source.text}))
-    }));
+    })).filter(story=>!suppressed.has(story.id)&&(story.relation==='correction'||!supersededText.has(storyText(story))));
     if(!stories.some(story=>story.summary.trim()||story.title.trim()))continue;
     const entry={id:edition.id,publishedAt:edition.publishedAt,stories};
     // Bound the serialized input while keeping all stories within each selected edition.
@@ -70,11 +88,10 @@ export function parseCatchUpSummary(text:string,input:SummaryInput,finishReason?
   if(!result.success)throw new CatchUpSummaryError('SUMMARY_INVALID_OUTPUT');
   const stories=input.briefings.flatMap(briefing=>briefing.stories);
   const byId=new Map(stories.map(story=>[story.id,story]));
-  const normalize=(story:SummaryStory)=>JSON.stringify([story.title.trim(),story.summary.replace(/\s+/gu,' ').trim()]);
   const superseded=new Set(stories.flatMap(story=>story.relation==='correction'&&story.updatesId?[story.updatesId]:[]));
-  const supersededText=new Set([...superseded].flatMap(id=>{const story=byId.get(id);return story?[normalize(story)]:[];}));
+  const supersededText=new Set([...superseded].flatMap(id=>{const story=byId.get(id);return story?[storyText(story)]:[];}));
   const eligible=new Set(stories.filter(story=>(story.summary.trim()||story.title.trim())&&!superseded.has(story.id)
-    &&(story.relation==='correction'||!supersededText.has(normalize(story)))).map(story=>story.id));
+    &&(story.relation==='correction'||!supersededText.has(storyText(story)))).map(story=>story.id));
   if(result.data.sentences.some(sentence=>sentence.storyIds.some(id=>!eligible.has(id))))throw new CatchUpSummaryError('SUMMARY_INVALID_OUTPUT');
   const summary=result.data.sentences.map(sentence=>sentence.text.replace(/\s+/gu,' ')).join(' ');
   if(summary.length>3000||summary.split(/\s+/u).length>80)throw new CatchUpSummaryError('SUMMARY_TOO_LONG');
