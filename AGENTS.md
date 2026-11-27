@@ -6,7 +6,7 @@ The current implementation is the product direction unless the user gives newer 
 
 - Distilled.news is a Cloudflare-first, self-hostable briefing product.
 - Feeds support Public and Private visibility. Public is the default for new feeds. Public feeds use username-scoped URLs. Private feeds are owner-only and must not appear in public reads, Explore, search or share routes. Enforce visibility in the backend, including artwork and edition reads.
-- The app supports public accounts, multiple feeds, stars/Explore, unread catch-up summaries, PWA notifications and Telegram, RSS, Google News, X, LinkedIn and Apify-backed sources. Availability depends on each deployment's configured providers and credentials.
+- The app supports public accounts, multiple feeds, stars/Explore, a recent briefing timeline, optional Catch me up summaries, PWA notifications and Telegram, RSS, Google News, X, LinkedIn and Apify-backed sources. Availability depends on each deployment's configured providers and credentials.
 - Search is basic retained published-feed search. Do not add or assume Vectorize.
 - Cloudflare Workers, D1, R2, Queues, configurable email transport, AI Gateway and optional Apify remain the runtime stack. Check the actual target configuration; staging currently uses Outlook Graph mail.
 - `distilled.news` is the canonical production domain; `lownoise.news` is a legacy redirect.

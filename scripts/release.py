@@ -94,8 +94,15 @@ def validate_configs(configs):
                     and variables["CI_STAGING_READ_ONLY"] == "true", "ci-staging: read-only mode is required")
             resources[target] = {db["database_id"]}
             continue
-        require(variables["BRIEFING_ENGINE"] == "v3" and not any(re.search(r"(^|_)V5(_|$)", k, re.I) for k in variables),
-                f"{target}: experimental briefing settings are outside this pipeline")
+        # Production already uses this rollout. Its exact creation-time boundary
+        # is part of feed eligibility and must survive deployment byte-for-byte.
+        rollout = {k: v for k, v in variables.items() if re.search(r"(^|_)V5(_|$)", k, re.I)}
+        require(variables["BRIEFING_ENGINE"] == "v3" and variables.get("BRIEFING_SOURCE_BINDINGS_ENABLED") == "true"
+                and rollout.pop("BRIEFING_V5_AUTO_PUBLICATION_ENABLED", None) in ("true", "false")
+                and rollout == {
+                    "BRIEFING_V5_FEEDS_CREATED_FROM": "2026-11-26T19:54:12.096Z",
+                    "BRIEFING_V5_GENERATION_PROFILE": "deepseek-flash-wafer",
+                }, f"{target}: expected the approved V5 rollout on the source-bound V3 publication path")
         require(not {"RELEASE_SHA", "CI_STAGING_READ_ONLY"} & variables.keys(),
                 f"{target}: release markers are set by CI")
         bucket, = config["r2_buckets"]
@@ -214,6 +221,16 @@ def preflight(config, cf):
     check_migration_ledger(migration_names(), results)
 
 
+def verify_rollout(config, sha, cf):
+    settings = cf(f"workers/scripts/{config['name']}/settings")
+    bindings = {b["name"]: b.get("text") for b in settings["bindings"] if b.get("type") == "plain_text"}
+    expected = {k: v for k, v in config["vars"].items() if k.startswith("BRIEFING_V5_")}
+    for name, value in {"RELEASE_SHA": sha, **expected}.items():
+        require(bindings.get(name) == value, f"Production Worker binding differs from release: {name}")
+    require(not any(k.startswith("BRIEFING_V5_") and k not in expected for k in bindings),
+            "Production Worker has an unexpected V5 rollout binding")
+
+
 class AssetLinks(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -262,7 +279,7 @@ def smoke(target, sha, get, directory=BUILD):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("validate", "security", "current", "preflight", "smoke"))
+    parser.add_argument("command", choices=("validate", "security", "current", "preflight", "verify-rollout", "smoke"))
     parser.add_argument("value", nargs="?")
     args = parser.parse_args()
     if args.command == "validate":
@@ -287,7 +304,7 @@ def main():
 
     target = args.value
     require(target in CONFIGS and SHA.fullmatch(sha), "Expected a known target and a full release SHA")
-    if args.command == "preflight":
+    if args.command in {"preflight", "verify-rollout"}:
         configs = load_configs()
         if target == "ci-staging":
             database_id = os.environ["CI_STAGING_DATABASE_ID"]
@@ -296,15 +313,20 @@ def main():
         validate_configs(configs)
         config = configs[target]
         require(os.environ["CLOUDFLARE_ACCOUNT_ID"] == config["account_id"], "Cloudflare account does not match the target")
-        check_infra_baseline(os.environ["RELEASE_INFRA_SHA"], sha)
 
         def cf(path, data=None):
             account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
             result = api(f"https://api.cloudflare.com/client/v4/accounts/{account}/{path}",
                          os.environ["CLOUDFLARE_API_TOKEN"], data)
-            require(result["success"] is True, f"Cloudflare rejected the preflight request ({path.split('?')[0]})")
+            require(result["success"] is True, f"Cloudflare rejected the release check ({path.split('?')[0]})")
             return result["result"]
 
+        if args.command == "verify-rollout":
+            require(target == "production", "V5 rollout verification requires the production target")
+            verify_rollout(config, sha, cf)
+            print("production: deployed release SHA and V5 rollout bindings verified")
+            return
+        check_infra_baseline(os.environ["RELEASE_INFRA_SHA"], sha)
         preflight(config, cf)
         if target == "ci-staging":
             CI_STAGING_GENERATED.write_text(json.dumps(config), encoding="utf-8")

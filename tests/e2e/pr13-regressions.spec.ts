@@ -50,7 +50,7 @@ test('thirty Home cards render current listing metadata without feed-detail read
  expect(detailReads).toBe(0);
 });
 
-test('read progress is account-specific and corrupt data does not crash the feed',async({page})=>{
+test('the feed ignores old read state without removing it',async({page})=>{
  let reader='reader-a';const failures:string[]=[];page.on('pageerror',error=>failures.push(error.message));
  await page.addInitScript(()=>{localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','reader-a'],'publisher','science']),'{broken');localStorage.setItem('ln_read:publisher:science','["edition-one"]');});
  await page.route('**/api/**',route=>{
@@ -68,7 +68,8 @@ test('read progress is account-specific and corrupt data does not crash the feed
  });
  try{
   reader='reader-b';await next.goto('/publisher/science/');await expect(next.locator('.news-item')).not.toHaveClass(/is-read/);
-  reader='reader-a';await next.reload();await expect(next.locator('.news-item')).toHaveClass(/is-read/);
+  reader='reader-a';await next.reload();await expect(next.locator('.news-item')).not.toHaveClass(/is-read/);
+  expect(await next.evaluate(() => localStorage.getItem('ln_read:publisher:science'))).toBe('["edition-one"]');
   expect(failures).toEqual([]);
  }finally{await next.close();}
 });

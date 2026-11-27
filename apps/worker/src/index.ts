@@ -36,6 +36,7 @@ import { v3RuntimeFromEnv } from "./briefing-v3";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
+import { expireCatchUpOpens } from './reader-history';
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,AuthenticatedXAcquisitionRequestMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, PublicAcquisitionRequestMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
@@ -348,6 +349,9 @@ async function runProjectionMaintenance(env:Env):Promise<void> {
 }
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
+  const maintenanceTime=new Date();
+  if(maintenanceTime.getUTCMinutes()%15===0)try {await expireCatchUpOpens(env.DB,maintenanceTime);}
+  catch {console.warn('Catch-up opened history cleanup deferred');}
   if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   if(editionArtifactBackfillEnabled(env))try {await backfillEditionArtifacts(env,{maxAttached:5,budgetMs:5000})}

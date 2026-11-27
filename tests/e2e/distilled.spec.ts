@@ -317,65 +317,49 @@ test("arabic feed keeps public chrome localized and summary stable when expandin
   await expect(page.getByText("Search briefings")).toHaveCount(0);
 });
 
-test("feed pages twenty editions with unread editions first and keeps read editions accessible", async ({ page }) => {
-  // Read tracking requires a confirmed viewer; a missing session route exercises
-  // the unresolved-session safeguard rather than this pagination scenario.
-  await page.route("**/api/auth/session", route => route.fulfill({
-    json: { authenticated: false, setupRequired: false }
-  }));
-  await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        briefing,
-        editions: feedEditions,
-        viewerHasStarred: false
-      })
-    });
+test("reader fetches eight briefings at a time in chronological order", async ({ page }) => {
+  let pages = 0;
+  await page.route("**/api/auth/session", route => route.fulfill({ json: { authenticated: false } }));
+  await page.route(/\/api\/feed\/ammar-mohanna\/personal(?:\?|$)/, route => {
+    const url = new URL(route.request().url());
+    const cursor = url.searchParams.get("before");
+    if (!cursor) expect(route.request().headers()["x-distilled-reader-timeline"]).toBe("1");
+    else pages++;
+    const start = Number(cursor ?? 0);
+    return route.fulfill({ json: {
+      briefing,
+      editions: feedEditions.slice(start, start + 8),
+      publicationVersion: "1",
+      timelineNextCursor: start + 8 < feedEditions.length ? String(start + 8) : null,
+      viewerHasStarred: false
+    } });
   });
-  await page.route("**/api/explore/feeds", async (route) => {
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
-  });
-
-  await page.goto("/ammar-mohanna/personal/");
-
-  const visibleUnread = page.locator(".news-item:not(.is-read)");
-  await expect(visibleUnread).toHaveCount(20);
-  await expect(page.getByText("Published briefing item 20.")).toBeVisible();
-  await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
-
   await page.route("**/api/feed/ammar-mohanna/personal/editions/" + feedEditions[0].id, route => route.fulfill({
     json: { briefing, edition: feedEditions[0] }
   }));
-  await visibleUnread.first().locator(".briefing-headline-link").click();
-  await expect.poll(() => page.evaluate(({ feedId, editionId }) =>
-    JSON.parse(localStorage.getItem("dn_read:v3:" + JSON.stringify([["anonymous"], feedId])) ?? "[]").includes(editionId),
-    { feedId: briefing.id, editionId: feedEditions[0].id })).toBe(true);
-  await page.getByRole('dialog', { name: 'Briefing' }).getByRole('button', { name: 'Close dialog' }).click();
-  await expect(visibleUnread).toHaveCount(20);
-  await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
-  await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);
-
-  // A background status refresh can leave the debounced payload reconciliation
-  // pending while the reader loads another page. Advancing that callback must
-  // not undo the reader's explicit pagination choice.
-  const now = new Date();
-  await page.clock.install({ time: now });
-  await page.clock.pauseAt(new Date(now.getTime() + 1000));
-  await Promise.all([
-    page.waitForResponse(response => new URL(response.url()).pathname === "/api/feed/ammar-mohanna/personal"),
-    page.evaluate(() => window.dispatchEvent(new Event("focus")))
-  ]);
-  await page.clock.runFor(50);
-  await page.getByRole("button", { name: "Load More" }).click();
-  await page.clock.runFor(50);
-  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
-  await expect(page.locator(".news-item").last()).toHaveClass(/is-read/);
-  await expect(page.locator(".news-item").last()).toContainText("Published briefing item 1.");
-  await page.clock.runFor(300);
-  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
-  await expect(page.locator(".news-item.is-read")).toHaveCount(1);
+  await page.goto("/ammar-mohanna/personal/");
+  const rows = page.locator(".news-item");
+  const loadMore = page.getByRole("button", { name: "Load more", exact: true });
+  await expect(rows).toHaveCount(8);
+  await expect(rows.first()).toContainText("Published briefing item 1.");
+  await expect(rows.last()).toContainText("Published briefing item 8.");
+  expect(pages).toBe(0);
+  await rows.first().locator(".briefing-headline-link").click();
+  await expect(page.locator(".briefing-detail-hero")).toBeVisible();
+  await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
+  await expect(rows.first()).toContainText("Published briefing item 1.");
+  await expect(page.locator(".is-read,.news-unread,.read-button")).toHaveCount(0);
+  expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("dn_read:")))).toBe(false);
+  await loadMore.click();
+  await expect(rows).toHaveCount(16);
+  await expect(rows.last()).toContainText("Published briefing item 16.");
+  expect(pages).toBe(1);
+  await loadMore.click();
+  await expect(rows).toHaveCount(24);
+  await loadMore.click();
+  await expect(rows).toHaveCount(25);
+  await expect(rows.last()).toContainText("Published briefing item 25.");
+  await expect(loadMore).toHaveCount(0);
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {

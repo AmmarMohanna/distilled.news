@@ -1,8 +1,8 @@
 import {V5ReviewError} from './v1-intelligence/v5-review-contract';
 import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
-import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
-import {unreadSummaryPort} from './unread-summary-provider';
+import {CATCH_UP_MAX_EDITIONS,generateCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryQuotaError,CatchUpSummaryError} from './catch-up-summary';
+import {catchUpSummaryPort} from './catch-up-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {authorizeConnectorStorageCanary} from './connector-storage-recovery';
@@ -21,7 +21,8 @@ import {freelyReadableResults,rememberUnavailableSearchSource} from './source-se
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress,recentProductEditions,readProductEdition} from './product-feeds';
+import {catchUpHistoryDays,catchUpOpenExpiry,editionWindow,readerHistoryDays,readerInterval,type EditionCursor,type EditionWindow} from './reader-history';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -1633,10 +1634,41 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
     c.header('Cache-Control','private, no-store');
-    c.header('Vary','Cookie');
+    c.header('Vary','Cookie, X-Distilled-Reader-Timeline');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
+    if (c.req.query('timeline') === '1' || c.req.header('X-Distilled-Reader-Timeline') === '1') {
+      const rawCursor=c.req.query('before');
+      const before=rawCursor===undefined?undefined:parseTimelineCursor(rawCursor);
+      if(before===null)return c.json({error:'Invalid briefing cursor.'},400);
+      const env=c.env, product=env.PRODUCT_FEEDS_ENABLED==='true';
+      const now=nowFor(), pageSize=8;
+      const minutes=await readerInterval(briefing,product?env.DB:undefined);
+      const window=editionWindow(now,readerHistoryDays(minutes),pageSize+1,before);
+      const version=product?await feedReadVersion(env.DB,briefing.id):await repo.briefingPublicationVersion(briefing.id);
+      const records=await readRecentEditions(env,repo,briefing,window);
+      const visible=records.slice(0,pageSize);
+      const last=visible.at(-1);
+      const next=records.length>pageSize&&last?JSON.stringify({publishedAt:last.publishedAt,id:last.id}):null;
+      if(product&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
+      const page={
+        editions:product?visible:visible.filter(edition=>isPublicEditionVisible(edition,briefing.language)).map(edition=>publicEdition(edition,briefing,false)),
+        timelineNextCursor:next,
+        timelineSince:window.since,
+        publicationVersion:`${version}:${minutes}:${briefing.language}`
+      };
+      if(before)return c.json(page);
+      const claims=await verifySession(getCookie(c,SESSION_COOKIE),env.ADMIN_SESSION_SECRET??'');
+      const [viewerHasStarred,status,diagnostics,hasPublishedBriefings]=await Promise.all([
+        getVoterId(c).then(voter=>repo.hasBriefingStar(briefing.id,voter,claims?.sub)),
+        product?readTimelineStatus(env,briefing.id,version):{},
+        product&&await viewerSeesSourceHealth(c,briefing.ownerAccountId)?readSourceDiagnostics(env,briefing.id,feedReadCacheEnabled(env)?version:undefined):{},
+        page.editions.length>0||hasRetainedPublication(env,repo,briefing.id,now)
+      ]);
+      return c.json({...page,briefing:publicBriefing(briefing),viewerHasStarred,editionsComplete:false,
+        catchUpAvailable:catchUpEnabled(env),readerIntervalMinutes:minutes,hasPublishedBriefings,...status,...diagnostics});
+    }
     const voterId = await getVoterId(c);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
@@ -1655,7 +1687,6 @@ export function createApp(options: AppOptions = {}) {
         repo.hasBriefingStar(briefing.id, voterId, claims?.sub)
       ]);
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
-      const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
       const publicFeed = publicBriefing(briefing);
       // The cached status is shared by every viewer; source diagnostics are removed
       // per request so readers never receive them, and the tag covers only what is sent.
@@ -1665,11 +1696,10 @@ export function createApp(options: AppOptions = {}) {
       const feedStatus = { ...status.value.value, ...diagnostics };
       const statusHash = fnv1a(JSON.stringify(feedStatus));
       // Content-derived, so every isolate computes the same tag for the same response.
-      const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred].join('|'))}"`;
       c.header('ETag', etag);
       if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
       return c.json({
-        unreadSummaryAvailable,
         briefing: publicFeed,
         ...feedStatus,
         editions: presentProductEditions(briefing, published.records),
@@ -1689,7 +1719,6 @@ export function createApp(options: AppOptions = {}) {
       repo.hasBriefingStar(briefing.id, voterId, claims?.sub)
     ]);
     const payload={
-      unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
       ...diagnostics,
       publicationState,
@@ -1715,9 +1744,8 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
-      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records.filter(record => record.id === c.req.param("editionId")))[0]
-      : (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0]) : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await readProductEdition(c.env,briefing,c.req.param('editionId'))
+      : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
@@ -1728,7 +1756,27 @@ export function createApp(options: AppOptions = {}) {
       const visiblePhotos = current?.publicFeedEnabled ? photos : [];
       return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
     }
-    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
+    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true),
+      ...(catchUpEnabled(c.env)?{catchUpAvailable:true}:{}) });
+  });
+
+  app.post('/api/feed/:username/:briefingSlug/editions/:editionId/opened',async(c)=>{
+    c.header('Cache-Control','private, no-store');
+    const origin=c.req.header('origin');
+    if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(!catchUpEnabled(c.env))return c.body(null,204);
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const {repo,briefing}=resolved,reader=await verifiedCatchUpReader(c,repo);
+    if(!reader)return c.json({error:'Sign in to catch up on recent briefings.'},401);
+    const id=c.req.param('editionId'),now=nowFor(),product=c.env.PRODUCT_FEEDS_ENABLED==='true';
+    const edition=product?await readProductEdition(c.env,briefing,id):await repo.getBriefingEdition(briefing.id,id,now);
+    if(!edition||(!product&&!isPublicEditionVisible(edition,briefing.language))||
+      (product&&!await canReadPublishedEdition(c,id)))return c.json({error:'edition not found'},404);
+    const publishedAt=Date.parse(edition.publishedAt);
+    if(!Number.isFinite(publishedAt)||publishedAt>now.getTime())return c.json({error:'edition not found'},404);
+    const expiresAt=catchUpOpenExpiry(edition.publishedAt);
+    if(expiresAt>=now.toISOString())await repo.recordCatchUpOpen(reader.id,edition,expiresAt);
+    return c.body(null,204);
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -1758,22 +1806,47 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  app.post('/api/feed/:username/:briefingSlug/unread-summary',async(c)=>{
-    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
-    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
-    const reader=claims?await resolved.repo.getAccountById(claims.sub):null;
-    if(!reader||reader.disabledAt||!reader.emailVerifiedAt)return c.json({error:'Sign in to summarize unread briefings.'},401);
-    const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
-    if(c.env.UNREAD_SUMMARY_ENABLED!=='true'||!c.env.DB||!c.env.OPENROUTER_API_KEY||c.env.BRIEFING_ENGINE!=='v3')return c.json({error:'Summaries are not configured on this deployment.'},503);
-    const {readIds}=z.object({readIds:z.array(z.string().min(1).max(300)).max(1000)}).strict().parse(await c.req.json());
-    const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?await publishedProductEditions(c.env,resolved.briefing):(await resolved.repo.listBriefingEditions(resolved.briefing.id,true)).filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
-    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
-    let input;try{input=prepareUnreadSummary(editions,readIds,resolved.briefing.language);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
-    const task=generateUnreadSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:unreadSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'unread_summary',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
-    try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
+  app.post('/api/feed/:username/:briefingSlug/unread-summary',c=>{
     c.header('Cache-Control','private, no-store');
-    try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
-    catch(error){if(error instanceof UnreadSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
+    return c.json({error:'The unread summary has been retired.'},410);
+  });
+
+  app.post('/api/feed/:username/:briefingSlug/catch-up',bodyLimit({maxSize:1024}),async(c)=>{
+    c.header('Cache-Control','private, no-store');
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const reader=await verifiedCatchUpReader(c,resolved.repo);
+    if(!reader)return c.json({error:'Sign in to catch up on recent briefings.'},401);
+    const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(!catchUpEnabled(c.env))return c.json({error:'Summaries are not configured on this deployment.'},503);
+    const body=await c.req.text();
+    try {
+      if(Object.keys(c.req.query()).length)throw Error('Unexpected query');
+      if(body)z.object({}).strict().parse(JSON.parse(body));
+    } catch {return c.json({error:'Catch-up requests cannot specify briefing evidence.'},400);}
+    const product=c.env.PRODUCT_FEEDS_ENABLED==='true';
+    const days=catchUpHistoryDays(await readerInterval(resolved.briefing,product?c.env.DB:undefined));
+    const now=nowFor(),window={...editionWindow(now,days,CATCH_UP_MAX_EDITIONS),excludeOpenedBy:reader.id};
+    const records=await readRecentEditions(c.env,resolved.repo,resolved.briefing,window);
+    const editions=product?records:records.filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    const correctionTargets=editions.length?await resolved.repo.openedCatchUpCorrectionTargets(reader.id,resolved.briefing.id,window,product):[];
+    if(product&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
+    let input;
+    try{input=prepareCatchUpSummary(editions,resolved.briefing.language,window.since,now.getTime(),correctionTargets);}
+    catch(error){
+      if(error instanceof CatchUpSummaryError&&error.code==='SUMMARY_INPUT_TOO_LONG')return c.json({error:error.message,code:error.code},422);
+      throw error;
+    }
+    const task=generateCatchUpSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:catchUpSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'reader_catch_up',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
+    try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
+    try{
+      const result=await task;
+      if(result.status==='ready'&&input.briefings.length){
+        const validUntil=Date.parse(input.briefings[0].publishedAt)+(now.getTime()-Date.parse(window.since));
+        return c.json({...result,validUntil});
+      }
+      return c.json(result,result.status==='pending'?202:200);
+    }
+    catch(error){if(error instanceof CatchUpSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof CatchUpSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'||error.code==='SUMMARY_PROVIDER_REFUSED'?503:422);console.warn('reader-catch-up-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
   });
 
   // Retired: summaries above never collect articles or publish editions.
@@ -2010,6 +2083,10 @@ export function createApp(options: AppOptions = {}) {
     });
     return value;
   }
+  async function readTimelineStatus(env:Env,feedId:string,version:number) {
+    const read=async()=>({publicationState:await productPublicationState(env,feedId),publicationProgress:await productPublicationProgress(env,feedId)});
+    return feedReadCacheEnabled(env)?(await cachedFeedStatus(env,feedId,version,read,'timeline-status')).value:read();
+  }
   function usesEditionArtifacts(env:Env) {
     return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
   }
@@ -2075,6 +2152,12 @@ export function createApp(options: AppOptions = {}) {
       if (claims?.sub !== briefing.ownerAccountId) return c.json({ error: "feed not found" }, 404);
     }
     return { repo, account: resolved.account, briefing };
+  }
+
+  async function verifiedCatchUpReader(c:Context<{Bindings:Env;Variables:Variables}>,repo:Repository) {
+    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
+    const reader=claims?await repo.getAccountById(claims.sub):null;
+    return reader?.emailVerifiedAt&&!reader.disabledAt?reader:null;
   }
 
   return app;
@@ -2511,6 +2594,32 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     nextBriefingAt: readNextBriefingAt(briefing),
     retentionDays: FIXED_RETENTION_DAYS
   };
+}
+
+function parseTimelineCursor(raw:string):EditionCursor|null {
+  if(raw.length>700)return null;
+  try {
+    const value=z.object({publishedAt:z.iso.datetime(),id:z.string().min(1).max(300)}).strict().safeParse(JSON.parse(raw));
+    return value.success?value.data:null;
+  } catch {return null;}
+}
+
+function readRecentEditions(env:Env,repo:Repository,feed:BriefingConfig,window:EditionWindow) {
+  return env.PRODUCT_FEEDS_ENABLED==='true'?recentProductEditions(env,feed,window)
+    :repo.listBriefingEditions(feed.id,true,undefined,undefined,window);
+}
+
+async function hasRetainedPublication(env:Env,repo:Repository,feedId:string,now:Date) {
+  if(env.PRODUCT_FEEDS_ENABLED==='true')return Boolean(await env.DB.prepare(`SELECT 1 FROM v1_feed_documents
+    WHERE kind='publication_status' AND feed_id=? AND json_extract(json,'$.status')='PUBLISHED'
+    AND json_extract(json,'$.publishedAt')<=? LIMIT 1`).bind(feedId,now.toISOString()).first());
+  return (await repo.listBriefingEditions(feedId,false,now,1,{since:'',until:now.toISOString(),limit:1})).length>0;
+}
+
+function catchUpEnabled(env:Env) {
+  const cap=Number(env.CATCH_UP_LIFETIME_LIMIT_USD);
+  return env.CATCH_UP_ENABLED==='true'&&Boolean(env.DB&&env.OPENROUTER_API_KEY)
+    &&(env.CATCH_UP_LIFETIME_LIMIT_USD===undefined||(Number.isFinite(cap)&&cap>0));
 }
 
 function publicEdition(

@@ -1,4 +1,6 @@
 import {canonicalJson} from './v1-intake/canonical';
+import type {EditionWindow} from './reader-history';
+import {feedReadVersion} from './feed-read-cache';
 import {
   collapseDuplicateBriefingItems,
   defaultNextBriefingAt,
@@ -1339,12 +1341,41 @@ export class D1Repository implements Repository {
       .run();
   }
 
+  briefingPublicationVersion(briefingId: string): Promise<number> {
+    return feedReadVersion(this.db, briefingId);
+  }
+
+  async openedCatchUpCorrectionTargets(accountId:string,feedId:string,window:EditionWindow,product:boolean):Promise<string[]> {
+    const editions=product?`JOIN v1_feed_documents p ON p.kind='publication_status' AND p.feed_id=o.feed_id AND p.id=o.edition_id
+        AND json_extract(p.json,'$.status')='PUBLISHED' AND json_extract(p.json,'$.publishedAt')=o.published_at
+      JOIN v1_feed_documents e ON e.kind='editions' AND e.feed_id=o.feed_id AND e.id=o.edition_id
+      CROSS JOIN json_each(e.json,'$.stories') s`:`JOIN briefing_editions e ON e.briefing_id=o.feed_id AND e.id=o.edition_id
+        AND e.status='published' AND e.published_at=o.published_at
+      CROSS JOIN json_each(e.sections_json) s`;
+    const {results}=await this.db.prepare(`SELECT DISTINCT json_extract(s.value,'$.updatesId') AS target
+      FROM catch_up_opened_editions o ${editions}
+      WHERE o.account_id=? AND o.feed_id=? AND o.published_at BETWEEN ? AND ? AND o.expires_at>=?
+        AND json_extract(s.value,'$.relation')='correction' AND json_type(s.value,'$.updatesId')='text'`)
+      .bind(accountId,feedId,window.since,window.until,window.until).all<{target:string}>();
+    return results.map(row=>row.target);
+  }
+
+  async recordCatchUpOpen(accountId:string,edition:BriefingEdition,expiresAt:string):Promise<void> {
+    await this.db.prepare(`INSERT INTO catch_up_opened_editions(account_id,feed_id,edition_id,published_at,expires_at)
+      VALUES(?,?,?,?,?) ON CONFLICT(account_id,feed_id,edition_id) DO UPDATE SET
+      published_at=excluded.published_at,expires_at=excluded.expires_at
+      WHERE excluded.published_at>catch_up_opened_editions.published_at`)
+      .bind(accountId,edition.briefingId,edition.id,edition.publishedAt,expiresAt).run();
+  }
+
   async listBriefingEditions(
     briefingId: string,
     includeSections: boolean,
     now = new Date(),
-    limit = 50
+    limit = 50,
+    window?: EditionWindow
   ): Promise<BriefingEdition[]> {
+    const before = window?.before;
     const rows = await all<BriefingEditionRow>(
       this.db
         .prepare(
@@ -1353,10 +1384,17 @@ export class D1Repository implements Repository {
           FROM briefing_editions
           WHERE briefing_id = ?
             AND published_at <= ?
-          ORDER BY published_at DESC
+            ${window ? "AND status='published' AND published_at>=?" : ''}
+            ${before ? 'AND (published_at,id)<(?,?)' : ''}
+            ${window?.excludeOpenedBy ? `AND NOT EXISTS (SELECT 1 FROM catch_up_opened_editions o
+              WHERE o.account_id=? AND o.feed_id=briefing_editions.briefing_id AND o.edition_id=briefing_editions.id
+                AND o.published_at=briefing_editions.published_at AND o.expires_at>=?)` : ''}
+          ORDER BY published_at DESC${window ? ',id DESC' : ''}
           LIMIT ?`
         )
-        .bind(briefingId, now.toISOString(), limit)
+        .bind(briefingId, window?.until ?? now.toISOString(), ...(window ? [window.since] : []),
+          ...(before ? [before.publishedAt,before.id] : []),
+          ...(window?.excludeOpenedBy ? [window.excludeOpenedBy,window.until] : []), window?.limit ?? limit)
     );
     return rows.map((row) => rowToBriefingEdition(row, includeSections));
   }
@@ -1915,6 +1953,8 @@ export class InMemoryRepository implements Repository {
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
+  private publicationVersions = new Map<string, number>();
+  private catchUpOpens = new Map<string,{publishedAt:string;expiresAt:string}>();
   starsByBriefing = new Map<string, Set<string>>();
   private channelFollows = new Map<string, Set<string>>();
   private starDatesByBriefing = new Map<string, Map<string, string>>();
@@ -2576,18 +2616,52 @@ export class InMemoryRepository implements Repository {
     );
     scoped.set(existing?.id ?? edition.id, structuredClone({ ...edition, id: existing?.id ?? edition.id }));
     this.editionsByBriefing.set(edition.briefingId, scoped);
+    if(existing?.status==='published'||edition.status==='published') {
+      const version=this.publicationVersions.get(edition.briefingId)??0;
+      this.publicationVersions.set(edition.briefingId,version+1);
+    }
+  }
+
+  async briefingPublicationVersion(briefingId: string): Promise<number> {
+    return this.publicationVersions.get(briefingId)??0;
+  }
+
+  async openedCatchUpCorrectionTargets(accountId:string,feedId:string,window:EditionWindow):Promise<string[]> {
+    const editions=this.editionsByBriefing.get(feedId);
+    if(!editions)return [];
+    return [...editions.values()].flatMap(edition=>{
+      const open=this.catchUpOpens.get(JSON.stringify([accountId,feedId,edition.id]));
+      if(edition.status!=='published'||!open||open.publishedAt!==edition.publishedAt||
+        open.publishedAt<window.since||open.publishedAt>window.until||open.expiresAt<window.until)return [];
+      return edition.sections.flatMap(section=>section.relation==='correction'&&section.updatesId?[section.updatesId]:[]);
+    });
+  }
+
+  async recordCatchUpOpen(accountId:string,edition:BriefingEdition,expiresAt:string):Promise<void> {
+    const key=JSON.stringify([accountId,edition.briefingId,edition.id]);
+    const previous=this.catchUpOpens.get(key);
+    if(!previous||edition.publishedAt>previous.publishedAt)this.catchUpOpens.set(key,{publishedAt:edition.publishedAt,expiresAt});
   }
 
   async listBriefingEditions(
     briefingId: string,
     includeSections: boolean,
     now = new Date(),
-    limit = 50
+    limit = 50,
+    window?: EditionWindow
   ): Promise<BriefingEdition[]> {
+    const before = window?.before;
     return Array.from(this.editionsByBriefing.get(briefingId)?.values() ?? [])
-      .filter((edition) => new Date(edition.publishedAt).getTime() <= now.getTime())
-      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-      .slice(0, limit)
+      .filter((edition) => new Date(edition.publishedAt).getTime() <= (window ? Date.parse(window.until) : now.getTime()))
+      .filter((edition) => !window || (edition.status === 'published' && edition.publishedAt >= window.since &&
+        (!before || edition.publishedAt < before.publishedAt || (edition.publishedAt === before.publishedAt && edition.id < before.id))))
+      .filter(edition=>{
+        if(!window?.excludeOpenedBy)return true;
+        const open=this.catchUpOpens.get(JSON.stringify([window.excludeOpenedBy,briefingId,edition.id]));
+        return !open||open.publishedAt!==edition.publishedAt||open.expiresAt<window.until;
+      })
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt) || (window && left.id !== right.id ? (left.id < right.id ? 1 : -1) : 0))
+      .slice(0, window?.limit ?? limit)
       .map((edition) => includeSections ? structuredClone(edition) : { ...structuredClone(edition), sections: [] });
   }
 
