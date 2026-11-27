@@ -156,7 +156,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const chooser = page.waitForEvent('filechooser');
   await dialog.locator('input[type=file]').dispatchEvent('cancel', { bubbles: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud&preview=1');
+  await expect(dialog.getByRole('link', { name: 'Open my channel' })).toHaveAttribute('href', '/explore?channel=joud');
   await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
   await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();
@@ -179,7 +179,7 @@ test('an owner with no feeds can open their editable channel from Profile Settin
   await page.goto('/');
   await page.getByRole('button', { name: 'Account profile' }).click();
   const profile = page.getByRole('dialog');
-  await expect(profile.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud&preview=1');
+  await expect(profile.getByRole('link', { name: 'Preview public profile' })).toHaveCount(0);
   await profile.getByRole('link', { name: 'Open my channel' }).click();
   await expect(page.getByRole('heading', { name: 'No public feeds yet' })).toBeVisible();
   await page.locator('.channel-options summary').click();
