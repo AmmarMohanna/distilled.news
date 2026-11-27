@@ -3397,6 +3397,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   /* Map pale paper to charcoal and darker pencil marks to the brand accent. */
   filter: url("#dark-pencil-ink");
 }
+:root.apple-ui.apple-ui[data-theme="dark"] .feed-tile-artwork .topic-art > .transparent-cover-image {
+  filter: url("#dark-card-pencil-ink");
+}
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
   inset: auto 8px 8px;
