@@ -107,7 +107,7 @@ import {
   type SourceRefreshResult
 } from "./api";
 import { deriveBriefingSlug, editionDisplayTime, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
-import { normalizeUsername } from "@distilled/core";
+import { BRIEFING_PHOTO_TARGET, normalizeUsername, retainedBriefingPhotos } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
@@ -2225,19 +2225,7 @@ function FeedEditionRow(props: {
   );
 }
 
-function briefingPhotos(edition: BriefingEdition) {
-  const photos = new Map<string, {url: string; source: string}>();
-  for (const section of edition.sections) for (const evidence of section.evidence) for (const media of evidence.media) {
-    if (media.type !== "photo" || !media.url) continue;
-    try {
-      const url = new URL(media.url);
-      if (url.protocol === "https:" && !url.username && !url.password) photos.set(url.href, { url: url.href, source: evidence.sourceTitle });
-    } catch { /* Ignore unavailable image references. */ }
-  }
-  return [...photos.values()];
-}
-
-function PublisherPhoto({photo}: {photo: ReturnType<typeof briefingPhotos>[number]}) {
+function PublisherPhoto({photo}: {photo: ReturnType<typeof retainedBriefingPhotos>[number]}) {
   return <img src={photo.url} referrerPolicy="no-referrer" loading="eager" fetchPriority="high" alt="" title={photo.source}
     onError={event => { event.currentTarget.hidden = true; }}/>;
 }
@@ -2265,8 +2253,8 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const [readerAccount, setReaderAccount] = useState<AccountRecord | null>();
   const recordedOpen=useRef<string|null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const retainedPhotos = result ? briefingPhotos(result.edition) : [];
-  const loadPublisherPhotos = !result || (result.briefing.publicFeedEnabled && retainedPhotos.length < 3);
+  const retainedPhotos = result ? retainedBriefingPhotos(result.edition) : [];
+  const loadPublisherPhotos = !result || (result.briefing.publicFeedEnabled && retainedPhotos.length < BRIEFING_PHOTO_TARGET);
   const previewPhotos = usePublisherPhotos(loadPublisherPhotos ? props.username : undefined, props.slug, props.editionId);
   useEffect(() => {
     let active = true;

@@ -10,6 +10,7 @@ import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessa
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 import {rememberSourceAssessment} from './source-assessment-cache';
 import * as searchRelevance from './source-search-relevance';
+import * as briefingPhotos from './briefing-photo';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -146,6 +147,47 @@ describe("worker app accounts", () => {
     expect((await app.request(upload, { method: "DELETE", headers }, runtime)).status).toBe(200);
     expect((await app.request(cover, {}, runtime)).status).toBe(404);
     expect((await app.request("/api/me/avatar", { headers }, runtime)).status).toBe(200);
+  });
+
+  it("skips publisher photo lookup when an edition has three distinct retained photos", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "photo-owner@example.invalid", "Photo Owner");
+    const briefing = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...briefing, language: "en", publicFeedEnabled: true });
+    const summary = "The coastal road reopened after an overnight security closure.";
+    const saveEdition = (id: string, hoursAgo: number, urls: string[]) => {
+      const at = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+      return repo.saveBriefingEdition({
+        id, briefingId: briefing.id, status: "published", title: "Road update", summary, cadence: "hourly",
+        windowStart: at, windowEnd: at, publishedAt: at, createdAt: at, updatedAt: at,
+        sections: [{ title: "Road update", summary, evidence: [{
+          messageId: id, sourceId: "news", sourceTitle: "Publisher", sourceType: "channel",
+          sourceUrl: "https://publisher.example/article", postedAt: at, text: summary, links: [],
+          media: urls.map(url => ({ type: "photo", url }))
+        }] }]
+      });
+    };
+    const photoResponse = (id: string) => app.request(`/api/feed/photo-owner/personal/editions/${id}?photo=1`, {}, env());
+    const fallback = { url: "https://publisher.example/fallback.jpg", source: "Publisher" };
+    const publisherLookup = vi.spyOn(briefingPhotos, "briefingPublisherPhotos").mockResolvedValue([fallback]);
+    const first = "https://publisher.example/1.jpg";
+    const second = "https://publisher.example/2.jpg";
+    try {
+      await saveEdition("has-photos", 2, [first, second, "https://publisher.example/3.jpg"]);
+      const complete = await photoResponse("has-photos");
+      expect(complete.status).toBe(200);
+      expect(await complete.json()).toEqual({ photo: null, photos: [] });
+      expect(publisherLookup).not.toHaveBeenCalled();
+
+      await saveEdition("needs-photos", 1, [first, second, first, "http://publisher.example/3.jpg"]);
+      const incomplete = await photoResponse("needs-photos");
+      expect(incomplete.status).toBe(200);
+      expect(await incomplete.json()).toEqual({ photo: fallback, photos: [fallback] });
+      expect(publisherLookup).toHaveBeenCalledTimes(1);
+    } finally {
+      publisherLookup.mockRestore();
+    }
   });
 
   it("stores a replacement avatar privately for the signed-in account", async () => {

@@ -50,8 +50,10 @@ import {
   type ModelRoutingConfig
 } from "@distilled/agent-runtime";
 import {
+  BRIEFING_PHOTO_TARGET,
   defaultNextBriefingAt,
   FEED_TITLE_MAX_LENGTH,
+  retainedBriefingPhotos,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
   sanitizeEvidenceText,
@@ -1751,14 +1753,17 @@ export function createApp(options: AppOptions = {}) {
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
+    const readerEdition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true);
     if (c.req.query("photo") === "1") {
-      if (!briefing.publicFeedEnabled) return c.json({ photo: null, photos: [] });
+      if (!briefing.publicFeedEnabled || retainedBriefingPhotos(readerEdition).length >= BRIEFING_PHOTO_TARGET) {
+        return c.json({ photo: null, photos: [] });
+      }
       const photos = await briefingPublisherPhotos(edition, fetcher);
       const current = photos.length ? await repo.getBriefingById(briefing.id) : null;
       const visiblePhotos = current?.publicFeedEnabled ? photos : [];
       return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
     }
-    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true),
+    return c.json({ briefing: publicBriefing(briefing), edition: readerEdition,
       ...(catchUpEnabled(c.env)?{catchUpAvailable:true}:{}) });
   });
 
