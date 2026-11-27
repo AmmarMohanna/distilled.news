@@ -87,6 +87,11 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
   expect(tabs[3].width).toBeCloseTo(tabs[3].height, 0);
   await nav.getByRole('button', { name: 'Followed' }).click();
   await expect(nav.getByRole('button', { name: 'Followed' })).toHaveAttribute('aria-current', 'page');
+  const settings = nav.getByRole('button', { name: 'Settings' });
+  await settings.click();
+  await expect(settings).toHaveAttribute('aria-current', 'page');
+  await expect(settings).toHaveCSS('box-shadow', 'none');
+  expect(await nav.evaluate(element => getComputedStyle(element, '::after').boxShadow)).toBe('none');
 });
 test('Explore keeps its own results visible while returning from Followed', async ({ page }) => {
   await mock(page);
