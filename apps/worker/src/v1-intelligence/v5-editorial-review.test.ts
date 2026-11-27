@@ -112,8 +112,8 @@ it('retains failed drafts, checks permissions, and publishes only the exact appr
   const bad=story(view.sources[0].id);
   bad.support[0].quote='A claim absent from the frozen source.';
   expect((await save(view,[bad])).status).toBe(400);
-  expect((await save(view,[story(view.sources[0].id,'Words '.repeat(120).trim())])).status).toBe(400);
-  const approved=await approve(view,[story(view.sources[0].id)]);
+  expect((await save(view,[{...story(view.sources[0].id),headline:'Words '.repeat(120).trim()}])).status).toBe(400);
+  const approved=await approve(view,[story(view.sources[0].id,(approvalProof+' ').repeat(24).trim())]);
   expect((await fetchReview('POST',approved)).status).toBe(403);
   expect(await store.publishedEditionHistory('feed-1')).toHaveLength(0);
   expect(await publicV1Edition(ctx.db,windowId)).toBeUndefined();
