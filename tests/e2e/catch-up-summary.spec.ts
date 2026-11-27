@@ -32,6 +32,9 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`Catch me 
   expect(resultBounds!.x + resultBounds!.width).toBeLessThanOrEqual(width);
   const closeBounds = await card.getByRole('button', { name: 'Close summary' }).boundingBox();
   expect(closeBounds!.width).toBeGreaterThanOrEqual(44);
+  const textBounds = (await card.locator('p').boundingBox())!;
+  expect(closeBounds!.x - (textBounds.x + textBounds.width)).toBeGreaterThanOrEqual(0);
+  expect(closeBounds!.x - (textBounds.x + textBounds.width)).toBeLessThan(16);
 
   expect(await page.locator('.news-item.is-read').count()).toBe(0);
   await page.screenshot({path:`.local-reports/catch-up/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
