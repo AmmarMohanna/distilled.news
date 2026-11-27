@@ -1830,7 +1830,12 @@ export function createApp(options: AppOptions = {}) {
     const editions=product?records:records.filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
     const correctionTargets=editions.length?await resolved.repo.openedCatchUpCorrectionTargets(reader.id,resolved.briefing.id,window,product):[];
     if(product&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
-    let input;try{input=prepareCatchUpSummary(editions,resolved.briefing.language,window.since,now.getTime(),correctionTargets);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
+    let input;
+    try{input=prepareCatchUpSummary(editions,resolved.briefing.language,window.since,now.getTime(),correctionTargets);}
+    catch(error){
+      if(error instanceof CatchUpSummaryError&&error.code==='SUMMARY_INPUT_TOO_LONG')return c.json({error:error.message,code:error.code},422);
+      throw error;
+    }
     const task=generateCatchUpSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:catchUpSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'reader_catch_up',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
     try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
     try{

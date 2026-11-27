@@ -47,6 +47,14 @@ async function publish(id:string,hoursAgo:number,sections:BriefingEdition['secti
 }
 const selected=()=>vi.mocked(generateCatchUpSummary).mock.lastCall![0].input.briefings;
 
+it('reports oversized published prose before scheduling inference',async()=>{
+ await publish('too-large',2,[{title:'Briefing',summary:'Complete published evidence. '.repeat(1000),evidence:[]}]);
+ const response=await post();
+ expect(response.status).toBe(422);
+ expect(await response.json()).toMatchObject({code:'SUMMARY_INPUT_TOO_LONG'});
+ expect(generateCatchUpSummary).not.toHaveBeenCalled();
+});
+
 it('uses account-wide opened history, with no effect from a detail GET or on another reader',async()=>{
  await publish('older',20);await publish('newer',2);
  expect((await app.request(editionPath('newer'),{headers:{cookie}},config)).status).toBe(200);

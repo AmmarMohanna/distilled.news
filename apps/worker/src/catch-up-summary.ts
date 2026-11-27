@@ -18,7 +18,7 @@ interface SummaryStory {
   summary:string;
   relation?:BriefingEditionSection['relation'];
   updatesId?:string;
-  sources:{source:string;quote:string}[];
+  sources:{source:string;quote?:string}[];
 }
 export interface SummaryInput {language:string;briefings:{id:string;publishedAt:string;stories:SummaryStory[]}[]}
 const storyText=(story:Pick<SummaryStory,'title'|'summary'>)=>JSON.stringify([story.title.trim(),story.summary.replace(/\s+/gu,' ').trim()]);
@@ -27,6 +27,8 @@ const sectionId=(edition:BriefingEdition,section:BriefingEditionSection,index:nu
 export function prepareCatchUpSummary(editions:BriefingEdition[],language:string,since:string,now=Date.now(),openedCorrectionTargets:string[]=[]):SummaryInput {
   const briefings:SummaryInput['briefings']=[];
   const encoder=new TextEncoder();
+  const fits=(entry:SummaryInput['briefings'][number])=>
+    encoder.encode(JSON.stringify({language,briefings:[...briefings,entry]})).length<=MAX_EVIDENCE_BYTES;
   const eligible=editions.filter(edition=>{
     const at=Date.parse(edition.publishedAt);
     return edition.status==='published'&&Number.isFinite(at)&&at<=now&&at>=Date.parse(since);
@@ -53,12 +55,17 @@ export function prepareCatchUpSummary(editions:BriefingEdition[],language:string
     })).filter(story=>!suppressed.has(story.id)&&(story.relation==='correction'||!supersededText.has(storyText(story))));
     if(!stories.some(story=>story.summary.trim()||story.title.trim()))continue;
     const entry={id:edition.id,publishedAt:edition.publishedAt,stories};
-    // Bound the serialized input while keeping all stories within each selected edition.
-    if(encoder.encode(JSON.stringify({language,briefings:[...briefings,entry]})).length>MAX_EVIDENCE_BYTES){
-      if(!briefings.length)throw Error('These briefings are too long to summarize together.');
+    if(fits(entry)){briefings.push(entry);continue;}
+    // Some V3/V5 citations store whole source documents as quotes. Keep the
+    // complete published stories and their attribution when those quotes overflow.
+    const attributed={...entry,stories:stories.map(story=>({...story,
+      sources:[...new Set(story.sources.map(source=>source.source))].map(source=>({source}))
+    }))};
+    if(!fits(attributed)){
+      if(!briefings.length)throw new CatchUpSummaryError('SUMMARY_INPUT_TOO_LONG');
       break; // Never skip a recent correction and then include an older account.
     }
-    briefings.push(entry);
+    briefings.push(attributed);
   }
   return {language,briefings:briefings.reverse()};
 }
@@ -69,9 +76,10 @@ export function summaryTokenUpperBound(request:ModelRequest){
   // A UTF-8 byte bound also covers multilingual inputs; include chat framing.
   return new TextEncoder().encode(request.system+request.user).length+128;
 }
-export type CatchUpSummaryFailureCode='SUMMARY_TOO_LONG'|'SUMMARY_INVALID_OUTPUT'|'SUMMARY_OUTCOME_UNKNOWN'|'SUMMARY_PROVIDER_REFUSED';
+export type CatchUpSummaryFailureCode='SUMMARY_INPUT_TOO_LONG'|'SUMMARY_TOO_LONG'|'SUMMARY_INVALID_OUTPUT'|'SUMMARY_OUTCOME_UNKNOWN'|'SUMMARY_PROVIDER_REFUSED';
 export class CatchUpSummaryError extends Error {
   constructor(readonly code:CatchUpSummaryFailureCode){super({
+    SUMMARY_INPUT_TOO_LONG:'The latest briefing is too long to summarize. You can still open it in the timeline.',
     SUMMARY_TOO_LONG:'The summary was too long to show. Your briefings are still available.',
     SUMMARY_INVALID_OUTPUT:'The summary was incomplete. Your briefings are still available.',
     SUMMARY_OUTCOME_UNKNOWN:'The previous summary request could not be confirmed. Your briefings are still available.',
