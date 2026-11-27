@@ -45,23 +45,22 @@ describe("generateBriefing", () => {
     expect(JSON.stringify(calls.find(c => c.stage === 'consolidate')?.request.responseSchema)).toContain('"enum":[0,1]');
   });
 
-  it("verifies and publishes an over-target consolidated V5 edition", async () => {
+  it("does not verify a V5 edition that still exceeds the ceiling after bounded consolidation", async () => {
     const revised: BriefingModels = { ...candidate, generation: { ...candidate.generation!, prompt: 'v5-source-first-v3' } };
-    const long = fund({headline: 'Approval is still required. '.repeat(28)});
+    const long = fund({body: 'Approval is still required. '.repeat(28)});
     const another = fund({headline: 'Research funding', sources: ['S2']});
     const merged = {items: [{...long,from:[0]},{...another,from:[1]}],cut:[]};
     const {port, calls} = scripted({
       edit: [{items:[long]}, {items:[another]}],
-      consolidate: [merged],
-      verify: [{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'ok',issues:[]}]}],
+      consolidate: [merged, merged],
     });
     const result = await generateBriefing(
       {...base, articles: [article('a1', FUND),article('a2', GENESIS)]},
       port,revised,{maxEditorChars:10,editorSelectionPolicy:'preserve-selected-developments-v1'},
     );
-    expect(result.status).toBe('published');
-    expect(result.items).toHaveLength(2);
-    expect(calls.map(c => c.stage)).toEqual(['edit','edit','consolidate','verify']);
+    expect(result.status).toBe('rejected');
+    expect(result.dropped.every(d => d.carry && d.reason.includes('READER_WORD_BUDGET'))).toBe(true);
+    expect(calls.map(c => c.stage)).toEqual(['edit','edit','consolidate','consolidate']);
   });
 
   it("avoids a V5 consolidation call when the selected stories came from only one chunk", async () => {
@@ -80,16 +79,18 @@ describe("generateBriefing", () => {
     expect(calls.map(c=>c.stage)).toEqual(['edit','edit','verify']);
   });
 
-  it("sends an over-target draft directly to verification", async () => {
-    const long = fund({ headline: "Material approval condition. ".repeat(40) });
-    const { port, calls } = scripted({ edit: [{ items: [long] }], verify: [{results:[{i:0,verdict:"ok",issues:[]}]}] });
+  it("withholds a V5 draft after bounded budget correction and retains the source", async () => {
+    const long = fund({ body: "Material approval condition. ".repeat(40) });
+    const { port, calls } = scripted({ edit: [{ items: [long] }, { items: [long] }] });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
-    expect(result.status).toBe("published");
-    expect(result.items[0].sourceIds).toEqual(["a1"]);
-    expect(calls.map(c => c.stage)).toEqual(["edit", "verify"]);
+    expect(result.status).toBe("rejected");
+    expect(result.items).toEqual([]);
+    expect(result.dropped[0]).toMatchObject({ carry: true, sourceIds: ["a1"] });
+    expect(result.dropped[0].reason).toContain("READER_WORD_BUDGET");
+    expect(calls.map(c => c.request.model)).toEqual(["candidate", "candidate"]);
   });
 
-  it("re-verifies a V5 repair and publishes the verified final copy above the target", async () => {
+  it("re-verifies a V5 repair and withholds the exact final copy when it exceeds the ceiling", async () => {
     const long = "Subject to stockholder approval. ".repeat(30).trim();
     const { port, calls } = scripted({
       edit: [{ items: [fund()] }],
@@ -97,11 +98,11 @@ describe("generateBriefing", () => {
         { results: [{ i: 0, verdict: "fix", issues: ["Preserve the condition."] }] },
         { results: [{ i: 0, verdict: "ok", issues: [] }] },
       ],
-      repair: [{ items: [{ i: 0, headline: long, body: fund().body, drop: false }] }],
+      repair: [{ items: [{ i: 0, headline: fund().headline, body: long, drop: false }] }],
     });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
-    expect(result.status).toBe("published");
-    expect(result.items[0].headline).toBe(long);
+    expect(result.status).toBe("rejected");
+    expect(result.dropped[0].reason).toContain("V5_READER_WORD_BUDGET");
     expect(calls.map(c => c.request.model)).toEqual(["candidate", MODELS.verifier, MODELS.editor, MODELS.verifier]);
     expect(calls[3].request.user).toContain(long);
   });

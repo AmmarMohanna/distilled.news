@@ -9,7 +9,7 @@ import {FEED,FUND,GENESIS,MODELS,WINDOW,article,scripted} from './helpers';
 
 const models:BriefingModels={...MODELS,generation:{
   model:'candidate',provider:'test',price:{prompt:1,completion:1},contextTokens:200_000,
-  maxOutputTokens:6500,prompt:'v5-source-first-v5',
+  maxOutputTokens:6500,prompt:'v5-source-first-v6',
 }};
 const past:PriorItem={id:'edition/stories/a-durable-history-id',at:WINDOW.windowStart,
   headline:'Past school incident',body:'The ministry reported an incident at the school.'};
@@ -125,6 +125,20 @@ describe('V5 reliability revision',()=>{
     expect(events).toContainEqual(expect.objectContaining({stage:'novelty_excluded',
       candidates:[expect.objectContaining({body:draft.body,sourceIds:['current']})],
       reasons:[expect.objectContaining({reason:expect.stringContaining(past.id)})]}));
+  });
+
+  it.each([false,true])('compares source occurrences even when the headline repeats (same occurrence: %s)',async same=>{
+    const halt={...draft,headline:'Trading halted',body:''};
+    const decision=same?{relation:'repeat',redundant:true,priorIds:['H1'],sameOccurrence:'Both reports cover Monday',delta:'none'}
+      :{relation:'new',redundant:false,priorIds:[],sameOccurrence:'',delta:'Another halt on Tuesday'};
+    const {port,calls}=scripted({edit:[{items:[halt]}],repair:[{results:[{i:0,...decision}]}],verify:[ok]});
+    const source=same?'The exchange confirmed the trading halt on Monday.':'The exchange halted trading again on Tuesday.';
+    const result=await generateBriefing({...start,prior:[{...past,headline:halt.headline,body:''}],articles:[article('current',source+' '+FUND)]},port,models,{
+      noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1',editorSelectionPolicy:'preserve-selected-developments-v1',
+      now:()=>new Date(WINDOW.windowEnd),
+    });
+    expect(calls.find(c=>c.stage==='repair')?.request.user).toContain(source);
+    expect(result.status).toBe(same?'empty':'published');
   });
 
   it('publishes the entire verified body when the headlines fit',async()=>{
