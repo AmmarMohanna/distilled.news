@@ -6,7 +6,7 @@ import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError} from './catch-up-summary';
+import {summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError,type CatchUpModelRequest} from './catch-up-summary';
 
 const MAX_SUMMARY_ATTEMPTS=3;
 const REFUSAL_KIND='reader_catch_up_provider_refusal';
@@ -27,8 +27,9 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
   const operation=discovery?'website-link-discovery':'reader-catch-up-v1';
   const receiptKind=discovery?'website_link_discovery_provider':'reader_catch_up_provider_v1';
   return {async complete(request){
-    const {signal:_,...body}=request;
-    const requestId=(discovery?operation+'-provider:':READER_CATCH_UP_RESERVATION_PREFIX)+await sha256(JSON.stringify([feedId,scopeId,body]));
+    const {signal,canonicalEvidence,...body}=request as Partial<Pick<CatchUpModelRequest,'canonicalEvidence'>>&typeof request;
+    const identity=discovery?[feedId,scopeId,body]:[feedId,scopeId,body,canonicalEvidence];
+    const requestId=(discovery?operation+'-provider:':READER_CATCH_UP_RESERVATION_PREFIX)+await sha256(JSON.stringify(identity));
     const maxAttempts=discovery?1:MAX_SUMMARY_ATTEMPTS;
     let attempt=0,id=requestId;
     for(;attempt<maxAttempts;attempt++){
@@ -93,7 +94,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       }
     });
     let response:ModelResponse;
-    try{response=await raw.complete(request);}
+    try{response=await raw.complete({...body,signal});}
     catch(error){
       if(error instanceof BriefingModelError&&!error.uncertain){
         if(discovery){await settleModelSpending(db,id,token,{costUsd:0,reported:true});}
