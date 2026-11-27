@@ -103,9 +103,21 @@ export class V1FeedStore {
  /** Authorization needs exact active identities, not retained article bodies.
   * Keep the same scope/state/revision joins as currentEvidence; Feed/scope CAS
   * still fences a source change between this read and canonical consumption. */
- async activeEvidenceRevisionIds(feedId:string):Promise<Set<string>> {
-  const rows=await this.db.prepare(`SELECT r.id FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL`).bind(feedId).all<{id:string}>();
-  return new Set(rows.results.map(row=>row.id));
+ async activeEvidenceRevisionIds(feedId:string, revisionIds:readonly string[]):Promise<Set<string>> {
+  const ids=[...new Set(revisionIds)], active=new Set<string>();
+  for(let offset=0;offset<ids.length;offset+=90){
+   const chunk=ids.slice(offset,offset+90);
+   // Drive lookups from requested IDs. The partial index covers current active
+   // evidence and its scope, including records written before this release.
+   const rows=await this.db.prepare(`SELECT r.id FROM v1_evidence e
+    CROSS JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId')
+    CROSS JOIN v1_intake_scopes s ON s.id=e.feed_source_id
+    WHERE json_extract(e.json,'$.currentRevisionId') IN (${chunk.map(()=>'?').join(',')}) AND json_extract(e.json,'$.state')='ACTIVE'
+    AND s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL`)
+    .bind(...chunk,feedId).all<{id:string}>();
+   for(const row of rows.results)active.add(row.id);
+  }
+  return active;
  }
  async revision(feedId:string,id:string):Promise<EvidenceRevision|undefined> {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;

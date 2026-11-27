@@ -94,10 +94,11 @@ export async function collectionReadyForWindow(env:Env,feedId:string,end:string,
  return pending===0;
 }
 
-const activeFeedSources=`SELECT (SELECT json_group_array(id) FROM
+const jobFeedSql='(SELECT s.feed_id FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE j.id=?)';
+const activeFeedSources=(feedIdSql:'?'|typeof jobFeedSql)=>`SELECT (SELECT json_group_array(id) FROM
    (SELECT id FROM sources WHERE briefing_id=b.id AND collection_owner='connector' AND enabled=1 ORDER BY id)) AS source_ids
    FROM briefings b JOIN accounts a ON a.id=b.owner_account_id LEFT JOIN v1_feeds f ON f.id=b.id
-   WHERE b.id=? AND b.paused=0 AND a.disabled_at IS NULL
+   WHERE b.id=${feedIdSql} AND b.paused=0 AND a.disabled_at IS NULL
    AND (f.id IS NULL OR json_extract(f.json,'$.ownerId')=b.owner_account_id)`;
 function feedEnvFromSources(env:Env,sourceIds:string|null|undefined):Env|undefined{
  if(!sourceIds)return;
@@ -105,16 +106,18 @@ function feedEnvFromSources(env:Env,sourceIds:string|null|undefined):Env|undefin
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(','),PROCESSING_QUEUE:coalescedProcessingQueue(env)};
 }
 async function feedEnv(env:Env,feedId:string):Promise<Env|undefined>{
- const row=await env.DB.prepare(activeFeedSources).bind(feedId).first<{source_ids:string}>();
+ const row=await env.DB.prepare(activeFeedSources('?')).bind(feedId).first<{source_ids:string}>();
  return feedEnvFromSources(env,row?.source_ids);
 }
 
 export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage):Promise<Env>{
  if(!body||typeof body!=='object')return env;
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||!body.type?.startsWith('v1_'))return env;
- let feedId='feedId' in body?String(body.feedId):undefined;
- if('jobId' in body){const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();feedId=row?.feed_id;}
- const scoped=feedId?await feedEnv(env,feedId):undefined;
+ let scoped:Env|undefined;
+ if('jobId' in body){
+  const row=await env.DB.prepare(activeFeedSources(jobFeedSql)).bind(body.jobId).first<{source_ids:string}>();
+  scoped=feedEnvFromSources(env,row?.source_ids);
+ }else if('feedId' in body)scoped=await feedEnv(env,String(body.feedId));
  if(!scoped)throw new HandoffError('SCOPE_DENIED');
  return scoped;
 }
@@ -227,11 +230,17 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
  }else{
   if(!Object.hasOwn(tables,body.table))throw Error('INVALID_CONNECTOR_MESSAGE');
   const table=tables[body.table];
+  // Normally a poll needs only its frozen source. For retired or legacy jobs,
+  // preserve the existing feed-level recovery and cancellation path.
   const job=await env.DB.prepare(`SELECT scheduled_at,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family,
-   (${activeFeedSources}) AS source_ids,
+   COALESCE((SELECT json_array(s.id) FROM sources s JOIN briefings b ON b.id=s.briefing_id
+    JOIN accounts a ON a.id=b.owner_account_id LEFT JOIN v1_feeds f ON f.id=b.id
+    WHERE s.id=json_extract(job.request,'$.scope.feedSourceId') AND b.id=?
+    AND s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL
+    AND (f.id IS NULL OR json_extract(f.json,'$.ownerId')=b.owner_account_id)), (${activeFeedSources('?')})) AS source_ids,
    EXISTS(SELECT 1 FROM connector_queue_recovery WHERE id=? AND kind='UNPAID_POLL_RECOVERY' AND feed_id=?) AS unpaid_only
-   FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`)
-   .bind(body.feedId,unpaidPollRecoveryId(body.table,body.jobId),body.feedId,body.jobId,body.token,body.feedId)
+   FROM ${table} job WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`)
+   .bind(body.feedId,body.feedId,unpaidPollRecoveryId(body.table,body.jobId),body.feedId,body.jobId,body.token,body.feedId)
    .first<{family:string;scheduled_at:string;source_ids:string|null;unpaid_only:number}>();
   if(!job)return;
   let scoped=feedEnvFromSources(env,job.source_ids);

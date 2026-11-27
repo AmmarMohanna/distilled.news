@@ -611,9 +611,10 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/auth/session", async (c) => {
     const repo = repoFor(c);
-    const setupRequired = (await repo.countAdmins()) === 0;
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const account = claims ? await repo.getAccountById(claims.sub) : null;
+    const { setupRequired, account } = repo instanceof D1Repository
+      ? await repo.readSession(claims?.sub)
+      : { setupRequired: (await repo.countAdmins()) === 0, account: claims ? await repo.getAccountById(claims.sub) : null };
     const authenticated = Boolean(account && !account.disabledAt);
     return c.json({
       authenticated,
@@ -1594,15 +1595,20 @@ export function createApp(options: AppOptions = {}) {
     if (channel && !owner) return c.json({ feeds: [], nextOffset: null });
     const followed = c.req.query("followed") === "1";
     if (followed && (!viewer || viewer.disabledAt)) return c.json({ feeds: [], nextOffset: null });
-    const excludedOwner=!owner&&viewer&&!viewer.disabledAt?viewer.id:undefined;
-    const before=await repo.getExploreRevision();
+    const viewerId=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const excludedOwner=owner?undefined:viewerId;
+    const voterId=await getVoterId(c)??undefined;
+    const snapshot=offset===0&&repo instanceof D1Repository
+      ?await repo.firstExplorePage(101,excludedOwner,voterId,owner?.id,viewerId,followed)
+      :undefined;
+    const before=snapshot?.before??await repo.getExploreRevision();
     const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null,followed]));
     const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
     if(offset>0&&expected!==undefined&&expected!==revision)return changed();
-    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id, viewer && !viewer.disabledAt ? viewer.id : undefined, followed);
+    const feeds=snapshot?.feeds??await repo.listExploreBriefings(101,offset,excludedOwner,voterId,owner?.id,viewerId,followed);
     // The revision bookends the query, so a page cannot be labelled with a
     // revision from before or after a concurrent membership/ranking change.
-    if(await repo.getExploreRevision()!==before)return changed();
+    if(!snapshot&&await repo.getExploreRevision()!==before)return changed();
     return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, viewerFollowsChannel: feed.viewerFollowsChannel, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
   });
 
@@ -1665,12 +1671,12 @@ export function createApp(options: AppOptions = {}) {
     }
     const voterId = await getVoterId(c);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const viewerHasStarred = await repo.hasBriefingStar(briefing.id, voterId, claims?.sub);
+    const readStarStatus = () => repo.hasBriefingStar(briefing.id, voterId, claims?.sub);
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
       // Cached data only: access, the viewer's star and feed settings are read per request.
       const version = await feedReadVersion(c.env.DB, briefing.id);
       const env = c.env;
-      const [published, status] = await Promise.all([
+      const [published, status, viewerHasStarred] = await Promise.all([
         cachedProductEditions(env, briefing.id, version),
         cachedFeedStatus(env, briefing.id, version, async () => {
           const value = {
@@ -1678,7 +1684,8 @@ export function createApp(options: AppOptions = {}) {
             publicationProgress: await productPublicationProgress(env, briefing.id)
           };
           return { value, hash: fnv1a(JSON.stringify(value)) };
-        })
+        }),
+        readStarStatus()
       ]);
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const publicFeed = publicBriefing(briefing);
@@ -1704,12 +1711,19 @@ export function createApp(options: AppOptions = {}) {
     // Match legacy search's bounded window so withdrawals outside the recent
     // page change the marker too. The reader still receives only 50 editions.
     const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true,new Date(),100);
-    const editions = legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
+    const productEnabled = c.env.PRODUCT_FEEDS_ENABLED === 'true';
+    const [editions, diagnostics, publicationState, publicationProgress, viewerHasStarred] = await Promise.all([
+      legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : publishedProductEditions(c.env,briefing),
+      productEnabled ? viewerSeesSourceHealth(c, briefing.ownerAccountId).then(allowed => allowed ? readSourceDiagnostics(c.env, briefing.id) : {}) : {},
+      productEnabled ? productPublicationState(c.env, briefing.id) : undefined,
+      productEnabled ? productPublicationProgress(c.env, briefing.id) : undefined,
+      readStarStatus()
+    ]);
     const payload={
       briefing: publicBriefing(briefing),
-      ...(c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await readSourceDiagnostics(c.env,briefing.id) : {}),
-      publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
-      publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
+      ...diagnostics,
+      publicationState,
+      publicationProgress,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       editionsComplete:legacyEditions?legacyEditions.length<=50:true,
       ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
