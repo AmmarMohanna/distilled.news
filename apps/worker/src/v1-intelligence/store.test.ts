@@ -16,12 +16,12 @@ it('publication history identity projection equals revision loading without body
 });
 it('active revision identity checks preserve Feed/source/deletion visibility without returning bodies',async()=>{
  const intake=new V1IntakeStore(ctx.db),{evidence,revision}=await seedCurrentEvidence(intake,'A retained article body.');
- expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set((await store.currentEvidence(feed.id)).map(e=>e.revision.id)));
- expect(await store.activeEvidenceRevisionIds('foreign-feed')).toEqual(new Set());
- await intake.registerScope({...scopeFixture,enabled:false});expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
- await intake.registerScope(scopeFixture);expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set([revision.id]));
+ expect(await store.activeEvidenceRevisionIds(feed.id,[revision.id,'missing',revision.id])).toEqual(new Set((await store.currentEvidence(feed.id)).map(e=>e.revision.id)));
+ expect(await store.activeEvidenceRevisionIds('foreign-feed',[revision.id,'missing',revision.id])).toEqual(new Set());
+ await intake.registerScope({...scopeFixture,enabled:false});expect(await store.activeEvidenceRevisionIds(feed.id,[revision.id,'missing',revision.id])).toEqual(new Set());
+ await intake.registerScope(scopeFixture);expect(await store.activeEvidenceRevisionIds(feed.id,[revision.id,'missing',revision.id])).toEqual(new Set([revision.id]));
  await ctx.db.prepare('UPDATE v1_evidence SET json=? WHERE id=?').bind(JSON.stringify({...evidence,state:'DELETED',currentRevisionId:undefined}),evidence.id).run();
- expect(await store.activeEvidenceRevisionIds(feed.id)).toEqual(new Set());
+ expect(await store.activeEvidenceRevisionIds(feed.id,[revision.id,'missing',revision.id])).toEqual(new Set());
 });
 it('captures epochs in one read and preloads different document kinds in one bounded batch',async()=>{
  const prepare=vi.fn((sql:string)=>ctx.db.prepare(sql)),batch=vi.fn((statements:D1PreparedStatement[])=>ctx.db.batch(statements));

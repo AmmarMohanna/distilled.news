@@ -6,5 +6,5 @@ export class SourceHandoffWait extends Error {
 }
 
 export function isSourceDatabaseUnavailable(error:unknown):boolean {
- return error instanceof Error&&/D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
+ return error instanceof Error&&/D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable|database or disk is full|SQLITE_FULL)/i.test(error.message);
 }

@@ -14,11 +14,11 @@ import type {FeedRecord,EventRecord,StorylineRecord,StorylineVersion,DuplicateDe
 import type {SelectionRecord} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import {claimMentionSchema,assertClaimSpan,type SourceDocument} from './claims';
-export type DocumentKind='v3_window_inputs'|'v3_window_results'|'review_admissions'|'publication_response_recoveries'|'editorial_response_recoveries'|'development_relationships'|'manual_briefing_requests'|'browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'publication_work'|'drafts'|'grounding_results'|'verification_results'|'verification_manifests'|'publication_validation_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'source_region_eligibility'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_processing_work'|'editorial_processing_progress'|'editorial_proposals'|'editorial_processing_waits'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases'|'semantic_construction_work'|'semantic_construction_progress'|'model_spending_reconciliations';
+export type DocumentKind='v5_review_cases'|'v5_review_checkpoints'|'v5_review_revisions'|'v5_review_decisions'|'v5_review_states'|'v3_window_inputs'|'v3_window_results'|'review_admissions'|'publication_response_recoveries'|'editorial_response_recoveries'|'development_relationships'|'manual_briefing_requests'|'browser_push_receipts'|'roles'|'duplicates'|'events'|'event_versions'|'memberships'|'storylines'|'storyline_versions'|'intelligence_receipts'|'salience'|'relevance'|'window_scores'|'candidates'|'selections'|'editions'|'publication_status'|'delivery_jobs'|'synthesis_jobs'|'briefing_requests'|'publication_work'|'drafts'|'grounding_results'|'verification_results'|'verification_manifests'|'publication_validation_results'|'model_intents'|'model_executions'|'salience_intents'|'salience_results'|'salience_provenance'|'source_documents'|'source_region_eligibility'|'claim_mentions'|'ledger_entries'|'ledger_projections'|'ledger_states'|'correction_obligations'|'correction_resolutions'|'semantic_intents'|'semantic_results'|'rematch_requests'|'rematch_attempts'|'entities'|'propositions'|'state_slots'|'event_semantic_states'|'storyline_memories'|'source_origins'|'shortlists'|'editorial_processing_work'|'editorial_processing_progress'|'editorial_proposals'|'editorial_processing_waits'|'editorial_plans'|'editorial_deferred_work'|'editorial_work_resolutions'|'ledger_fact_bindings'|'fidelity_results'|'verification_feedback'|'publication_reconciliations'|'schedule_observations'|'semantic_resource_waits'|'semantic_settlements'|'semantic_work_leases'|'semantic_work_releases'|'semantic_construction_work'|'semantic_construction_progress'|'model_spending_reconciliations';
 interface DocumentWrite {kind:DocumentKind;id:string;value:unknown}
 interface Snapshot {feed:FeedRecord;epoch:number;scopes:{id:string;epoch:number}[]}
 type TransientSemanticKind='semantic_results'|'semantic_settlements';
-const mutable=new Set<DocumentKind>(['manual_briefing_requests','events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
+const mutable=new Set<DocumentKind>(['v5_review_states','manual_briefing_requests','events','storylines','publication_status','delivery_jobs','synthesis_jobs','briefing_requests']);
 const feedSchema=z.object({id:z.string().min(1),ownerId:z.string().min(1),title:z.string(),interests:z.array(z.string()),geography:z.array(z.string()),outputLanguage:z.string().min(1),briefingFrequency:z.enum(['30M','HOURLY','DAILY','WEEKLY']),briefingSchedule:liveScheduleSchema.optional(),paused:z.boolean(),revision:z.number().int().positive(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),deletedAt:z.string().datetime().optional()}).strict();
 export class V1FeedStore {
  /** Optional local coordination for parallel inference bookkeeping only. */
@@ -103,9 +103,21 @@ export class V1FeedStore {
  /** Authorization needs exact active identities, not retained article bodies.
   * Keep the same scope/state/revision joins as currentEvidence; Feed/scope CAS
   * still fences a source change between this read and canonical consumption. */
- async activeEvidenceRevisionIds(feedId:string):Promise<Set<string>> {
-  const rows=await this.db.prepare(`SELECT r.id FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL`).bind(feedId).all<{id:string}>();
-  return new Set(rows.results.map(row=>row.id));
+ async activeEvidenceRevisionIds(feedId:string, revisionIds:readonly string[]):Promise<Set<string>> {
+  const ids=[...new Set(revisionIds)], active=new Set<string>();
+  for(let offset=0;offset<ids.length;offset+=90){
+   const chunk=ids.slice(offset,offset+90);
+   // Drive lookups from requested IDs. The partial index covers current active
+   // evidence and its scope, including records written before this release.
+   const rows=await this.db.prepare(`SELECT r.id FROM v1_evidence e
+    CROSS JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId')
+    CROSS JOIN v1_intake_scopes s ON s.id=e.feed_source_id
+    WHERE json_extract(e.json,'$.currentRevisionId') IN (${chunk.map(()=>'?').join(',')}) AND json_extract(e.json,'$.state')='ACTIVE'
+    AND s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL`)
+    .bind(...chunk,feedId).all<{id:string}>();
+   for(const row of rows.results)active.add(row.id);
+  }
+  return active;
  }
  async revision(feedId:string,id:string):Promise<EvidenceRevision|undefined> {
   const row=await this.db.prepare('SELECT r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE r.id=? AND s.feed_id=?').bind(id,feedId).first<{json:string}>();return row?JSON.parse(row.json):undefined;

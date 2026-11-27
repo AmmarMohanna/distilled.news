@@ -7,9 +7,7 @@ it('hides a blocked article even when its publisher homepage is readable',async(
  const fetcher=vi.fn<typeof fetch>(async input=>String(input)===article?new Response('Payment required',{status:403}):new Response('<html><p>'+('Public publisher homepage. '.repeat(10))+'</p></html>',{headers:{'content-type':'text/html'}}));
  const rows=[{source:'https://publisher.example/',publisher:'publisher.example',title:'Relevant premium report',articleUrl:article}];
  expect(await freelyReadableResults(rows,fetcher)).toMatchObject({results:[],accessIncomplete:true,verificationIncomplete:false});
- expect(fetcher).toHaveBeenCalledTimes(2);
- expect(String(fetcher.mock.calls[0][0])).toBe('https://publisher.example/');
- expect((await fetcher(article)).status).toBe(403);
+ expect(fetcher.mock.calls.map(([url])=>String(url)).sort()).toEqual(['https://publisher.example/',article]);
 });
 
 it('keeps readable articles from the same publisher and caches article failures separately',async()=>{

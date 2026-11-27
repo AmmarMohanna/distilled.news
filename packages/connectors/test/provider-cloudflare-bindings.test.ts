@@ -4,7 +4,7 @@ import { mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { receiptFixture } from '@distilled/contracts';
-import { SOURCE_STORAGE_SCHEMA,sourceSqlFromD1,R2SourcePayloadStore } from '../src/source-runtime/storage';
+import { ConnectorBatchArchive,SOURCE_STORAGE_SCHEMA,sourceSqlFromD1,R2SourcePayloadStore } from '../src/source-runtime/storage';
 import { PROVIDER_SOURCE_SCHEMA,D1ProviderSourceRepository } from '../src/source-runtime/provider-storage';
 import { PROVIDER_BUDGET_SCHEMA,DurableProviderHttp } from '../src/source-runtime/provider-http';
 import { FallbackSourceCollector } from '../src/source-runtime/provider-collector';
@@ -39,15 +39,20 @@ describe('multi-source runtime on local Cloudflare bindings',()=>{
       expect(dispatch).toHaveBeenCalledTimes(1);expect(results.some(r=>r.status==='fulfilled')).toBe(true);
       const budget=await db.prepare('SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id=?').bind('alternative').first<{reserved_usd:number}>();
       expect(budget?.reserved_usd).toBeCloseTo(0.2);
-      const fetch=vi.fn(async()=>({items:[{sourceItemKey:'x:1',upstreamId:'1',body:'Text',representation:'SOCIAL_POST' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true}],
+      const fetch=vi.fn(async()=>({items:Array.from({length:4},(_,i)=>({sourceItemKey:`x:${i}`,upstreamId:String(i),body:`Text ${i}`,representation:'SOCIAL_POST' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true})),
         raw:new TextEncoder().encode('raw'),requests:1,latencyMs:1,providerCostUsd:null}));
       const provider:SourceProvider={id:'primary',families:['x_profile'],fetch};
-      const first=new FallbackSourceCollector(new D1ProviderSourceRepository(sql),payloads,{acceptBatch:async()=>{throw new Error('receipt lost');}},[provider]);
+      const first=new FallbackSourceCollector(new D1ProviderSourceRepository(sql,new ConnectorBatchArchive(payloads)),payloads,{acceptBatch:async()=>{throw new Error('receipt lost');}},[provider]);
       await expect(first.collect(input,['primary'])).rejects.toThrow('receipt lost');
+      const compact=await db.prepare("SELECT json_extract(data,'$.archiveRef') AS ref,json_extract(data,'$.observationCount') AS count,length(data) AS bytes FROM connector_provider_batches").first<{ref:string;count:number;bytes:number}>();
+      expect(compact?.ref).toMatch(/^source-payloads\//);expect(compact?.count).toBe(2);expect(compact?.bytes).toBeLessThan(1200);
       await runtime.dispose();runtime=new Miniflare(options);
       db=await runtime.getD1Database('DB');sql=sourceSqlFromD1(db);payloads=new R2SourcePayloadStore(await runtime.getR2Bucket('PAYLOADS'));
-      const second=new FallbackSourceCollector(new D1ProviderSourceRepository(sql),payloads,{acceptBatch:async b=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true,receipts:b.observations.map(receiptFixture)})},[provider]);
+      const second=new FallbackSourceCollector(new D1ProviderSourceRepository(sql,new ConnectorBatchArchive(payloads)),payloads,{acceptBatch:async b=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true,receipts:b.observations.map(receiptFixture)})},[provider]);
       const result=await second.collect(input,['primary']);expect(result.state).toBe('HANDED_OFF');expect(fetch).toHaveBeenCalledTimes(1);
+      await (await runtime.getR2Bucket('PAYLOADS')).delete(compact!.ref);
+      await expect(second.collect(input,['primary'])).rejects.toThrow('PAYLOAD_MISSING');
+      expect(fetch).toHaveBeenCalledTimes(1);
     }finally{await runtime.dispose();rmSync(directory,{recursive:true,force:true});}
   },30000);
 });

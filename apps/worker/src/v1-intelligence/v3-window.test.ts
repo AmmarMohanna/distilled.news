@@ -23,7 +23,7 @@ import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} fr
 import {isolateExpiredModelExecutions} from './model-capacity-recovery';
 import {recoverBlockedV3Request} from './v3-blocked-recovery';
 import {settleModelSpending} from './model-spending';
-import {recoverPendingProviderGenerations} from './provider-recovery';
+import {recoverProviderGeneration,recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -54,26 +54,106 @@ it.each(['arabic-person-role-v1','source-bound-claims-v1','source-bound-claims-v
  const {identityFidelityPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
-it.each([false,true])('opts new windows into general evidence bindings and durably reuses all four paid stages on redelivery (compact=%s)',async compact=>{
+it.each([
+ {compact:false, profile:undefined, routing:undefined},
+ {compact:true, profile:undefined, routing:undefined, cancelVerifier:true},
+ {compact:true, profile:undefined, routing:undefined, cancelVerifier:'twice'},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, cancelVerifier:true},
+ {compact:true, profile:undefined, routing:undefined},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, reject:true},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true, olderFeed:true},
+ {compact:true, profile:'deepseek-flash-wafer', routing:JSON.stringify({
+  default:{sourceInventory:'deepseek-flash-wafer'},
+  en:{sourceInventory:'gemini-ai-studio-flex'},
+ })},
+])('binds new windows to their verification and generation configuration ($compact, $profile, $routing, automatic=$automatic, reject=$reject, older=$olderFeed, cancellation=$cancelVerifier)',async ({compact,profile,routing,automatic,reject,olderFeed,cancelVerifier})=>{
  await article();const calls:any[]=[];
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
+  if(cancelVerifier&&system.startsWith('You are a meticulous source-grounded')&&(calls.length===4||cancelVerifier==='twice'&&calls.length===5)){
+   return new Response(null,{headers:{'x-generation-id':'gen-cancelled-verifier-'+calls.length}});
+  }
   if(system.startsWith('Independently extract explicitly supported HUMAN')){const packet=JSON.parse(request.messages[1].content);expect(packet).not.toHaveProperty('items');expect(packet).not.toHaveProperty('prior');value={sources:Object.fromEntries(packet.units.map((u:any)=>[u.id,[]]))}}
   else if(system.startsWith('Independently ')){const packet=JSON.parse(request.messages[1].content);expect(packet).not.toHaveProperty('sources');value={units:packet.units.map((u:any)=>({id:u.id,facets:[{id:u.id+'-F1',quote:u.text,claim:u.text,kind:'action'}]})),assertions:Object.fromEntries(packet.units.map((u:any)=>[u.id,[{tokens:{start:'T0',end:'T'+([...u.indexedText.matchAll(/\[T[0-9]+\]/g)].length-1)},kind:'action'}]]))}}
-  else if(system.startsWith('You are a meticulous source-grounded')){const packet=JSON.parse(request.messages[1].content);value={results:packet.items.map((item:any,i:number)=>({i,inventory:'complete',verdict:'ok',issues:[],facets:packet.inventory.filter((f:any)=>f.item===i).map((f:any)=>({id:f.id,support:'supported',evidence:[{source:item.refs[0],quote:packet.evidencePassages.find((p:any)=>p.source===item.refs[0]).quote}],explanation:'Source supports the supplied assertion.'}))}))}}
+  else if(system.startsWith('You are a meticulous source-grounded')){const packet=JSON.parse(request.messages[1].content);value={results:packet.items.map((item:any,i:number)=>({i,inventory:'complete',verdict:reject?'drop':'ok',issues:reject?['Unsupported fixture']:[],citationChecks:Object.fromEntries(item.refs.map((ref:string)=>[ref,{support:'supported',quote:packet.evidencePassages.find((p:any)=>p.source===ref).quote,explanation:'Same development.'}])),facets:packet.inventory.filter((f:any)=>f.item===i).map((f:any)=>({id:f.id,support:'supported',evidence:[{source:item.refs[0],quote:packet.evidencePassages.find((p:any)=>p.source===item.refs[0]).quote}],explanation:'Source supports the supplied assertion.'}))}))}}
   else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
   return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
- const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact)},message={type:'v1_briefing' as const,feedId:'feed-1',window};
- const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(edition).toBeDefined();expect(calls).toHaveLength(4);
+ const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);
+ if(cancelVerifier){
+  expect(edition).toBeUndefined();
+  const requestId=await windowIdentity('feed-1',window);
+  const request=await store.read<any>('feed-1','briefing_requests',requestId);
+  expect(request.reason).toBe('SEMANTIC_OUTCOME_UNKNOWN');
+  const [failure]=(await store.list<any>('feed-1','semantic_results')).filter(r=>r.status==='DEFERRED');
+  expect(await recoverBlockedV3Request(store,'feed-1',request,window.end)).toBe(false);
+  const metadata=async()=>Response.json({data:{id:'gen-cancelled-verifier-'+calls.length,model:failure.input.model,total_cost:.002,cancelled:true}});
+  expect(await recoverProviderGeneration(ctx.db,'semantic_intents:'+failure.id,'test-key',metadata)).toEqual({state:'SETTLED',costUsd:.002});
+  expect(await recoverBlockedV3Request(store,'feed-1',request,window.end)).toBe(true);
+  edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);
+  expect(calls[4]).toEqual(calls[3]);
+  expect(await store.read('feed-1','semantic_results',failure.id)).toEqual(failure);
+  if(cancelVerifier==='twice'){
+   const [replacement]=(await store.list<any>('feed-1','semantic_results')).filter(r=>r.input.state.cancelledVerifierId===failure.id);
+   expect(replacement.status).toBe('DEFERRED');
+   await recoverProviderGeneration(ctx.db,'semantic_intents:'+replacement.id,'test-key',metadata);
+   const pending=await store.read<any>('feed-1','briefing_requests',requestId);
+   expect(await recoverBlockedV3Request(store,'feed-1',pending,window.end)).toBe(true);
+   expect(await store.read('feed-1','briefing_requests',requestId)).toMatchObject({state:'FAILED',reason:'V3_SETTLED_CALL_FAILED'});
+   await expect(processV1Briefing(candidate,message,()=>window.end,undefined,provider)).rejects.toMatchObject({code:'INVALID_REQUEST'});
+   expect(calls).toHaveLength(5);
+   return;
+  }
+  expect(edition?.generation.cost).toBeCloseTo(.006);
+ }
+ const expectedCalls=cancelVerifier?5:4;
+ expect(calls).toHaveLength(expectedCalls);
  const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
  expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v3');
  expect(frozen.input.feed.verificationInputPolicy).toBe(compact?'reader-unit-context-v1':undefined);
  const proof=JSON.parse(calls.find(r=>r.messages[0].content.startsWith('You are a meticulous source-grounded')).messages[1].content);
  expect(proof.inventory.every((f:any)=>compact?f.claimUnit===f.unit&&!('claim' in f):typeof f.claim==='string'&&!('claimUnit' in f))).toBe(true);
- expect(await store.list('feed-1','semantic_results')).toHaveLength(4);
- await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact)},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
-},30000);
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(expectedCalls);
+ if(automatic&&!olderFeed){
+  expect(frozen.v5PublicationPolicy).toBe('verified-automatic-v1');
+  if(reject){
+   expect(edition).toBeUndefined();
+   expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({result:'DEFERRED'});
+   expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
+  }else{
+   expect(edition).toMatchObject({id,generation:{promptVersion:'v5-source-first-v5'}});
+   expect(edition?.editorialApprovalId).toBeUndefined();
+   expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
+  }
+  expect(await store.list('feed-1','v5_review_cases')).toHaveLength(0);
+ }else if(profile&&!olderFeed){
+  expect(edition).toBeUndefined();
+  expect(await store.read('feed-1','v3_window_results',frozen.id)).toMatchObject({result:{status:'published'}});
+  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({result:'DEFERRED',reason:'V5_SHADOW_REVIEW_REQUIRED'});
+  expect(await store.list('feed-1','editions')).toHaveLength(0);
+  expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
+  expect(calls[0].max_tokens).toBe(4000);
+  expect(frozen.models.generation.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+  expect(frozen.models.generation.prompt).toBe('v5-source-first-v5');
+  expect(calls[0].provider).toEqual({only:['wafer/us'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.036,completion:.5,request:0}});
+  expect(calls[0].reasoning).toEqual({enabled:false});
+  const sourceInventory=calls.find(call=>call.messages[0].content.startsWith('Independently extract explicitly supported HUMAN'));
+  if(routing){
+   expect(frozen.models.stageRoutes.sourceInventory.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+   expect(sourceInventory.model).toBe('google/gemini-3.8-flash');
+   expect(sourceInventory.provider).toEqual({only:['google-ai-studio/flex'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.375,completion:1.875,request:0}});
+   expect(sourceInventory.max_tokens).toBe(6000);
+  }
+  expect(calls.slice(1).filter(call=>!routing||call!==sourceInventory).every(call=>call.model==='openai/gpt-4.1'&&!call.provider)).toBe(true);
+ }else {
+  expect(edition).toBeDefined();
+  expect(frozen.models).not.toHaveProperty('generation');
+ }
+ await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact),BRIEFING_V5_GENERATION_PROFILE:undefined,BRIEFING_V5_STAGE_ROUTES_JSON:undefined},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(expectedCalls);
+},45000);
 it('keeps compact verification opt-in and freezes a distinct payload policy without changing evidence',async()=>{
  expect(productV3VerificationInputPolicy({})).toBeUndefined();
  expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true'})).toBeUndefined();

@@ -1,40 +1,70 @@
-# Production deployment
+# Distilled.news release runbook
 
-Production is deployed separately at https://distilled-news-production.distillednews-platform.workers.dev. This does not move the canonical domain or change staging routing.
+The application Worker serves [distilled.news](https://distilled.news). Releases use `apps/worker/wrangler.production.jsonc` and the dedicated [CI smoke Worker](https://distilled-news-ci-staging.distillednews-platform.workers.dev) with `apps/worker/wrangler.ci-staging.jsonc`. Integration staging continues to use `apps/worker/wrangler.staging.toml` and its own Worker and resources. The root deploy script selects the default Worker, which has legacy resource names and browser Containers. Use the explicit configurations for this release path.
 
-## Deployment configuration
+## Release flow
 
-The checked-in staging and production configurations explicitly enable `CUTOFF_EDITIONS_ENABLED`. Preserve that setting when reproducing their cutoff-based scheduling. The private source-execution helper has its own release and version. A Worker rollout alone does not update or verify the helper.
-
-Run from the repository root, after installing dependencies and building the web application:
-
-```powershell
-node apps/worker/node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --remote --config apps/worker/wrangler.production.jsonc
-node apps/worker/node_modules/wrangler/bin/wrangler.js d1 migrations apply EVAL_DB --remote --config evaluation/briefing-quality/worker/wrangler.production.jsonc
-node apps/worker/node_modules/wrangler/bin/wrangler.js deploy --config apps/agentops-collector/wrangler.production.jsonc
-node apps/worker/node_modules/wrangler/bin/wrangler.js deploy --config evaluation/briefing-quality/worker/wrangler.production.jsonc
-node apps/worker/node_modules/wrangler/bin/wrangler.js deploy --config apps/worker/wrangler.production.jsonc
-```
-
-Secrets are encrypted Worker secret bindings. They are intentionally the same credentials as staging, copied through an authenticated, encrypted, temporary runtime transfer. No secret values or transfer handlers belong in this repository. Future rotations must update each environment explicitly; there is no ongoing synchronization.
-
-Plain configuration matches the live staging settings at provisioning, except public API/web URLs and production telemetry identity. The main Worker uses the normal entry point, excluding staging mission endpoints. Model spending uses production's own tracking-only configuration row, without staging reservations, receipts, or monetary admission grants.
-
-## Independent resources
-
-| Purpose | Production resource |
+| Event | Result |
 | --- | --- |
-| Application Worker | `distilled-news-production` |
-| Application D1 | `distilled-news-production` / `070dcb92-88e1-463b-bb93-b95b81203810` |
-| Application R2 | `distilled-news-production-raw` |
-| Evaluator Worker | `distilled-news-production-quality` |
-| Evaluator D1 | `distilled-news-production-quality` / `60c4b47e-55cc-4e50-bc81-0a5ef7ecf39e` |
-| Evaluator R2 | `distilled-news-production-quality-private` |
-| Observer Worker | `distilled-news-production-agentops` (no public route) |
-| Queues | `distilled-news-production-{processing,collection,acquisition,v1,quality}` and a separate `-dlq` for each |
+| PR | Existing Project checks run typechecking, workspace tests, browser tests, local AgentOps fixtures and builds. Added checks verify target isolation, append-only migration files and both Wrangler bundles. Existing security workflows run independently. PR jobs have no release environment or Cloudflare deployment credentials. |
+| Merge to `main` | Project checks run for the exact push SHA. The release gate waits for successful CodeQL, Gitleaks, Semgrep, Trivy and browser image workflows for that same push. Container builds and startup scans run when their inputs change. Snyk remains an optional report. |
+| Staging | A serialized job verifies the checked-out SHA, target, dedicated database name and D1 ledger before deploying. Read-only smoke tests check the Worker SHA, frontend asset bytes, anonymous session and Explore APIs, and user/admin authentication boundaries. Any preflight, deploy or smoke failure blocks production. |
+| Production | After staging passes, GitHub holds the job for a production reviewer. The production job checks the current tip of `main` again, including immediately before Wrangler, and has a separate concurrency group with cancellation disabled. A delayed or rerun older SHA fails the freshness check. |
+| Production failure | Preflight stops before upload. A failed deploy or smoke test can leave a new version serving traffic. Check the actual active version, and follow the rollback procedure if needed. |
+| Rollback | An incident operator selects a specific known-good Cloudflare Worker version after checking schema and queue compatibility, then repeats post-deployment verification. |
 
-Application users, feeds, sessions, retained articles, editions, paid-operation records, and evaluator jobs are not copied. Initial setup therefore requires a new administrator account using the existing setup credential, followed by creating production feeds.
+The two deploy jobs fetch the same immutable frontend artifact by ID, check its TAR SHA-256 before extraction, and rebundle the same Worker source SHA with the frozen pnpm lockfile. Job summaries retain the SHA, URL, artifact ID and digest, Cloudflare version ID when available, and outcome. Artifacts expire after 14 days. A release SHA in the health response proves that a release build is serving at the probe location. The public probes cover D1 reads, application routing and assets. They leave delivery, paid inference, queue consumers, provider calls and authenticated writes for separately authorized checks.
 
-The user explicitly approved reusing the existing private source helper (`SOURCE_EXECUTION_SERVICE`, service `01a1099d-e88a-7c23-a1c5-eeb51471e780`). Its private VPS process and Google/Telegram state remain shared. Provider credentials and provider account quotas are also shared intentionally. These are exceptions to data-store isolation, not new independent provider accounts.
+## One-time GitHub settings
 
-Metrics use `environment="production"`; evaluator resource identity is `distilled-news-production-quality`. Existing staging series keep their original defaults. Production dashboards and notification rules must select production explicitly; provisioning does not repoint existing staging alerts.
+1. Protect `main` with a ruleset that requires a PR, at least one approval, approval of the latest reviewable push, dismissal of stale approvals and required checks on an up-to-date branch. Disallow direct pushes, force pushes and bypass. Require maintainer review of changes to workflows, release scripts, Wrangler config and migrations. Where supported, require CodeQL scanning results for the configured tools and set the organization’s alert threshold. CodeQL workflow success indicates analysis completion.
+2. Select these check contexts from the first PR or baseline run. Require `verify`, `Browser checks`, `agentops-fixture-smoke`, all six `agentops-fixture-campaigns` matrix jobs (load, spike, stress, soak, recovery, fault), all three `agentops-correctness-fixtures` matrix jobs (browser, v3, accounts), all three `CodeQL` jobs (javascript-typescript, python, actions), `Reject new committed secrets`, `semgrep`, `filesystem` (Trivy), and `browser-image`. Select the GitHub Actions source where available. Use the up-to-date rule for this workflow, which listens for PR and push events.
+3. Create GitHub environments `ci-staging` and `production`, each restricted to the branch `main` (no tags). On `production`, require release reviewer approval, enable prevention of self-review, and disallow administrative bypass. Keep production disabled if the repository plan cannot enforce that protection.
+4. Add the following values. Keep both enable switches unset or false until the corresponding rollout step. The checked-in release policy in Project checks also disables both jobs. A reviewed follow-up must enable it before either switch can take effect.
+
+| Location | Name | Scope |
+| --- | --- | --- |
+| Repository variable | `RELEASE_STAGING_ENABLED` | Set to `true` to enable the staging release path |
+| Repository variable | `RELEASE_PRODUCTION_ENABLED` | Set to `true` to allow the protected production job to start |
+| Each environment variable | `CLOUDFLARE_ACCOUNT_ID` | Account from the corresponding explicit Wrangler config |
+| `ci-staging` environment variable | `CI_STAGING_DATABASE_ID` | UUID of the dedicated `distilled-news-ci-staging` database |
+| Each environment variable | `RELEASE_INFRA_SHA` | Ancestor on `main` whose relevant binding, helper and companion configuration operators have verified for this target |
+| Each environment secret | `CLOUDFLARE_API_TOKEN` | Separate token per target, Workers Editor scoped to that Worker when available, D1 Read for the ledger, and for production only, the queue permissions needed to reconcile existing consumers. Use the narrowest queue scope available. |
+
+Restrict each token to the intended account and resource scopes where Cloudflare supports them. Production may need zone-scoped Workers Routes Write if Wrangler needs to reconcile the custom domain. Keep resource creation, D1 Write, R2 data access, container push and provider credentials out of routine CI tokens. If route, queue, VPC or email binding permissions fail, verify the exact Wrangler operation and grant only its documented scope. Both targets currently share a Cloudflare account, so account-wide token permissions may span both environments. GitHub environment gates and explicit target checks are important even with separate tokens. Runtime secrets stay in the corresponding Worker or companion service. Review `secrets.required`. CI staging uses a dedicated `ADMIN_SESSION_SECRET` and an empty application database with the expected schema. Its anonymous session probe expects `setupRequired: true`. [Workers access and binding permissions](https://developers.cloudflare.com/workers/authorization/workers/), [GitHub deployment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+
+## First rollout
+
+1. Merge the pipeline with both switches off. Verify the required PR checks and the `main` run. Check that the release jobs are skipped.
+2. Inspect both existing Workers, D1 databases, R2 buckets, queue producers, consumers and dead-letter queues. Reconcile dashboard-only plain variables into the reviewed config if still required. Wrangler uses the checked-in variables and release markers on deploy. Check production mail authorization and binding names. Confirm the source helper, evaluator and collector revisions against the intended baseline. Record the active production Worker version and its known-good source revision.
+3. Under separate authorization, provision the dedicated CI staging Worker and D1 database and apply the reviewed schema to that database. Keep it free of integration and production data. Set a dedicated `ADMIN_SESSION_SECRET`. The CI Worker has no cron, queue, R2, VPC, email or provider bindings. Its entry point permits the smoke reads and bundled JS/CSS. Keep the existing integration staging Worker and its resources out of the CI release path.
+4. Check the migration ledger for each target using the migration procedure below. Configure the environment variables and secrets. Set `RELEASE_STAGING_ENABLED=true` and merge a reviewed PR that enables the checked-in release policy. Confirm the staging job used the intended SHA and that every smoke check passed. Keep production disabled for this first staging-only attempt.
+5. Verify the production environment reviewer policy with a second authorized reviewer and confirm the watch window, known-good rollback version and incident operator. Set `RELEASE_PRODUCTION_ENABLED=true` and merge the next reviewed PR. The reviewer should inspect the exact SHA, security runs, staging result, config and D1 readiness before approving.
+6. Check the production job summary, the canonical site and Cloudflare deployment history. Compare Cloudflare Worker errors, latency, cron invocations, queue retries and dead-letter counts with the baseline. In Grafana select `environment="production"` for AgentOps. Watch for provider cost anomalies, delivery regressions and collector lag. [GitHub Actions runs](https://github.com/AmmarMohanna/distilled.news/actions), [Cloudflare dashboard](https://dash.cloudflare.com/), [Grafana Cloud](https://grafana.com/auth/sign-in)
+
+## Database and companion releases
+
+The application targets share the checked-in migration chain but use separate databases. Existing migrations are immutable in PR and push checks. The repository’s clean D1 test applies the chain on Miniflare. The deploy preflight compares the full expected filenames to the target’s `d1_migrations` ledger and rejects missing, unknown or duplicate rows. Ledger equality establishes migration bookkeeping. Review actual schema, query and data compatibility separately.
+
+For a migration release, split database expansion and application changes where practical. Review the SQL for locking, runtime, data and backward compatibility with both the currently serving version and the rollback candidate. Test the upgrade on representative synthetic or sanitized data. Record a Time Travel bookmark when supported and export to a protected backup destination. Verify recoverability with the local `scripts/verify-d1-backup.mjs` restoration drill and a separate D1 recovery rehearsal before a risky change. Store backup material and its encryption key separately. Run any approved schema changes in a separately authorized maintenance window using the named target database and its explicit config. Check the ledger again and rerun the latest eligible release. Use a separate maintenance plan for destructive changes and legacy ledger mismatches. Blindly reapplying migrations or marking rows as applied can corrupt data or conceal schema drift. [Cloudflare D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [D1 Time Travel and backups](https://developers.cloudflare.com/d1/reference/time-travel/)
+
+The automated release is scoped to the application Worker and its assets. The evaluator has its own Worker, D1 migration chain, R2 and queue and references the corresponding application D1 through `SOURCE_DB`. The AgentOps collector reads the target application D1 and emits metrics to Grafana on its own schedule. The existing private source-execution VPC service is shared across these application targets. Check its protocol, endpoint, credentials and quota isolation separately. Infrastructure and companion path changes block this release until an operator verifies the dependency rollout and updates `RELEASE_INFRA_SHA` for each affected target. Verify companion dependencies in compatible order, including evaluator schema, queue consumers and collector queries, before resuming the app pipeline. The legacy browser Container has its own image, startup, security and rollout concerns. Both application targets exclude Containers, and their CI deploys pass `--containers-rollout=none`.
+
+## Failure and rollback
+
+1. On a failed or cancelled production deploy, disable `RELEASE_PRODUCTION_ENABLED` and cancel any queued or approval-waiting production jobs. Wait for any active request to settle and inspect the Cloudflare active deployment. Cancelling a runner cannot retract a Cloudflare API request that was already sent. Coordinate manual changes through one operator.
+2. Fix preflight failures at the source. For an incident on a version already serving traffic, use Cloudflare **Workers & Pages → distilled-news-production → Deployments** and roll back to the recorded known-good version. Check that its Worker and assets work with the current database schema, queue messages, bindings and companions. Alternatively use the pinned Wrangler with the production config and an explicit version ID under incident authorization.
+3. Verify the canonical site, its JS/CSS, anonymous session and Explore responses, protected endpoints, queue health and Grafana. For a previous CI version, verify its release SHA against the recorded evidence. For older versions use Cloudflare’s version ID and the applicable endpoint baseline. Check cached pages during asset propagation.
+4. Worker rollback restores a Worker version and its assets. D1, R2, queue messages, external calls and delivered email or push retain their own state. An in-place D1 restore can discard writes after the bookmark and does not rewind other systems. Treat database recovery as a separate incident decision. Prefer a compatible forward fix when it preserves newer data. [Cloudflare Worker rollbacks](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)
+5. Resume CI after the incident owner verifies the active release and re-enables the switch. If an older pending job was replaced in GitHub’s concurrency queue, rerun the latest `main` push after confirming its security workflows are green. Rerun the entire workflow if its frontend artifact has expired.
+
+## When to allow automatic production
+
+Remove the production reviewer requirement only after all of these conditions hold.
+
+- The owner authorizes unattended releases. `main` enforces review, up-to-date checks, security checks and no bypass. Both environments retain their `main`-only restriction and isolated deployment tokens.
+- At least two production releases have completed with explicit approval, exact-SHA evidence and clean post-deployment monitoring. The staging exercise confirms isolated bindings, clean smoke tests and absence of provider spend or deliveries from the smoke run.
+- A rollback drill restored a known-good Worker and assets, and the team verified D1 recovery separately. A named owner receives production alerts for errors, queues and release failures and can suspend the pipeline promptly.
+- Required preflight checks remain enabled for D1 ledgers, infrastructure baseline and CI staging resource isolation. Migrations, companions, Container changes and resource or secret changes retain a reviewed maintenance procedure.
+
+After the reviewer requirement is removed, routine application releases follow the same checks and serialization and can proceed automatically.

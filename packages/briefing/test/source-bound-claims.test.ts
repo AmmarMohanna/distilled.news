@@ -1,5 +1,18 @@
 import {expect,it} from 'vitest';
-import {readerUnits,readerTokens,decodeInventory,parseReaderInventory,parseReaderObligations,parseBoundReview,verifySourceBoundClaims} from '../src/source-bound-claims';
+import {readerUnits,readerTokens,decodeInventory,parseReaderInventory,parseReaderObligations,parseBoundReview,verifySourceBoundClaims,type SourceInventoryCache} from '../src/source-bound-claims';
+it('keeps every claim witness and excludes a same-speaker citation that never supports a claim',()=>{
+ const headline='Kanaan said the budget could reach Parliament before the holidays.';
+ const sources=[{ref:'S1',text:headline},{ref:'S2',text:'Before the holidays.'},{ref:'S3',text:'Kanaan urged support for the army.'}];
+ const items=[{headline,body:'',refs:sources.map(s=>s.ref)}];
+ const facets=parseReaderInventory({units:[{id:'I0.H',facets:[{id:'f',quote:headline,claim:headline,kind:'action'}]}]},items);
+ const result={i:0,inventory:'complete',verdict:'ok',issues:[],citationChecks:Object.fromEntries(sources.map(s=>[s.ref,{quote:s.text,support:'supported',explanation:'Model label.'}])),facets:[{id:'f',support:'supported',evidence:sources.slice(0,2).map(s=>({source:s.ref,quote:s.text})),explanation:'Both passages establish the claim.'}]};
+ const review=()=>parseBoundReview({results:[result]},items,sources,facets,[],undefined,true).get(0);
+ expect(review()).toMatchObject({verdict:'ok',proofRefs:['S1','S2']});
+ result.citationChecks.S3.support='unsupported';
+ expect(review()).toMatchObject({verdict:'ok',proofRefs:['S1','S2']});
+ result.citationChecks.S2.support='uncertain';
+ expect(review).toThrow('BINDING_VERDICT_CONTRADICTION');
+});
 it('reconstructs complete multi-token names and roles from contiguous original token IDs',()=>{
  const headline='أعلن الرئيس عبد الفتاح السيسي قراراً.';
  expect(readerTokens(headline).map(t=>t.text)).toEqual(['أعلن','الرئيس','عبد','الفتاح','السيسي','قراراً']);
@@ -220,4 +233,46 @@ it('withholds a semantically unresolved item and preserves a separately supporte
  let count=0;const port:ModelPort={complete:async request=>{count++;const p=count===1?null:JSON.parse(request.user);const content=count===1?{items:[{headline:'A claim.',body:'',sources:['S1'],relation:'new',importance:1},{headline:'B claim.',body:'',sources:['S2'],relation:'new',importance:2}]}:count===2?{units:p.units.map((u:any)=>({id:u.id,facets:[{id:u.id,quote:u.text,claim:u.text,kind:'other'}]}))}:{results:p.items.map((item:any,i:number)=>({i,inventory:'complete',verdict:i===0?'fix':'ok',issues:[],facets:p.inventory.filter((f:any)=>f.item===i).map((f:any)=>({id:f.id,support:i===0?'uncertain':'supported',evidence:i===0?[]:[{source:'S2',quote:'B claim.'}],explanation:'Source scope.'}))}))};return {text:JSON.stringify(content),inputTokens:10,outputTokens:10}}};
  const result=await generateBriefing({feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v1'},...WINDOW,articles:[article('a','A source.'),article('b','B claim.')]},port,MODELS,{maxRepairs:0,prepare:{minChars:1}});
  expect(result.items.map(v=>v.headline)).toEqual(['B claim.']);expect(result.dropped[0]).toMatchObject({carry:true,sourceIds:['a']});expect(result.status).toBe('published');
+});
+
+
+it('reuses a validated source inventory for revised reader text, refreshing changed evidence and newly bound people',async()=>{
+ const cache:SourceInventoryCache=new Map();
+ const sourceRequests:string[][]=[],verified:string[]=[];
+ const source={ref:'S1',id:'immutable',text:'President Jane Doe approved. Mayor Alex Roe announced the result.'};
+ const port:ModelPort={complete:async request=>{
+  const packet=JSON.parse(request.user);
+  const span=(start:number,end=start)=>({start:'T'+start,end:'T'+end});
+  let reply:unknown;
+  if(request.system.startsWith('Independently extract')){
+   sourceRequests.push(packet.units.map((unit:{id:string})=>unit.id));
+   reply={sources:Object.fromEntries(packet.units.map((unit:{id:string})=>[unit.id,unit.id==='S2'?[]:[
+    {personTokens:span(1,2),roleTokens:span(0)},
+    ...(sourceRequests.length>1?[{personTokens:span(5,6),roleTokens:span(4)}]:[]),
+   ]]))};
+  }else if(packet.units){
+   reply={units:{'I0.H':[{personTokens:span(1,2),roleTokens:span(0)}]}};
+  }else{
+   verified.push(packet.items[0].headline);
+   reply={results:{'0':{inventory:'complete',verdict:'ok',issues:[],priorIds:[],
+    citationChecks:{S1:{support:'supported',quote:'S1:P0',explanation:'Fixture source.'}},
+    facets:Object.fromEntries(packet.inventory.map((facet:{id:string})=>[facet.id,{
+     support:'supported',evidence:[{source:'S1',quote:'S1:P0'}],explanation:'Fixture evidence.',
+    }]))}}};
+  }
+  return {text:JSON.stringify(reply),inputTokens:1,outputTokens:1};
+ }};
+ const review=(headline:string,sources:typeof source[])=>verifySourceBoundClaims(port,new UsageMeter(),{
+  sourceInventoryCache:cache,model:'m',independentSourceBindings:true,language:'en',
+  items:[{headline,body:'',refs:['S1']}],sources,prior:[],
+ });
+ const original='President Jane Doe approved.',repair='President Jane Doe approved the decision.';
+ const differentPerson='Mayor Alex Roe announced the result.';
+ expect((await review(original,[source,{ref:'S2',id:'other',text:'A different event.'}])).get(0)?.verdict).toBe('ok');
+ expect((await review(repair,[source])).get(0)?.verdict).toBe('ok');
+ expect(sourceRequests).toEqual([['S1','S2']]);
+ expect((await review(differentPerson,[source])).get(0)?.verdict).toBe('ok');
+ expect((await review(differentPerson,[{...source,text:source.text+' This sentence changes the evidence.'}])).get(0)?.verdict).toBe('ok');
+ expect(sourceRequests).toEqual([['S1','S2'],['S1'],['S1']]);
+ expect(verified).toEqual([original,repair,differentPerson,differentPerson]);
 });

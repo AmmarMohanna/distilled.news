@@ -104,6 +104,25 @@ it('retry ticks skip reenrollment until collection is due, and preserve changes 
  }finally{maintenance.mockRestore();clock.mockRestore()}
 });
 
+it('rechecks storage-deferred collection without advancing its due time',async()=>{
+ const feedId='scale-0072',at=Date.now(),originalDue=at-1;
+ const clock=vi.spyOn(Date,'now').mockReturnValue(at);
+ const maintenance=vi.spyOn(connectorRuntime,'runConnectorMaintenance')
+  .mockResolvedValueOnce({scheduled:[],outcomes:[],durationMs:0,storageDeferred:true})
+  .mockResolvedValueOnce({scheduled:[],outcomes:[],durationMs:0});
+ try{
+  await ctx.db.prepare('UPDATE connector_feed_schedule SET token=?,collection_due_ms=? WHERE feed_id=?').bind('storage-first',originalDue,feedId).run();
+  await processConnectorMessage(env,{type:'connector_feed',feedId,token:'storage-first'});
+  const readDue=()=>ctx.db.prepare('SELECT due_ms,collection_due_ms FROM connector_feed_schedule WHERE feed_id=?').bind(feedId).first<{due_ms:number;collection_due_ms:number}>();
+  expect(await readDue()).toEqual({due_ms:at+60000,collection_due_ms:originalDue});
+  clock.mockReturnValue(at+60000);
+  await ctx.db.prepare('UPDATE connector_feed_schedule SET token=? WHERE feed_id=?').bind('storage-recheck',feedId).run();
+  await processConnectorMessage(env,{type:'connector_feed',feedId,token:'storage-recheck'});
+  expect(maintenance).toHaveBeenCalledTimes(2);
+  expect((await readDue())?.collection_due_ms).toBeGreaterThan(at+60000);
+ }finally{maintenance.mockRestore();clock.mockRestore();}
+});
+
 it('releases an old control turn without completing a replacement delivery',async()=>{
  const feedId='scale-0071';
  await ctx.db.prepare("UPDATE connector_feed_schedule SET token='old',processing_until=0,collection_due_ms=0 WHERE feed_id=?").bind(feedId).run();

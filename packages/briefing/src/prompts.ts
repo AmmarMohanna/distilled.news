@@ -61,8 +61,21 @@ export function describeArticles(articles: PreparedArticle[]): string {
 /** Reader attention for one briefing: a guide to selectivity that grows with the window, never a quota. */
 export function readingBudget(windowMinutes: number): string {
   const seconds = Math.min(420, 30 + windowMinutes * 0.1);
-  const words = Math.round(((seconds / 60) * 200) / 10) * 10;
+  const words = readingBudgetWords(windowMinutes);
   return `about ${seconds < 90 ? Math.round(seconds) + " seconds" : Math.round(seconds / 30) / 2 + " minutes"} of reading, roughly ${words} words in total across all items`;
+}
+
+export function readingBudgetWords(windowMinutes: number): number {
+  const seconds = Math.min(420, 30 + windowMinutes * 0.1);
+  return Math.round(((seconds / 60) * 200) / 10) * 10;
+}
+
+export function readerWordCount(language: FeedSpec['language'], items: ReadonlyArray<{headline: string; body: string}>): number {
+  const segmenter = new Intl.Segmenter(language, { granularity: 'word' });
+  return items.reduce((count, item) => {
+    const prose = item.body === item.headline ? item.headline : `${item.headline}\n${item.body}`;
+    return count + [...segmenter.segment(prose)].filter(segment => segment.isWordLike).length;
+  }, 0);
 }
 
 export function editorUser(input: {
