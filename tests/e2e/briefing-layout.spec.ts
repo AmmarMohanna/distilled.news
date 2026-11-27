@@ -164,7 +164,13 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
     await page.locator(".briefing-photo-viewport").hover();
   }
-  await page.getByRole("button", { name: "Next image" }).click();
+  const next = page.getByRole("button", { name: "Next image" });
+  const viewport = page.locator(".briefing-photo-viewport");
+  const bounds = (await viewport.boundingBox())!;
+  const nextBounds = (await next.boundingBox())!;
+  const rtl = await viewport.evaluate(node => getComputedStyle(node).direction === "rtl");
+  expect(nextBounds.x + nextBounds.width / 2).toBeCloseTo(rtl ? bounds.x : bounds.x + bounds.width, 0);
+  await next.click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
   await page.getByRole("button", { name: "Previous image" }).click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
