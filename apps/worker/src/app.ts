@@ -1639,12 +1639,11 @@ export function createApp(options: AppOptions = {}) {
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const viewerHasStarred = await repo.hasBriefingStar(briefing.id, voterId, claims?.sub);
     if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
       // Cached data only: access, the viewer's star and feed settings are read per request.
       const version = await feedReadVersion(c.env.DB, briefing.id);
       const env = c.env;
-      const [published, status] = await Promise.all([
+      const [published, status, viewerHasStarred] = await Promise.all([
         cachedProductEditions(env, briefing.id, version),
         cachedFeedStatus(env, briefing.id, version, async () => {
           const value = {
@@ -1652,7 +1651,8 @@ export function createApp(options: AppOptions = {}) {
             publicationProgress: await productPublicationProgress(env, briefing.id)
           };
           return { value, hash: fnv1a(JSON.stringify(value)) };
-        })
+        }),
+        repo.hasBriefingStar(briefing.id, voterId, claims?.sub)
       ]);
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
@@ -1686,7 +1686,7 @@ export function createApp(options: AppOptions = {}) {
       productEnabled ? viewerSeesSourceHealth(c, briefing.ownerAccountId).then(allowed => allowed ? readSourceDiagnostics(c.env, briefing.id) : {}) : {},
       productEnabled ? productPublicationState(c.env, briefing.id) : undefined,
       productEnabled ? productPublicationProgress(c.env, briefing.id) : undefined,
-      voterId ? repo.hasBriefingStar(briefing.id, voterId) : false
+      repo.hasBriefingStar(briefing.id, voterId, claims?.sub)
     ]);
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),

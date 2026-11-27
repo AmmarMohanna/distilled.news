@@ -610,7 +610,6 @@ export class D1Repository implements Repository {
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-<<<<<<< HEAD
         .bind(voterId ?? null, viewerId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null, viewerId ?? null] : []), limit, offset);
   }
 
