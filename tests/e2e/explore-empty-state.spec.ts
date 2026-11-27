@@ -76,7 +76,11 @@ test('empty Explore and Top channels fit together on a short desktop viewport', 
     return route.fulfill({json:{feeds:[],briefings:[],nextOffset:null}});
   });
   await page.goto('/explore');
-  await expect(page.locator('.community-feeds-empty')).toBeInViewport({ratio:1});
+  const empty = page.locator('.community-feeds-empty');
+  await expect(empty.getByRole('heading', {name:'Stay curious.'})).toBeVisible();
+  await expect.poll(() => empty.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await expect(empty.getByRole('button', {name:'Create feed'})).toBeVisible();
+  await expect(empty).toBeInViewport({ratio:1});
   await expect(page.locator('.channel-shelf')).toBeInViewport({ratio:1});
 });
 
