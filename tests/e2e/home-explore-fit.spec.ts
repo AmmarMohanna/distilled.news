@@ -62,13 +62,16 @@ for (const tab of ["home", "explore"] as const) {
         covers.slice(0, 2).map(cover => {
           const { left, right, bottom } = cover.getBoundingClientRect();
           const controls = cover.querySelector(".feed-tile-controls")!.getBoundingClientRect();
-          return { left, right, bottom, controlsTop: controls.top };
+          const artwork = cover.querySelector(".feed-tile-artwork")!.getBoundingClientRect();
+          return { left, right, bottom, controlsTop: controls.top, controlsBottom: controls.bottom, artworkBottom: artwork.bottom };
         }));
       const gridBounds = (await grid.boundingBox())!;
       expect(first.left - gridBounds.x).toBeCloseTo(gridBounds.x + gridBounds.width - second.right, 0);
       expect(second.left - first.right).toBeCloseTo(12, 0);
       if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
-        expect(first.controlsTop).toBeGreaterThanOrEqual(first.bottom);
+        expect(first.controlsBottom).toBeCloseTo(first.bottom, 0);
+        expect(first.artworkBottom).toBeCloseTo(first.controlsTop, 0);
+        expect(first.controlsTop).toBeLessThan(first.bottom);
       }
     } else {
       const shelf = page.locator(".featured-feeds .catalog-shelf-track");

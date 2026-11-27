@@ -21,12 +21,8 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       const bottom = Math.min(window.innerHeight, viewport?.getBoundingClientRect().bottom ?? window.innerHeight);
       const available = (bottom - bounds.top) / scale - (viewport?.scrollTop ?? window.scrollY) - 8;
       let caption = 0;
-      for (const tile of grid.querySelectorAll<HTMLElement>('.feed-tile')) {
-        const label = tile.querySelector<HTMLElement>('.feed-tile-caption');
-        const cover = tile.querySelector<HTMLElement>('.feed-tile-cover');
-        if (!label || !cover) continue;
-        caption = Math.max(caption, label.offsetHeight + parseFloat(getComputedStyle(label).marginBlockStart)
-          + parseFloat(getComputedStyle(cover).marginBlockEnd));
+      for (const node of grid.querySelectorAll<HTMLElement>('.feed-tile-caption')) {
+        caption = Math.max(caption, node.offsetHeight + parseFloat(getComputedStyle(node).marginBlockStart));
       }
       const naturalSize = Math.min((width + gap) / columns - gap, Math.max(170, Math.min(window.innerHeight * 0.39, 280)));
       const verticalGap = parseFloat(rowGap);

@@ -3455,8 +3455,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
 }
 @media (max-width: 899px) and (pointer: coarse) {
-  :root.apple-ui.apple-ui .feed-tile-cover:has(.feed-tile-controls > *) { margin-block-end: 44px; }
-  :root.apple-ui.apple-ui .feed-tile-controls { inset: 100% 0 auto; }
+  :root.apple-ui.apple-ui .feed-tile-cover:has(.feed-tile-controls > *) > .feed-tile-artwork {
+    inset-block-end: 44px;
+    overflow: hidden;
+  }
+  :root.apple-ui.apple-ui .feed-tile-controls { inset: auto 0 0; }
   :root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary) {
     background: transparent;
     box-shadow: none;
