@@ -175,6 +175,7 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   expect(nextBounds.x + nextBounds.width / 2).toBeCloseTo(rtl ? bounds.x : bounds.x + bounds.width, 0);
   await next.click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) await viewport.hover();
   await page.getByRole("button", { name: "Previous image" }).click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
   expect(photoRequests).toBe(1);
