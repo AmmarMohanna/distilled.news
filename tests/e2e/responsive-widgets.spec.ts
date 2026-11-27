@@ -73,16 +73,16 @@ for(const width of [390,667,1280,1920])test(`Home and Explore fit square widgets
  await mock(page, true, 9);await page.setViewportSize({width,height:800});await page.goto('/');
  const home=page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first();await expect(home).toBeVisible();
  const size=async(selector:string)=>page.locator(selector).first().evaluate(node=>{
-  const r=node.getBoundingClientRect(),art=node.querySelector('.topic-art')!.getBoundingClientRect();
-  return {width:r.width,height:r.height,art:art.width,artHeight:art.height,gridWidth:node.parentElement!.clientWidth,font:getComputedStyle(node.querySelector('.feed-tile-caption > a')!).fontSize};
+  const r=node.getBoundingClientRect(), cover=node.querySelector('.feed-tile-cover')!.getBoundingClientRect();
+  return {width:r.width,height:r.height,coverWidth:cover.width,coverHeight:cover.height,gridWidth:node.parentElement!.clientWidth,font:getComputedStyle(node.querySelector('.feed-tile-caption > a')!).fontSize};
  });
  const initial=await size('.feed-tile-grid[data-feed-view=home] .feed-tile');
  await page.goto('/explore');await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(9);
  const explore=await size('.explore-view .featured-feeds .catalog-shelf-track .feed-tile');
  for (const card of [initial, explore]) {
    expect(card.width).toBeLessThanOrEqual(card.gridWidth + 1);
-   expect(Math.abs(card.art - card.artHeight)).toBeLessThan(1);
-   expect(card.height).toBeGreaterThan(card.artHeight);
+   expect(Math.abs(card.coverWidth - card.coverHeight)).toBeLessThan(1);
+   expect(card.height).toBeGreaterThan(card.coverHeight);
  }
  expect(initial.font).toBe(explore.font);
 });

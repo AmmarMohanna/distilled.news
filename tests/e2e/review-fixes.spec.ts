@@ -2,12 +2,12 @@ import { expect, test } from "@playwright/test";
 
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 
-async function mock(page: import("@playwright/test").Page, authenticated: boolean) {
+async function mock(page: import("@playwright/test").Page, authenticated: boolean, populatedExplore = false) {
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     const body = path === "/api/auth/session" ? { authenticated, setupRequired: false, account: authenticated ? { id: "joud", username: "joud", email: "j@example.test", role: "user" } : null }
       : path === "/api/me/briefings" ? { briefings: authenticated ? [feed] : [] }
-      : path === "/api/explore/feeds" ? { feeds: [] }
+      : path === "/api/explore/feeds" ? { feeds: populatedExplore ? [{ ...feed, id: "public-feed", ownerAccountId: "editor", ownerUsername: "editor" }] : [] }
       : path === "/api/feed/joud/lebanon" ? { briefing: feed, editions: [], viewerHasStarred: false }
       : path === "/api/me/sources" ? { sources: [] }
       : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
@@ -215,7 +215,7 @@ test("Create feed and the search row stay put when switching between Home and Ex
   });
   for (const size of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1280, height: 800 }]) {
     await page.setViewportSize(size);
-    await mock(page, true);
+    await mock(page, true, true);
     await page.goto("/");
     await page.waitForSelector(".home-view .explore-search");
     const home = await position();
@@ -292,7 +292,7 @@ test("the guest landing page retains bounded square tiles for a few feeds", asyn
 
 test("on laptops Home and Explore centre the title, search row and categories on one axis", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await mock(page, true);
+  await mock(page, true, true);
   await page.goto("/");
   await page.waitForSelector(".home-view .explore-search");
   const centers = () => page.evaluate(() => {
