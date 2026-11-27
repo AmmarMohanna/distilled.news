@@ -3841,6 +3841,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .catalog-shelf-viewport { position: relative; container: shelf / inline-size; }
 :root.apple-ui.apple-ui .catalog-shelf-track {
   --shelf-columns: 2;
+  --shelf-inline-padding: 4px;
   --shelf-gap: clamp(10px, 1.35vw, 18px);
   display: grid;
   grid-auto-flow: column;
@@ -3848,7 +3849,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   gap: var(--shelf-gap);
   overflow-x: auto;
   scroll-snap-type: inline proximity;
-  padding: 4px 4px 10px;
+  scroll-padding-inline: var(--shelf-inline-padding);
+  padding: 4px var(--shelf-inline-padding) 10px;
   scrollbar-width: none;
 }
 :root.apple-ui.apple-ui .catalog-shelf-track::-webkit-scrollbar { display: none; }

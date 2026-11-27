@@ -60,6 +60,14 @@ for (const tab of ["home", "explore"] as const) {
     } else {
       const shelf = page.locator(".featured-feeds .catalog-shelf-track");
       await expect.poll(() => shelf.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
+      const first = shelf.locator(".feed-tile").first();
+      await expect(first).toBeInViewport({ ratio: 1 });
+      const back = page.locator(".featured-feeds .catalog-shelf-viewport").getByRole("button", { name: "Scroll backward" });
+      await expect(back).toHaveCount(0);
+      await shelf.evaluate(node => node.scrollTo({ left: node.clientWidth }));
+      await back.click();
+      await expect.poll(() => shelf.evaluate(node => node.scrollLeft)).toBe(0);
+      await expect(first).toBeInViewport({ ratio: 1 });
     }
   });
 }

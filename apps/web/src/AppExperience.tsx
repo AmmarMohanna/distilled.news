@@ -459,7 +459,8 @@ function CatalogShelf({ title, children, className = "", expanded = false, onSho
     const node = track.current;
     if (!node) return;
     const sign = getComputedStyle(node).direction === "rtl" ? -1 : 1;
-    node.scrollBy({ left: direction * sign * node.clientWidth, behavior: "smooth" });
+    const target = node.scrollLeft + direction * sign * node.clientWidth;
+    node.scrollTo({ left: sign * Math.max(0, sign * target), behavior: "smooth" });
   }
   return <section className={`catalog-shelf ${className}`} aria-label={title}>
     <div className="catalog-shelf-header"><h2>{title}</h2>{onShowAll && !expanded && <button type="button" className="catalog-show-all" onClick={onShowAll}>{t("Show all")}</button>}</div>
