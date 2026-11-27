@@ -78,6 +78,7 @@ import {
   getTimelinePage,
   getFeedEdition,
   getBriefingPage,
+  recordBriefingOpened,
   getBriefingPhoto,
   getHealth,
   getSession,
@@ -2238,6 +2239,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const [photoIndex, setPhotoIndex] = useState(0);
   const photoTouch = useRef<{x: number; y: number} | null>(null);
   const [readerAccount, setReaderAccount] = useState<AccountRecord | null>();
+  const recordedOpen=useRef<string|null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const retainedPhotos = result ? briefingPhotos(result.edition) : [];
   const previewPhotos = usePublisherPhotos(result?.briefing.publicFeedEnabled && retainedPhotos.length < 3 ? props.username : undefined, props.slug, props.editionId);
@@ -2254,6 +2256,20 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       .catch(cause => { if (!request.signal.aborted) setError(toUiError(cause)); });
     return () => request.abort();
   }, [props.username, props.slug, props.editionId]);
+  useEffect(()=>{
+    if(!readerAccount||!result?.catchUpAvailable||result.edition.id!==props.editionId)return;
+    const key=JSON.stringify([readerAccount.id,result.briefing.id,result.edition.id,result.edition.publishedAt]);
+    const record=()=>{
+      if(document.visibilityState!=='visible'||recordedOpen.current===key)return;
+      recordedOpen.current=key;
+      void recordBriefingOpened(result.briefing.ownerUsername,result.briefing.slug,result.edition.id).catch(()=>{
+        if(recordedOpen.current===key)recordedOpen.current=null;
+      });
+    };
+    record();
+    document.addEventListener('visibilitychange',record);
+    return()=>document.removeEventListener('visibilitychange',record);
+  },[readerAccount,result,props.editionId]);
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";

@@ -25,8 +25,9 @@ const render = (key = 'one') => act(async () => root.render(<CatchUpSummary key=
 const press = (selector: string) => act(async () => host.querySelector<HTMLButtonElement>(selector)!.click());
 const trigger = '.catch-up-summary-button', close = '.catch-up-summary-close';
 
-it('runs only on demand and reopens its completed result with focus returned on dismiss', async () => {
-  vi.mocked(catchUp).mockResolvedValue({ status: 'ready', summary: 'The proposal still needs approval.' });
+it('runs on demand, refreshes on reopen and returns focus on dismiss', async () => {
+  vi.mocked(catchUp).mockResolvedValueOnce({ status: 'ready', summary: 'The proposal still needs approval.' })
+    .mockResolvedValueOnce({ status: 'empty' });
   await render();
   expect(catchUp).not.toHaveBeenCalled();
   await press(trigger);
@@ -35,8 +36,8 @@ it('runs only on demand and reopens its completed result with focus returned on 
   expect(document.activeElement).toBe(host.querySelector(trigger));
   expect(host.querySelector('section')).toBeNull();
   await press(trigger);
-  expect(host.querySelector('section')?.textContent).toContain('still needs approval');
-  expect(catchUp).toHaveBeenCalledOnce();
+  expect(host.querySelector('section')?.textContent).toContain('No recent briefings');
+  expect(catchUp).toHaveBeenCalledTimes(2);
 });
 
 it('aborts obsolete summary requests when the publication scope changes', async () => {
