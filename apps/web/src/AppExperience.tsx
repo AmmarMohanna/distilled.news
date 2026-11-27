@@ -438,8 +438,9 @@ function EmptyFeedPage({ view, onAction }: { view: keyof typeof emptyFeedCopy; o
   const { t } = useLanguage();
   const { title, description } = emptyFeedCopy[view];
   const followed = view === "followed";
+  const artwork = view === "home" ? "home" : view + "-cutout";
   return <div className={"feed-page-empty " + (view === "home" ? "feed-library-empty" : "community-feeds-empty")} data-empty-view={view}>
-    <img src={followed ? "/empty-feeds-followed-cutout.webp" : "/empty-feeds-" + view + ".webp"} alt="" />
+    <img src={"/empty-feeds-" + artwork + ".webp"} alt="" />
     <h2>{t(title)}</h2>
     <p>{t(description)}</p>
     {onAction && <button type="button" className="primary-button" onClick={onAction}>

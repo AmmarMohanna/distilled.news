@@ -168,6 +168,11 @@
   </head>
   <body>
     <svg width="0" height="0" aria-hidden="true" focusable="false" style="position: absolute" xmlns="http://www.w3.org/2000/svg">
+      <filter id="explore-artwork-cutout" color-interpolation-filters="sRGB">
+        <feComponentTransfer>
+          <feFuncA type="linear" slope="12" intercept="-10.4"/>
+        </feComponentTransfer>
+      </filter>
       <filter id="dark-pencil-ink" color-interpolation-filters="sRGB">
         <feColorMatrix type="matrix" values="
           -.053 -.180 -.018 0 .369
