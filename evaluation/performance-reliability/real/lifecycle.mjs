@@ -24,7 +24,8 @@ export async function setup(m,client,dir,{emailDomain,gmailAddress,mailbox,chall
   u.state='AWAITING_EMAIL';save();
   const token=await mailbox({email:u.email,runId:m.runId,registeredAt:u.registrationStartedAt});assert(typeof token==='string'&&token.length>0,'MAILBOX_TOKEN_REQUIRED');
   const verified=await client.request('/api/auth/verify-email',{method:'POST',body:{token},category:'verify-email'});
-  assert(verified.value?.account?.username===u.username&&verified.cookie,'VERIFIED_ACCOUNT_IDENTITY');u.id=verified.value.account.id;u.cookie=verified.cookie;u.state='VERIFIED';save();
+  // Verification confirms the address only; current builds no longer sign in here, so login below sets the session.
+  assert(verified.value?.account?.username===u.username&&verified.value.account.id,'VERIFIED_ACCOUNT_IDENTITY');u.id=verified.value.account.id;if(verified.cookie)u.cookie=verified.cookie;u.state='VERIFIED';save();
   await login(client,u,challenge);save();
   const session=await client.request('/api/auth/session',{cookie:u.cookie});assert(session.value?.authenticated===true&&session.value.account.id===u.id,'SESSION_IDENTITY');
   const initial=await client.request('/api/me/briefings',{cookie:u.cookie});assert(initial.value.briefings.length===0,'UNEXPECTED_PREEXISTING_ACCOUNT_DATA');

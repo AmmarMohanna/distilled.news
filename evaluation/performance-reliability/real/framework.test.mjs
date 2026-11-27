@@ -59,7 +59,7 @@ test('ordinary account/feed lifecycle orders admission before paid setup and arc
   const client={request:async(path,o={})=>{
    events.push({path,...o});const slot=o.cookie?.match(/offline-(\d+)/)?.[1],owner='owner-'+slot;
    if(path==='/api/auth/register')return {value:{ok:true}};
-   if(path==='/api/auth/verify-email'){const i=o.body.token;return {cookie:'dn_session=offline-'+i,value:{account:{id:'owner-'+i,username:`qa${m.runId}u${i}`}}};}
+   if(path==='/api/auth/verify-email'){const i=o.body.token;return {value:{account:{id:'owner-'+i,username:`qa${m.runId}u${i}`}}};}
    if(path==='/api/auth/login'){const i=o.body.email.match(/-u(\d+)@/)[1];return {cookie:'dn_session=offline-'+i,value:{account:{id:'owner-'+i}}};}
    if(path==='/api/auth/session')return {value:{authenticated:true,account:{id:owner}}};
    if(path==='/api/me/briefings'&&o.method!=='POST')return {value:{briefings:owned.get(owner)??[]}};
