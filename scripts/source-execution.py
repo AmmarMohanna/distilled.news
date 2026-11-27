@@ -342,7 +342,9 @@ def fetch_google_feed(data):
                 raise ValueError('GOOGLE_FEED_TOO_LARGE')
             return {'status': response.status, 'xml': body.decode('utf-8'), 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
     except urllib.error.HTTPError as error:
-        return {'status': error.code, 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+        retry_after = error.headers.get('Retry-After') if error.headers else None
+        return {'status': error.code, 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000),
+                **({'retryAfter': retry_after} if retry_after else {})}
 
 
 def resolve_google_article(data):

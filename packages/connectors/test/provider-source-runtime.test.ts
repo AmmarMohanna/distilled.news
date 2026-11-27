@@ -630,6 +630,17 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const http:FeedHttpPort={get:async()=>({status,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
     const execute=vi.fn();await expect(new FeedSourceProvider('google_rss',http,{execute}).fetch({...request,source:{family:'google_news',locator:'AI'}})).rejects.toThrow();expect(execute).not.toHaveBeenCalled();
   });
+  it('carries the private Google feed Retry-After into the poll failure',async()=>{
+    const http:FeedHttpPort={get:async()=>({status:503,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}})};
+    const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse(time));
+    const execute=vi.fn(async()=>({status:429,retryAfter:'120'}));
+    try {
+      const provider=new FeedSourceProvider('google_rss',http,{execute});
+      await expect(provider.fetch({...request,source:{family:'google_news',locator:'AI'}})).rejects.toMatchObject({
+        code:'RATE_LIMIT',retryNotBefore:'2026-10-04T10:02:00.000Z',diagnostic:{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429}
+      });
+    } finally {clock.mockRestore();}
+  });
   it('Telethon preserves numeric peer identity and proves oldest-first progress',async()=>{
     const execute=vi.fn(async()=>({channelId:'-100123',records:[{id:2,text:'Text',publishedAt:time}],orderedFromCheckpoint:true,exhausted:false}));
     const p=new TelegramSourceProvider('telegram_telethon',feed(''),{execute});

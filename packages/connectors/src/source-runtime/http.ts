@@ -1,5 +1,13 @@
 import type { FeedHttpPort, FeedResponse } from './ports';
 
+/** A delta in seconds or a provider's HTTP date, relative to response receipt. */
+export function retryAfterTime(headers: Record<string,string>, now: number): number | undefined {
+  const value = new Headers(headers).get('retry-after')?.trim();
+  if (!value) return undefined;
+  const at = /^\d+$/.test(value) ? now + Number(value) * 1000 : /[a-z]{3}/i.test(value) ? Date.parse(value) : NaN;
+  return Number.isFinite(at) && at <= Date.UTC(9999,11,31,23,59,59) ? Math.max(now,at) : undefined;
+}
+
 /** Dispatch must enforce authorized-source egress/DNS rules at connection time.
  * This package deliberately does not fall back to unrestricted global fetch. */
 export type AuthorizedFeedFetch = (url: string, init: RequestInit) => Promise<Response>;

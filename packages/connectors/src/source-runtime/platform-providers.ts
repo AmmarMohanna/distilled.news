@@ -4,6 +4,7 @@ import { normalizeRssSnapshot,rssEvidenceText } from './rss-normalize';
 import type { FeedHttpPort, FetchRun } from './ports';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type ProviderPage, type SourceFamily, type ProviderItem } from './provider-types';
 import { articleUrl, record, string, timestamp } from './provider-normalize';
+import { retryAfterTime } from './http';
 
 /** Authorized backend execution binding. Worker code never spawns Python or stores sessions. */
 export interface SourceExecutionPort {execute(kind:'feedparser'|'telethon'|'telegram_resolve'|'google_resolve'|'google_feed'|'public_feed'|'public_article'|'extract'|'playwright',input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown>}
@@ -12,6 +13,26 @@ export async function executeSource(port:SourceExecutionPort,kind:Parameters<Sou
 }
 const raw=(v:unknown)=>new TextEncoder().encode(JSON.stringify(v));
 function requireFeed(status:number){if(status===451)throw new SourceProviderError('POLICY_REFUSAL');if(status===429)throw new SourceProviderError('RATE_LIMIT');if([401,403].includes(status))throw new SourceProviderError('AUTH_REQUIRED');if(status!==200)throw new SourceProviderError(status>=500||status===0?'TRANSIENT':'CHALLENGE');}
+
+export function isGoogleNewsRssUrl(url: URL): boolean {
+  return url.origin === 'https://news.google.com' && url.pathname === '/rss/search' && !url.username && !url.password;
+}
+
+/** One public fetch, with an authorized fallback only for transport/server errors.
+ * The worker can wrap both transports in the same cache and rate-limit policy. */
+export function withGoogleFeedFallback(http: FeedHttpPort, execution: SourceExecutionPort): FeedHttpPort {
+  return {get:async(url,headers,bounds)=>{
+    if(!isGoogleNewsRssUrl(new URL(url)))return http.get(url,headers,bounds);
+    const response=await http.get(url,headers,{attempts:1,timeoutMs:60_000});
+    if(response.status!==0&&response.status<500)return response;
+    const feed=record(await executeSource(execution,'google_feed',{url},{timeoutMs:60_000}));
+    const status=Number(feed.status)||0;
+    if(status===200&&(typeof feed.xml!=='string'||new TextEncoder().encode(feed.xml).length>2_000_000))throw new SourceProviderError('MALFORMED');
+    return {status,headers:typeof feed.retryAfter==='string'?{'retry-after':feed.retryAfter}:{},
+      bytes:status===200?new TextEncoder().encode(feed.xml):new Uint8Array(),
+      telemetry:{requests:response.telemetry.requests+1,latencyMs:response.telemetry.latencyMs+Math.max(0,Number(feed.latencyMs)||0),providerCostUsd:0,status}};
+  }};
+}
 /** Inspect only Google's own article endpoint. Never follow a redirect or fetch a publisher here. */
 function googleArticleLink(value?:string):boolean {
   try {const u=new URL(value??'');return u.protocol==='https:'&&u.hostname==='news.google.com'&&
@@ -32,22 +53,20 @@ function publicPublisherLocation(value?:string):string|undefined {
 
 export class FeedSourceProvider implements SourceProvider {
   readonly families:SourceFamily[];
-  constructor(readonly id:'rss_native'|'rss_feedparser'|'google_rss',private http:FeedHttpPort,private execution?:SourceExecutionPort){this.families=id==='google_rss'?['google_news']:['rss'];}
+  private readonly feedHttp:FeedHttpPort;
+  constructor(readonly id:'rss_native'|'rss_feedparser'|'google_rss',private http:FeedHttpPort,private execution?:SourceExecutionPort,googleFeedHttp?:FeedHttpPort){
+    this.families=id==='google_rss'?['google_news']:['rss'];
+    this.feedHttp=id==='google_rss'?googleFeedHttp??(execution?withGoogleFeedFallback(http,execution):http):http;
+  }
   async fetch(input:SourceFetchRequest):Promise<ProviderPage>{
     const started=Date.now();
     const url=this.id==='google_rss'?buildGoogleNewsRssUrl(input.source.locator,{geo:input.source.region,language:input.source.language}):input.source.locator;
-    // With an authorized private Google route, one short public attempt is
-    // enough. Three long public timeouts consumed most of the QA request before
-    // the working private feed/redirect path could finish.
-    let r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'},
-      this.id==='google_rss'&&this.execution?{attempts:1,timeoutMs:60_000}:undefined);
-    // Only transient transport/server failures may try the authorized private
-    // route. Preserve rate limits, authorization and policy refusals unchanged.
-    if(this.id==='google_rss'&&this.execution&&(r.status===0||r.status>=500)){
-      const feed=record(await executeSource(this.execution,'google_feed',{url},{timeoutMs:60_000}));
-      if(feed.status===200&&typeof feed.xml==='string'&&new TextEncoder().encode(feed.xml).length<=2_000_000){
-        r={status:200,headers:{},bytes:new TextEncoder().encode(feed.xml),telemetry:{requests:r.telemetry.requests+1,latencyMs:r.telemetry.latencyMs+Math.max(0,Number(feed.latencyMs)||0),providerCostUsd:0}};
-      }else requireFeed(Number(feed.status)||0);
+    const r=await this.feedHttp.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'});
+    if(this.id==='google_rss'&&r.status===429){
+      const now=Date.now();
+      const retryAt=retryAfterTime(r.headers,now)??now+300_000*(0.75+Math.random()/4);
+      const detail=r.telemetry.requests===0?'GOOGLE_RSS_SHARED_COOLDOWN':'UPSTREAM_RATE_LIMIT';
+      throw new SourceProviderError('RATE_LIMIT',new Date(retryAt).toISOString(),{detail,httpStatus:429});
     }
     requireFeed(r.status);
     let xml:string;try{xml=new TextDecoder('utf-8',{fatal:true}).decode(r.bytes);}catch{throw new SourceProviderError('MALFORMED');}
