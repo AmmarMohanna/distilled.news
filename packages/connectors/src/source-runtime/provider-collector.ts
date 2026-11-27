@@ -58,6 +58,7 @@ export class FallbackSourceCollector {
         const failed=await this.repository.loadAttempt(request.scope,runId);
         if(failed)attempts.push(failed);
         if(id===LINKEDIN_INNOLABS_PROVIDER&&failed?.diagnostic?.detail==='PROVIDER_MONTHLY_USAGE_LIMIT')break;
+        if(id==='google_rss'&&failed?.failure==='RATE_LIMIT')break;
         if(requestsHarvestFallback(id,failed?.diagnostic?.detail))allowHarvestFallback=true;
         if(failed?.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
         // A process can stop after reserving a read but before journaling its
@@ -112,6 +113,7 @@ export class FallbackSourceCollector {
         attempts.push(a);await this.repository.attempt(request.scope,a);
         await this.failureCoverage(request,run,error.code);
         if(id===LINKEDIN_INNOLABS_PROVIDER&&error.diagnostic?.detail==='PROVIDER_MONTHLY_USAGE_LIMIT')break;
+        if(id==='google_rss'&&error.code==='RATE_LIMIT')break;
         if(requestsHarvestFallback(id,error.diagnostic?.detail))allowHarvestFallback=true;
         if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BACKPRESSURE'].includes(error.code))throw error;
         // A publisher's refusal applies to its URL, not just this transport.

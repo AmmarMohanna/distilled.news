@@ -239,6 +239,17 @@ class RuntimeTests(unittest.TestCase):
         with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'false'}):
             self.assertEqual(runtime.fetch_google_feed({'url': 'https://news.google.com/rss/search?q=energy'})['error'], 'UNAVAILABLE')
 
+    def test_google_feed_keeps_retry_after_on_http_error(self):
+        url = 'https://news.google.com/rss/search?q=energy'
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), \
+                patch.object(runtime, 'public_url'), patch.object(runtime, 'source_opener') as opener:
+            opener.return_value.open.side_effect = runtime.urllib.error.HTTPError(
+                url, 429, 'Too Many Requests', {'Retry-After': '120'}, None
+            )
+            response = runtime.fetch_google_feed({'url': url})
+        self.assertEqual(response['status'], 429)
+        self.assertEqual(response['retryAfter'], '120')
+
     def test_google_resolution_stays_on_google_and_parses_only_the_expected_rpc(self):
         class Response:
             def __init__(self, body): self.body = body

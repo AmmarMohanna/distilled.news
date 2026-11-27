@@ -58,6 +58,8 @@ function linkedinCompanyPath(value: unknown): string | undefined {
 function innolabsCompanyPosts(rows: unknown[], locator: string) {
   const company = linkedinCompanyPath(locator);
   const posts: Record<string, unknown>[] = [];
+  const dropped = {rowType:0,invalidUrn:0,invalidPostUrl:0,invalidPostedAt:0,activityMismatch:0,companyMismatch:0};
+  let droppedRows = 0;
   for(const raw of rows){
     const row = record(raw);
     if(row.type === 'SUMMARY' || row.type === 'summary')continue;
@@ -69,15 +71,25 @@ function innolabsCompanyPosts(rows: unknown[], locator: string) {
     const postUrl = url ? new URL(url) : undefined;
     const linkedActivityId = postUrl?.pathname.match(/activity[-:](\d+)/)?.[1];
     const sourceCompany = linkedinCompanyPath(row.sourceCompanyUrl);
-    if(row.type!=='post'||!urn||!/^urn:li:activity:\d+$/.test(urn)||
-      !postUrl||postUrl.protocol!=='https:'||!/(^|\.)linkedin\.com$/.test(postUrl.hostname)||
-      !/^\/(?:posts|feed\/update)\//.test(postUrl.pathname)||!timestamp(row.postedAt)||
-      (linkedActivityId&&urn!=='urn:li:activity:'+linkedActivityId)||
-      (row.sourceCompanyUrl!=null&&(!company||sourceCompany!==company))){
-      throw new SourceProviderError('MALFORMED',undefined,{detail:'INNOLABS_DATASET_INVALID'});
+    let reason: keyof typeof dropped | undefined;
+    if(row.type!=='post')reason='rowType';
+    else if(!urn||!/^urn:li:activity:\d+$/.test(urn))reason='invalidUrn';
+    else if(!postUrl||postUrl.protocol!=='https:'||!/(^|\.)linkedin\.com$/.test(postUrl.hostname)||
+      !/^\/(?:posts|feed\/update)\//.test(postUrl.pathname))reason='invalidPostUrl';
+    else if(!timestamp(row.postedAt))reason='invalidPostedAt';
+    else if(linkedActivityId&&urn!=='urn:li:activity:'+linkedActivityId)reason='activityMismatch';
+    else if(row.sourceCompanyUrl!=null&&(!company||sourceCompany!==company))reason='companyMismatch';
+    if(reason){
+      dropped[reason]++;
+      droppedRows++;
+      continue;
     }
     posts.push({id:urn,url,text:row.text,postedAt:row.postedAt,author:row.author});
   }
+  // Summary rows do not count toward the majority. An empty dataset is valid.
+  const invalidBatch = droppedRows > posts.length;
+  if(droppedRows)console.warn(JSON.stringify({type:'INNOLABS_DATASET_ROWS_DROPPED',acceptedRows:posts.length,droppedRows,dropped,invalidBatch}));
+  if(invalidBatch)throw new SourceProviderError('MALFORMED',undefined,{detail:'INNOLABS_DATASET_INVALID'});
   return normalizeProviderRecords(posts,'linkedin_company');
 }
 

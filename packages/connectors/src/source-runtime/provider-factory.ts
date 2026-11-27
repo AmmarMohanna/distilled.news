@@ -14,6 +14,7 @@ import { FallbackSourceCollector } from './provider-collector';
 export function createSourceCollector(bindings:{
   repository:D1ProviderSourceRepository;payloads:ImmutablePayloadStore;intake:CandidateIntakePort;
   http:FeedHttpPort;paidHttp:ProviderHttpPort;execution:SourceExecutionPort;secrets:SecretResolver;
+  googleFeedHttp?:FeedHttpPort;
   selectWebsiteLinks?:WebsiteLinkSelector;
   zyteListingRetryEnabled?:boolean;
   enrichRssArticles?:boolean;
@@ -22,7 +23,7 @@ export function createSourceCollector(bindings:{
 }) {
   const {repository,payloads,intake,http,paidHttp,execution,secrets,ceilings,enrichRssArticles,resolveGoogleArticles}=bindings;
   return new FallbackSourceCollector(repository,payloads,intake,[
-    new FeedSourceProvider('rss_native',http,enrichRssArticles?execution:undefined),new FeedSourceProvider('rss_feedparser',http,execution),new FeedSourceProvider('google_rss',http,resolveGoogleArticles?execution:undefined),
+    new FeedSourceProvider('rss_native',http,enrichRssArticles?execution:undefined),new FeedSourceProvider('rss_feedparser',http,execution),new FeedSourceProvider('google_rss',http,resolveGoogleArticles?execution:undefined,bindings.googleFeedHttp),
     new TelegramSourceProvider('telegram_telethon',http,execution),new TelegramSourceProvider('telegram_public',http),
     new TwitterApiIoProvider(paidHttp,secrets,ceilings.twitterApiIo),
     new ApifySourceProvider('google_apify',['google_news'],paidHttp,secrets,ceilings.apify),

@@ -1,4 +1,4 @@
-import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,
+import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,withGoogleFeedFallback,
   DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,ConnectorBatchArchive,sourceSqlFromD1,
   D1RssPollScheduler,RssSourceCollector,D1SourceRepository,isSourceDatabaseUnavailable,SourceProviderError,type RssRequest,
   type SourceFetchRequest,type WebsiteLinkSelector} from '@distilled/connectors';
@@ -104,9 +104,11 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
     };
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return publicDispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
-    const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
+    const google=request.source.family==='google_news';
+    const transport=google&&execution&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?withGoogleFeedFallback(baseHttp,execution):baseHttp;
+    const originHttp=google||env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,transport,authorizeUrl):transport;
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql,batchArchive),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql,batchArchive),payloads,intake,http,googleFeedHttp:google?http:undefined,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
       zyteListingRetryEnabled,
       selectWebsiteLinks:options.selectWebsiteLinks&& (async (url,candidates)=>{await requirePaidApproval();return options.selectWebsiteLinks!(request)(url,candidates);}),

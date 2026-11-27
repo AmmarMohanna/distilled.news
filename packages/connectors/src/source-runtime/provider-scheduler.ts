@@ -100,10 +100,15 @@ export class D1ProviderPollScheduler {
       }
       const result=await this.collector.collect(request,JSON.parse(job.provider_order),job.offset);
       if(result.state==='FETCH_FAILED'){
+        const googleAttempt=result.attempts.find(a=>a.providerId==='google_rss'&&a.failure!=='UNAVAILABLE');
+        const sharedCooldown=googleAttempt?.diagnostic?.detail==='GOOGLE_RSS_SHARED_COOLDOWN';
+        if(googleAttempt&&!sharedCooldown){
+          console.warn(JSON.stringify({type:'GOOGLE_RSS_POLL_FAILURE',jobId:job.job_id,cause:googleAttempt.failure,retryNotBefore:googleAttempt.retryNotBefore}));
+        }
         if(result.attempts.length&&result.attempts.every(a=>a.failure==='BUDGET_EXCEEDED'))return await finish('BLOCKED',result,'BUDGET_EXCEEDED');
         if(result.attempts.every(a=>['AUTH_REQUIRED','UNAVAILABLE','MALFORMED'].includes(a.failure??'')))return await finish('BLOCKED',result,'PROVIDER_REPAIR_REQUIRED');
         const retryAt=Math.max(0,...result.attempts.map(a=>Date.parse(a.retryNotBefore??'')||0));
-        return await retry(result,{...request,runId:request.runId+':retry:'+job.attempts},0,job.pages,Math.max(1000*2**job.attempts,retryAt-this.now()),false,result.attempts.at(-1)?.failure??'TRANSIENT');
+        return await retry(result,{...request,runId:request.runId+':retry:'+job.attempts},0,job.pages,Math.max(1000*2**job.attempts,retryAt-this.now()),false,result.attempts.at(-1)?.failure??'TRANSIENT',sharedCooldown);
       }
       if(result.checkpoint==='CAS_CONFLICT')return await finish('BLOCKED',result,'CHECKPOINT_CONFLICT');
       if(result.checkpoint==='BLOCKED')return await retry(result);

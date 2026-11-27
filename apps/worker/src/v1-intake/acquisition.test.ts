@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy, scopeFixture } from './test-utils';
 import { V1IntakeStore } from './store';
 import { createCandidateIntakePort } from './intake';
@@ -32,6 +32,58 @@ it('resolves a Google listing at acquisition while retaining observation identit
  claim.input.observation={...claim.input.observation,canonicalUrl:listing,representation:'LISTING_RESULT'};
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async url=>({inputUrl:url,url:publisher}),publicGet:async url=>{expect(url).toBe(publisher);return {url,body:'<html><head><meta property="article:published_time" content="2026-10-03T11:00:00Z"></head><body><article><h1>Report</h1><p>Parliament approved banking legislation after a lengthy debate. Presidential approval is still required before the measure becomes law. Officials said the vote followed consultations with local banking representatives and consumer protection organizations.</p></article></body></html>',contentType:'text/html',status:200}}});
  const result=await router(claim);expect(result.canonicalUrl).toBe(publisher);expect(result.sourceObservationId).toBe('observation-1');expect(claim.input.observation.canonicalUrl).toBe(listing);
+},30000);
+
+const bicycleReport='https://www.fortunebusinessinsights.com/bicycle-market-104524';
+const coffeeReport='https://www.fortunebusinessinsights.com/industry-reports/food-service-coffee-market-100798';
+function fortuneFixture(url:string,name:string,reportId:string,forecast:string,head=''){
+ return `<html lang="en"><head><link rel="canonical" href="${url}">${head}</head><body>
+ <header><h1>${name} Size, Share &amp; Industry Analysis</h1></header>
+ <div><span>Last Updated:</span><span>November 09, 2026</span> | <span>Report ID:</span><span>FBI${reportId}</span></div>
+ <form><p>This subscription form collects contact details and must not supply report evidence even though it appears on the same page.</p></form>
+ <section><h2>${name} Size and Future Outlook</h2>
+ <p>${forecast}</p>
+ <p>The publisher describes differences in demand across regions and compares sales channels. The estimates cover the report's stated projection period and are subject to the assumptions used in its analysis.</p>
+ <p hidden>This hidden paragraph contains report material that is unavailable to a reader of the public outlook.</p>
+ <h2>Market trends</h2><p>This subsequent report section is outside the introductory outlook and should never be added to that summary.</p></section>
+ </body></html>`;
+}
+const bicycleForecast='Fortune Business Insights projects bicycle sales to increase through 2034 as electric models gain traction, while estimates for earlier years provide the comparison.';
+const coffeeForecast='Fortune Business Insights forecasts foodservice coffee sales will rise through 2034, supported by café demand and the spread of takeaway formats in major cities.';
+const reportNow=()=> '2026-11-28T00:00:00Z';
+
+it.each([
+ {url:bicycleReport,canonical:bicycleReport,name:'Bicycle Market',id:'104524',forecast:bicycleForecast,publishedAt:undefined},
+ {url:coffeeReport,canonical:coffeeReport.replace('/industry-reports',''),name:'Foodservice Coffee Market',id:'100798',forecast:coffeeForecast,publishedAt:'2026-11-04T00:00:00.000Z'}
+])('acquires only identifiable public report prose as partial evidence for $name',async({url,canonical,name,id,forecast,publishedAt})=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;
+ claim.input.observation={...claim.input.observation,canonicalUrl:url,representation:'LISTING_RESULT',publishedAtHint:undefined};
+ const body=fortuneFixture(canonical,name,id,forecast,publishedAt?`<meta property="article:published_time" content="${publishedAt}">`:'');
+ const fallback=vi.fn(),extractHtml=vi.fn();
+ const result=await createCandidateAcquisitionRouter({now:reportNow,preferFullArticle:true,publicGet:async()=>({url,body,contentType:'text/html',status:200}),articleFallback:fallback,extractHtml})(claim);
+ expect(result).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',canonicalUrl:url,
+  provenance:{publicationDate:{articleUpdatedAt:'2026-11-09T00:00:00.000Z'}}});
+ expect(result.publishedAt).toBe(publishedAt);
+ expect(result.body).toContain(forecast);
+ expect(result.body).not.toMatch(/subscription form|hidden paragraph|subsequent report section/);
+ expect(fallback).not.toHaveBeenCalled();
+ expect(extractHtml).not.toHaveBeenCalled();
+},30000);
+
+it.each([
+ {kind:'publisher paywall',url:bicycleReport,status:200,canonical:bicycleReport,head:'<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script>',code:'AUTH_REQUIRED',detail:'ARTICLE_ACCESS_RESTRICTED'},
+ {kind:'payment status',url:bicycleReport,status:402,canonical:bicycleReport,head:'',code:'AUTH_REQUIRED',detail:'ARTICLE_PAYMENT_REQUIRED'},
+ {kind:'wrong article redirect',url:coffeeReport,status:200,canonical:coffeeReport,head:'',code:'INVALID_RESULT',detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'},
+ {kind:'wrong page canonical',url:bicycleReport,status:200,canonical:coffeeReport,head:'',code:'INVALID_RESULT',detail:'CANONICAL_IDENTITY_MISMATCH'}
+])('fails safely on $kind without a fallback request',async({url,status,canonical,head,code,detail})=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;
+ claim.input.observation={...claim.input.observation,canonicalUrl:bicycleReport,representation:'LISTING_RESULT'};
+ const body=fortuneFixture(canonical,'Bicycle Market','104524',bicycleForecast,head);
+ const fallback=vi.fn(),extractHtml=vi.fn();
+ const router=createCandidateAcquisitionRouter({now:reportNow,preferFullArticle:true,publicGet:async()=>({url,body,contentType:'text/html',status}),articleFallback:fallback,extractHtml});
+ await expect(router(claim)).rejects.toMatchObject({code,transient:false,diagnostic:{detail}});
+ expect(fallback).not.toHaveBeenCalled();
+ expect(extractHtml).not.toHaveBeenCalled();
 },30000);
 it.each([
  ['https://research.google/blog/a-research-update/',`<h1>A research update</h1><div class="blog-detail-wrapper"><div class="rich-text"><p>${'Researchers describe a new learning method and its measured results. '.repeat(5)}</p><p>${'The study explains its limitations and the next evaluation. '.repeat(5)}</p></div></div>`],
