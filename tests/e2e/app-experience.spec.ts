@@ -102,8 +102,8 @@ test('Explore keeps its own results visible while returning from Followed', asyn
     await expect(publicFeed).toBeVisible();
     await expect(page.getByRole('link', { name: '@other', exact: true })).toHaveAttribute('href', '/explore?channel=other');
     await nav.getByRole('button', { name: 'Followed', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'No starred feeds yet' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No followed feeds yet.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Star feeds', exact: true })).toBeVisible();
     await expect(publicFeed).toHaveCount(0);
     await nav.getByRole('button', { name: 'Explore', exact: true }).click();
     await expect(publicFeed).toBeVisible();

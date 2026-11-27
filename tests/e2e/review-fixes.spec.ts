@@ -162,7 +162,7 @@ test("Home explains an empty search and an empty library", async ({ page }) => {
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: [] } }));
   await page.goto("/");
   const empty = page.locator(".feed-library-empty");
-  await expect(empty.getByRole("heading", { name: "You haven’t created any feeds yet." })).toBeVisible();
+  await expect(empty.getByRole("heading", { name: "No feeds yet" })).toBeVisible();
   await expect(page.locator(".home-view").getByRole("searchbox")).toHaveCount(0);
   await expect(page.locator(".home-view").getByRole("button", { name: "Create feed" })).toHaveCount(1);
   await empty.getByRole("button", { name: "Create feed" }).click();

@@ -228,6 +228,9 @@ export function AppExperience(props: {
   const previewingChannel = ownChannel && new URLSearchParams(window.location.search).get("preview") === "1";
   const followedFeeds = visibleFeeds.filter(feed => feed.viewerHasStarred);
   const otherPublicFeeds = visibleFeeds.filter(feed => !props.account || !feed.viewerHasStarred);
+  const illustratedEmpty = Boolean(props.account && (tab === "explore" || tab === "followed")
+    && !channelName && !catalogView && !query.trim() && !waitingForCatalog && !loading && !exploreError && nextOffset === null
+    && (tab === "followed" ? !followedFeeds.length && !visibleChannels.length : !otherPublicFeeds.length && !trendingFeeds.length));
   const renderExploreFeed = (feed: (typeof visibleFeeds)[number]) => <FeedTile
     key={feed.id}
     feed={feed}
@@ -280,16 +283,11 @@ export function AppExperience(props: {
     {/* Keep both feed views mounted so illustrations load ahead of navigation
         and their decoded images survive tab switches. */}
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
-      {!emptyLibrary && <><section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
-      <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
-      </>}
+      <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
+      {!emptyLibrary && <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>}
       <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>
         {!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/>}
-        {emptyLibrary ? <div className="feed-library-empty">
-          <h1>{t("You haven’t created any feeds yet.")}</h1>
-          <p>{t("Create your first feed to start following what matters to you.")}</p>
-          <button type="button" className="primary-button" onClick={props.onCreate}>{t("Create feed")}</button>
-        </div> : <>
+        {emptyLibrary ? <EmptyFeedPage view="home" onAction={props.onCreate}/> : <>
           <AdaptiveFeedGrid view="home">{ownFeeds.map(feed => <FeedTile key={feed.id} feed={feed} owner onError={setError}/>)}</AdaptiveFeedGrid>
           {ownListReady && ownFeeds.length === 0 && <p className="empty-copy" role="status">
             {t(query.trim() ? "No feeds match your search." : "Your feeds are paused. Find them in the archive.")}
@@ -309,17 +307,17 @@ export function AppExperience(props: {
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
         </div>}
-      </div> : props.account ? <div className="experience-title"><h1>{t(tab === "followed" ? "Followed" : "Explore")}</h1><p>{t(tab === "followed" ? "Find your starred feeds and followed channels." : "Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
+      </div> : props.account ? <div className="experience-title"><h1>{t(tab === "followed" ? "Followed" : "Explore")}</h1><p>{t(tab === "followed" ? "Find your starred feeds and followed channels." : illustratedEmpty ? "Discover news that matters to you." : "Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
-      <div className={props.account ? "explore-controls" : "landing-controls"}>
+      {!illustratedEmpty && <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         {(!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
           : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
-      </div>
+      </div>}
       {catalogView && <button type="button" className="catalog-back" onClick={() => showCatalog()}><ChevronLeft size={17} aria-hidden/>{t("Back")}</button>}
       {!catalogView && showCatalogShelves && !props.account && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")} onShowAll={() => showCatalog("feeds")}>
@@ -359,6 +357,9 @@ export function AppExperience(props: {
             <p className="empty-copy" role="status">{t(query.trim()
               ? nextOffset !== null ? "No matches in loaded feeds. Load more feeds to continue searching." : "No feeds match your search."
               : "No community feeds are available yet.")}</p>
+          ) : illustratedEmpty ? (
+            <EmptyFeedPage view={tab === "followed" ? "followed" : "explore"}
+              onAction={tab === "followed" ? () => changeTab("explore") : props.onCreate}/>
           ) : (
             <div className="community-feeds-empty">
               {tab === "followed" && <Star className="followed-empty-icon" size={44} strokeWidth={1.5} aria-hidden/>}
@@ -425,6 +426,27 @@ function ChannelAvatar({ username }: { username: string }) {
       onLoad={event => { event.currentTarget.style.visibility = "visible"; }}
       onError={() => setMissingPictureFor(src)}/>
   </span>;
+}
+
+const emptyFeedCopy = {
+  home: { title: "No feeds yet", description: "Create your first feed or explore topics you are interested in." },
+  explore: { title: "Stay curious.", description: "No public feeds yet. Create a personalized feed around the topics you care about." },
+  followed: { title: "No followed feeds yet.", description: "Star feeds to find them here." }
+};
+
+function EmptyFeedPage({ view, onAction }: { view: keyof typeof emptyFeedCopy; onAction?: () => void }) {
+  const { t } = useLanguage();
+  const { title, description } = emptyFeedCopy[view];
+  const followed = view === "followed";
+  return <div className={"feed-page-empty " + (view === "home" ? "feed-library-empty" : "community-feeds-empty")} data-empty-view={view}>
+    <img src={"/empty-feeds-" + view + ".webp"} alt="" />
+    <h2>{t(title)}</h2>
+    <p>{t(description)}</p>
+    {onAction && <button type="button" className="primary-button" onClick={onAction}>
+      {followed ? <Star size={20} aria-hidden/> : <Plus size={20} aria-hidden/>}
+      {t(followed ? "Star feeds" : "Create feed")}
+    </button>}
+  </div>;
 }
 
 function CatalogShelf({ title, children, className = "", expanded = false, onShowAll }: {

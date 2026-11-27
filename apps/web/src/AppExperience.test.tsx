@@ -119,11 +119,11 @@ it('distinguishes loading, a confirmed empty list and an initial failure',async(
  const host=document.createElement('div'),root=createRoot(host),account={id:'reader',username:'reader'} as Parameters<typeof AppExperience>[0]['account'];
  try{
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));
-  expect(host.querySelector('.your-feeds')?.getAttribute('aria-busy')).toBe('true');expect(host.textContent).toContain('Loading feeds');expect(host.textContent).not.toContain('created any feeds yet');expect(host.textContent).not.toContain('Create your first feed');
+  expect(host.querySelector('.your-feeds')?.getAttribute('aria-busy')).toBe('true');expect(host.textContent).toContain('Loading feeds');expect(host.textContent).not.toContain('No feeds yet');expect(host.textContent).not.toContain('Create your first feed');
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="error" error="Temporarily unavailable" onAccount={()=>{}} onHelp={()=>{}}/>));
-  expect(host.querySelector('[role="alert"]')?.textContent).toBe('Temporarily unavailable');expect(host.textContent).not.toContain('created any feeds yet');expect(host.textContent).not.toContain('Loading feeds');
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe('Temporarily unavailable');expect(host.textContent).not.toContain('No feeds yet');expect(host.textContent).not.toContain('Loading feeds');
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));
-  expect(host.textContent).toContain('created any feeds yet');expect(host.textContent).not.toContain('Loading feeds');
+  expect(host.textContent).toContain('No feeds yet');expect(host.textContent).not.toContain('Loading feeds');
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
 it('retains cards during refresh and waits for archive data before claiming it is empty',async()=>{
