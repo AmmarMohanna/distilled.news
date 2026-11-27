@@ -32,8 +32,13 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
+const pendingBriefingOpens=new Map<string,Set<Promise<void>>>();
+const feedApiPath=(username:string,slug:string)=>`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
+
 export async function catchUp(username:string,slug:string,signal:AbortSignal):Promise<{status:'ready';summary:string;validUntil?:number}|{status:'pending'|'empty'}>{
-  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/catch-up`,{method:'POST',signal});
+  const path=feedApiPath(username,slug),pending=pendingBriefingOpens.get(path);
+  if(pending)await Promise.allSettled(pending);
+  return requestJson(`${path}/catch-up`,{method:'POST',signal});
 }
 
 
@@ -393,8 +398,23 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
-export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition }> {
+export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition; catchUpAvailable?:boolean }> {
   return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`, { signal });
+}
+
+export async function recordBriefingOpened(username:string,slug:string,editionId:string):Promise<void> {
+  const path=feedApiPath(username,slug);
+  const request=fetch(`${path}/editions/${encodeURIComponent(editionId)}/opened`,
+    {method:'POST',credentials:'include',keepalive:true,signal:AbortSignal.timeout(4000)}).then(response=>{
+    if(!response.ok)throw apiError(undefined,response);
+  });
+  const pending=pendingBriefingOpens.get(path)??new Set<Promise<void>>();
+  pending.add(request);
+  pendingBriefingOpens.set(path,pending);
+  try{await request;}finally{
+    pending.delete(request);
+    if(!pending.size)pendingBriefingOpens.delete(path);
+  }
 }
 
 export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null; photos?: Array<{ url: string; source: string }> }> {

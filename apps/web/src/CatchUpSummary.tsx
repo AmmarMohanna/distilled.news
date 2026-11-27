@@ -16,7 +16,7 @@ export function CatchUpSummary({ username, slug, summaryTarget }: {
   const request = useRef<AbortController | null>(null);
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [summary, setSummary] = useState<{ text: string; validUntil?: number } | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<UiMessage>('');
 
@@ -25,7 +25,6 @@ export function CatchUpSummary({ username, slug, summaryTarget }: {
   async function open() {
     setVisible(true);
     if (request.current) return;
-    if (summary && (summary.validUntil ?? Infinity) > Date.now()) return;
     setSummary(null);
     setMessage('');
     setError('');
@@ -35,7 +34,7 @@ export function CatchUpSummary({ username, slug, summaryTarget }: {
     try {
       const result = await catchUp(username, slug, controller.signal);
       if (controller.signal.aborted) return;
-      if (result.status === 'ready') setSummary({ text: result.summary, validUntil: result.validUntil });
+      if (result.status === 'ready') setSummary(result.summary);
       else setMessage(result.status === 'empty' ? 'No recent briefings to summarize.' : 'Still preparing. Try again shortly.');
     } catch (cause) {
       if (!controller.signal.aborted) setError(toUiError(cause));
@@ -58,7 +57,7 @@ export function CatchUpSummary({ username, slug, summaryTarget }: {
         </button>
         {busy ? <p role="status">{t('Summarizing…')}</p>
           : error ? <p role="alert">{t(error)}</p>
-          : <p role="status" dir="auto">{summary?.text ?? t(message)}</p>}
+          : <p role="status" dir="auto">{summary ?? t(message)}</p>}
       </div>
     </section>
   ) : null;
