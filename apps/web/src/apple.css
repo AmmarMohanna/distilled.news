@@ -3774,7 +3774,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   object-fit: contain;
   margin-block-end: clamp(2px, 1.5dvh, 16px);
 }
-:root.apple-ui.apple-ui [data-empty-view="explore"] > img { filter: url("#explore-artwork-cutout"); }
+:root.apple-ui.apple-ui :is([data-empty-view="home"], [data-empty-view="explore"]) > img { filter: url("#empty-artwork-cutout"); }
 :root.apple-ui.apple-ui .experience .feed-page-empty > h2 {
   margin: 0;
   color: var(--text);
