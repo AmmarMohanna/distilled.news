@@ -57,6 +57,19 @@ for (const tab of ["home", "explore"] as const) {
     const viewport = page.locator(".app-pages > .screen-page-viewport");
     if (tab === "home") {
       expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+      const grid = page.locator(".feed-tile-grid[data-feed-view=home]");
+      const [first, second] = await grid.locator(".feed-tile-cover").evaluateAll(covers =>
+        covers.slice(0, 2).map(cover => {
+          const { left, right, bottom } = cover.getBoundingClientRect();
+          const controls = cover.querySelector(".feed-tile-controls")!.getBoundingClientRect();
+          return { left, right, bottom, controlsTop: controls.top };
+        }));
+      const gridBounds = (await grid.boundingBox())!;
+      expect(first.left - gridBounds.x).toBeCloseTo(gridBounds.x + gridBounds.width - second.right, 0);
+      expect(second.left - first.right).toBeCloseTo(12, 0);
+      if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+        expect(first.controlsTop).toBeGreaterThanOrEqual(first.bottom);
+      }
     } else {
       const shelf = page.locator(".featured-feeds .catalog-shelf-track");
       await expect.poll(() => shelf.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);

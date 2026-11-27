@@ -3455,6 +3455,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
 }
 @media (max-width: 899px) and (pointer: coarse) {
+  :root.apple-ui.apple-ui .feed-tile-cover:has(.feed-tile-controls > *) { margin-block-end: 44px; }
+  :root.apple-ui.apple-ui .feed-tile-controls { inset: 100% 0 auto; }
   :root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary) {
     background: transparent;
     box-shadow: none;
@@ -4229,6 +4231,15 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
 }
 @media (max-width: 520px) {
+  :root.apple-ui.apple-ui .experience .feed-tile-grid {
+    width: calc(100% - 20px);
+    margin-inline: auto;
+    column-gap: 12px;
+    justify-content: center;
+  }
+  :root.apple-ui.apple-ui .experience .feed-tile-grid[style*="--feed-fit-columns"] {
+    grid-template-columns: repeat(var(--feed-fit-columns), minmax(0, var(--feed-fit-size, clamp(170px, 39dvh, 280px))));
+  }
   :root.apple-ui.apple-ui .feed-tile-grid > .feed-tile:only-child { max-width: min(var(--feed-fit-size, 280px), 59vw); }
 }
 :root.apple-ui.apple-ui .profile-dialog .profile-dialog-content {
