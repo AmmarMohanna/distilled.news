@@ -212,6 +212,14 @@ test('an owner can remove their cover from the corner of the banner', async ({ p
   if (await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)) {
     await expect(remove).toHaveCSS('opacity', '0');
     await page.locator('.channel-banner').hover();
+    const beforeHover = await remove.evaluate(button => ({
+      icon: getComputedStyle(button).color,
+      circle: getComputedStyle(button, '::before').backgroundColor,
+    }));
+    await remove.hover();
+    await expect(remove).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(remove).not.toHaveCSS('color', beforeHover.icon);
+    expect(await remove.evaluate(button => getComputedStyle(button, '::before').backgroundColor)).toBe(beforeHover.circle);
   }
   await expect(remove).toHaveCSS('opacity', '1');
   const banner = (await page.locator('.channel-banner').boundingBox())!;

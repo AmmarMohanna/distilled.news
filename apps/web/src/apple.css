@@ -3950,7 +3950,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   background: var(--surface);
 }
 :root.apple-ui.apple-ui .channel-cover-remove svg { position: relative; }
-:root.apple-ui.apple-ui .channel-cover-remove:hover { color: var(--danger); }
+:root.apple-ui.apple-ui .channel-banner-frame .channel-cover-remove:hover:not(:disabled) {
+  background: transparent;
+  color: var(--danger);
+}
 @media (hover: hover) and (pointer: fine) {
   :root.apple-ui.apple-ui .channel-banner-frame:not(:hover, :focus-within) .channel-cover-remove { opacity: 0; }
 }
