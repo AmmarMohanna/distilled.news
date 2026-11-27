@@ -198,9 +198,13 @@ test('Show all isolates channels and places Back below search', async ({ page })
     json: { channels: [{ username: 'joud', publicFeedCount: 1, followerCount: 1 }] }
   }));
   await page.goto('/explore');
+  const channel = page.locator('.catalog-shelf-track .channel-card').first();
+  await expect(channel).toBeVisible();
+  const channelWidth = (await channel.boundingBox())!.width;
   await page.getByRole('region', { name: 'Explore channels', exact: true }).filter({ has: page.getByRole('heading') })
     .getByRole('button', { name: 'Show all' }).click();
   await expect(page.locator('.catalog-vertical-grid .channel-card')).toHaveCount(1);
+  expect((await page.locator('.catalog-vertical-grid .channel-card').boundingBox())!.width).toBeCloseTo(channelWidth, 0);
   await expect(page.locator('.featured-feeds')).toHaveCount(0);
   const back = page.getByRole('button', { name: 'Back', exact: true });
   const search = await page.getByRole('searchbox').boundingBox();
@@ -223,8 +227,12 @@ for (const path of ["/", "/explore"]) test(`guest discovery shelves recover from
   await expect(page.getByRole('heading', { name: 'Top feeds', exact: true })).toBeVisible();
   releaseHighlights();
   const trending = page.getByRole('region', { name: 'Trending topics', exact: true });
+  const cover = trending.locator('.catalog-shelf-track .feed-tile-cover');
+  await expect(cover).toBeVisible();
+  const coverWidth = (await cover.boundingBox())!.width;
   await trending.getByRole('button', { name: 'Show all' }).click();
   await expect(page).toHaveURL(new URL(path + '?section=trending', page.url()).href);
+  expect((await trending.locator('.catalog-vertical-grid .feed-tile-cover').boundingBox())!.width).toBeCloseTo(coverWidth, 0);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page).toHaveURL(new URL(path, page.url()).href);
   await expect(trending.first()).toBeVisible();

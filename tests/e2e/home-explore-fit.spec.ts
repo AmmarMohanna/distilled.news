@@ -88,6 +88,24 @@ for (const tab of ["home", "explore"] as const) {
   });
 }
 
+test("Show all preserves the public feed square size while wrapping the row", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("dn-sidebar-collapsed", "false"));
+  await openApp(page, 8);
+  await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
+  const shelf = page.locator('section[aria-label="Public feeds"]');
+  const first = shelf.locator(".catalog-shelf-track .feed-tile-cover").first();
+  await expect(first).toBeVisible();
+  const original = (await first.boundingBox())!;
+  await shelf.getByRole("button", { name: "Show all" }).click();
+  const expanded = shelf.locator(".catalog-vertical-grid .feed-tile-cover");
+  await expect(expanded).toHaveCount(8);
+  const firstExpanded = (await expanded.first().boundingBox())!;
+  expect(firstExpanded.width).toBeCloseTo(original.width, 0);
+  expect(firstExpanded.height).toBeCloseTo(original.height, 0);
+  expect((await expanded.last().boundingBox())!.y).toBeGreaterThan(firstExpanded.y);
+});
+
 for (const language of ["fr", "ar"]) {
   for (const tab of ["home", "explore"] as const) {
     test(`${tab} first feed fits short landscape in ${language}`, async ({ page }) => {

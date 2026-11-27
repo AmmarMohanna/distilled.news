@@ -338,7 +338,7 @@ export function AppExperience(props: {
       </CatalogShelf>}
       {(!catalogView || catalogView === "feeds") && (!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
         {channel && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
-        {!channelName && !isExplorePage && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
+        {!channelName && !catalogView && !isExplorePage && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
           {feeds.length > 0 && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}
           <p className="error">{t(exploreError)}</p>
@@ -348,9 +348,9 @@ export function AppExperience(props: {
         {(channelName || !isExplorePage ? visibleFeeds : tab === "followed" ? followedFeeds : otherPublicFeeds).length ? (
           (isExplorePage || catalogView === "feeds") && !channelName ? <>
             {tab === "followed" && <CatalogShelf title={t("Followed feeds")}>{followedFeeds.map(renderExploreFeed)}</CatalogShelf>}
-            {tab !== "followed" && (catalogView === "feeds"
-              ? <AdaptiveFeedGrid view="explore">{otherPublicFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
-              : <CatalogShelf title={t("Public feeds")} onShowAll={() => showCatalog("feeds")}>{otherPublicFeeds.map(renderExploreFeed)}</CatalogShelf>)}
+            {tab !== "followed" && <CatalogShelf title={t("Public feeds")} expanded={catalogView === "feeds"} onShowAll={() => showCatalog("feeds")}>
+              {otherPublicFeeds.map(renderExploreFeed)}
+            </CatalogShelf>}
           </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
         ) : !loading && !exploreError && (query.trim() || nextOffset === null) && (
           query.trim() || channelName ? (
@@ -371,8 +371,9 @@ export function AppExperience(props: {
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
       {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (props.account || catalogView === "trending") &&
-        (catalogView ? <AdaptiveFeedGrid view="explore">{trendingFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
-          : <CatalogShelf title={t("Trending feeds")} onShowAll={() => showCatalog("trending")}>{trendingFeeds.map(renderExploreFeed)}</CatalogShelf>)}
+        <CatalogShelf title={t(props.account ? "Trending feeds" : "Trending topics")} expanded={catalogView === "trending"} onShowAll={() => showCatalog("trending")}>
+          {trendingFeeds.map(renderExploreFeed)}
+        </CatalogShelf>}
       {!waitingForCatalog && !channelName && visibleChannels.length > 0 && (!catalogView || catalogView === "channels" || catalogView === "top-channels") &&
         (tab === "followed" || tab === "explore") &&
         <CatalogShelf title={t(tab === "followed" ? "Followed channels" : catalogView === "top-channels" ? "Most followed channels" : isExplorePage ? "Explore channels" : "Top channels")}
