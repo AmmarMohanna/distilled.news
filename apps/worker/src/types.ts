@@ -493,6 +493,8 @@ export interface Repository {
   saveBriefingEdition(edition: BriefingEdition, now?: Date): Promise<void>;
   listBriefingEditions(briefingId: string, includeSections: boolean, now?: Date, limit?: number, window?: EditionWindow): Promise<BriefingEdition[]>;
   briefingPublicationVersion(briefingId: string): Promise<number>;
+  recordCatchUpOpen(accountId:string,edition:BriefingEdition,expiresAt:string):Promise<void>;
+  openedCatchUpCorrectionTargets(accountId:string,feedId:string,window:EditionWindow,product:boolean):Promise<string[]>;
   getBriefingEdition(briefingId: string, editionId: string, now?: Date): Promise<BriefingEdition | null>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   createSourceRun(input: {

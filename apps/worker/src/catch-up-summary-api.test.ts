@@ -37,3 +37,52 @@ it('returns a retryable quota response without suggesting immediate model retrie
  const response=await post();expect(response.status).toBe(429);expect(response.headers.get('Retry-After')).toBe('3600');
  expect(await response.json()).toMatchObject({code:'SUMMARY_QUOTA_EXCEEDED'});
 });
+
+const editionPath=(id:string)=>`/api/feed/owner/personal/editions/${id}`;
+const openEdition=(id:string,headers:Record<string,string>={cookie})=>app.request(editionPath(id)+'/opened',{method:'POST',headers},config);
+async function publish(id:string,hoursAgo:number,sections:BriefingEdition['sections']=[{title:'Port',summary:'The port has reopened.',evidence:[]}]){
+ const at=new Date(Date.now()-hoursAgo*3600000).toISOString();
+ await repo.saveBriefingEdition({id,briefingId:feed.id,cadence:'daily',status:'published',title:'News',summary:'News',sections,
+   windowStart:at,windowEnd:at,publishedAt:at,createdAt:at,updatedAt:at});
+}
+const selected=()=>vi.mocked(generateCatchUpSummary).mock.lastCall![0].input.briefings;
+
+it('uses account-wide opened history, with no effect from a detail GET or on another reader',async()=>{
+ await publish('older',20);await publish('newer',2);
+ expect((await app.request(editionPath('newer'),{headers:{cookie}},config)).status).toBe(200);
+ await post();expect(selected().map(e=>e.id)).toEqual(['older','newer']);
+ expect((await openEdition('newer')).status).toBe(204);
+ expect((await openEdition('newer')).status).toBe(204);
+ const owner=(await repo.getAccountByUsername('owner'))!;
+ const otherSession='dn_session='+await createSession('test-secret',owner,new Date(Date.now()-1000));
+ expect(otherSession).not.toBe(cookie);
+ await post({},{cookie:otherSession});expect(selected().map(e=>e.id)).toEqual(['older']);
+ const other=await repo.createAccount({email:'other@example.invalid',username:'other',role:'user',passwordHash:'test',emailVerifiedAt:new Date().toISOString()});
+ await post({},{cookie:'dn_session='+await createSession('test-secret',other)});
+ expect(selected().map(e=>e.id)).toEqual(['older','newer']);
+ await openEdition('older');await post();expect(selected()).toEqual([]);
+});
+
+it('honors an opened correction without sending it or the stale story to the model',async()=>{
+ const stale={storyId:'old-story',title:'Port',summary:'The port is closed.',evidence:[]};
+ await publish('older',20,[stale,{storyId:'other',title:'Airport',summary:'Airport repairs are scheduled.',evidence:[]}]);
+ await publish('repeat',18,[{...stale,storyId:'repeat-story'}]);
+ await publish('correction',2,[{...stale,storyId:'correction-story',relation:'correction',updatesId:'old-story',summary:'Officials corrected their report: the port remains open.'}]);
+ expect((await openEdition('correction')).status).toBe(204);
+ await post();
+ expect(selected().map(e=>[e.id,e.stories.map(s=>s.id)])).toEqual([['older',['other']]]);
+});
+
+it('does not record opens while disabled and protects private editions and mutations',async()=>{
+ await publish('one',2);
+ config.CATCH_UP_ENABLED=undefined;
+ expect((await openEdition('one')).status).toBe(204);
+ config.CATCH_UP_ENABLED='true';
+ expect((await openEdition('one',{})).status).toBe(401);
+ expect((await openEdition('one',{cookie,origin:'https://other.example'})).status).toBe(403);
+ expect((await openEdition('missing')).status).toBe(404);
+ await repo.upsertBriefing({...feed,publicFeedEnabled:false});
+ const other=await repo.createAccount({email:'other@example.invalid',username:'other',role:'user',passwordHash:'test',emailVerifiedAt:new Date().toISOString()});
+ expect((await openEdition('one',{cookie:'dn_session='+await createSession('test-secret',other)})).status).toBe(404);
+ await post();expect(selected().map(e=>e.id)).toEqual(['one']);
+});

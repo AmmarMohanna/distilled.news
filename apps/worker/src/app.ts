@@ -22,7 +22,7 @@ import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress,recentProductEditions,readProductEdition} from './product-feeds';
-import {catchUpHistoryDays,editionWindow,readerHistoryDays,readerInterval,type EditionCursor,type EditionWindow} from './reader-history';
+import {catchUpHistoryDays,catchUpOpenExpiry,editionWindow,readerHistoryDays,readerInterval,type EditionCursor,type EditionWindow} from './reader-history';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -1756,7 +1756,27 @@ export function createApp(options: AppOptions = {}) {
       const visiblePhotos = current?.publicFeedEnabled ? photos : [];
       return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
     }
-    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
+    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true),
+      ...(catchUpEnabled(c.env)?{catchUpAvailable:true}:{}) });
+  });
+
+  app.post('/api/feed/:username/:briefingSlug/editions/:editionId/opened',async(c)=>{
+    c.header('Cache-Control','private, no-store');
+    const origin=c.req.header('origin');
+    if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(!catchUpEnabled(c.env))return c.body(null,204);
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const {repo,briefing}=resolved,reader=await verifiedCatchUpReader(c,repo);
+    if(!reader)return c.json({error:'Sign in to catch up on recent briefings.'},401);
+    const id=c.req.param('editionId'),now=nowFor(),product=c.env.PRODUCT_FEEDS_ENABLED==='true';
+    const edition=product?await readProductEdition(c.env,briefing,id):await repo.getBriefingEdition(briefing.id,id,now);
+    if(!edition||(!product&&!isPublicEditionVisible(edition,briefing.language))||
+      (product&&!await canReadPublishedEdition(c,id)))return c.json({error:'edition not found'},404);
+    const publishedAt=Date.parse(edition.publishedAt);
+    if(!Number.isFinite(publishedAt)||publishedAt>now.getTime())return c.json({error:'edition not found'},404);
+    const expiresAt=catchUpOpenExpiry(edition.publishedAt);
+    if(expiresAt>=now.toISOString())await repo.recordCatchUpOpen(reader.id,edition,expiresAt);
+    return c.body(null,204);
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -1794,9 +1814,8 @@ export function createApp(options: AppOptions = {}) {
   app.post('/api/feed/:username/:briefingSlug/catch-up',bodyLimit({maxSize:1024}),async(c)=>{
     c.header('Cache-Control','private, no-store');
     const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
-    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
-    const reader=claims?await resolved.repo.getAccountById(claims.sub):null;
-    if(!reader||reader.disabledAt||!reader.emailVerifiedAt)return c.json({error:'Sign in to catch up on recent briefings.'},401);
+    const reader=await verifiedCatchUpReader(c,resolved.repo);
+    if(!reader)return c.json({error:'Sign in to catch up on recent briefings.'},401);
     const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
     if(!catchUpEnabled(c.env))return c.json({error:'Summaries are not configured on this deployment.'},503);
     const body=await c.req.text();
@@ -1804,12 +1823,14 @@ export function createApp(options: AppOptions = {}) {
       if(Object.keys(c.req.query()).length)throw Error('Unexpected query');
       if(body)z.object({}).strict().parse(JSON.parse(body));
     } catch {return c.json({error:'Catch-up requests cannot specify briefing evidence.'},400);}
-    const days=catchUpHistoryDays(await readerInterval(resolved.briefing,c.env.PRODUCT_FEEDS_ENABLED==='true'?c.env.DB:undefined));
-    const now=nowFor(),window=editionWindow(now,days,CATCH_UP_MAX_EDITIONS);
+    const product=c.env.PRODUCT_FEEDS_ENABLED==='true';
+    const days=catchUpHistoryDays(await readerInterval(resolved.briefing,product?c.env.DB:undefined));
+    const now=nowFor(),window={...editionWindow(now,days,CATCH_UP_MAX_EDITIONS),excludeOpenedBy:reader.id};
     const records=await readRecentEditions(c.env,resolved.repo,resolved.briefing,window);
-    const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?records:records.filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
-    if(c.env.PRODUCT_FEEDS_ENABLED==='true'&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
-    let input;try{input=prepareCatchUpSummary(editions,resolved.briefing.language,window.since,now.getTime());}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
+    const editions=product?records:records.filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    const correctionTargets=editions.length?await resolved.repo.openedCatchUpCorrectionTargets(reader.id,resolved.briefing.id,window,product):[];
+    if(product&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
+    let input;try{input=prepareCatchUpSummary(editions,resolved.briefing.language,window.since,now.getTime(),correctionTargets);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
     const task=generateCatchUpSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:catchUpSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'reader_catch_up',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
     try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
     try{
@@ -2126,6 +2147,12 @@ export function createApp(options: AppOptions = {}) {
       if (claims?.sub !== briefing.ownerAccountId) return c.json({ error: "feed not found" }, 404);
     }
     return { repo, account: resolved.account, briefing };
+  }
+
+  async function verifiedCatchUpReader(c:Context<{Bindings:Env;Variables:Variables}>,repo:Repository) {
+    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
+    const reader=claims?await repo.getAccountById(claims.sub):null;
+    return reader?.emailVerifiedAt&&!reader.disabledAt?reader:null;
   }
 
   return app;
