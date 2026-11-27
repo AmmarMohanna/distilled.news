@@ -238,3 +238,9 @@ external operation rows. Use a regular load profile with a proven accounting bas
 Browser evidence is available as a scoped read. A run with browser discovery operations
 stops at accounting until their costs can be reconciled. The `bridge` adapter remains
 the default when `CAMPAIGN_ADAPTER_KIND` is unset.
+
+## Reader pages and the headless-browser reader
+
+The k6 traffic now also requests the reader-facing pages served by the campaign Worker: the home page, Explore, each user's own feed page and one hashed JS/CSS bundle learned from the app shell. Each iteration is still exactly one request, so `trafficRequests` stays an exact bound. Pages must return the HTML app shell (`PAGE_SHELL_MISMATCH` otherwise). Page and API latency are exported separately as `distilled_campaign_page_latency_*` and `distilled_campaign_api_latency_*`.
+
+When a manifest sets `"browserPages": true`, one headless Chromium reader opens a test user's own feed page with that user's session, at most six times per run, and waits for the network to go idle. k6 records first and largest contentful paint and the browser's own request latency, exported as `distilled_campaign_browser_*`. These browser requests are read-only page loads and are not counted in `trafficRequests`.

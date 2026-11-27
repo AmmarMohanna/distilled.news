@@ -109,7 +109,7 @@ try{
     // campaign directory already contains an artifact from an earlier attempt.
     const summaryPath=resolve(dir,`traffic-summary-${randomUUID()}.private.json`);
     const reportPath=resolve(dir,'traffic-summary.private.json');
-    child=spawn('k6',['run','--config',resolve(dir,'k6.config.private.json'),'--traces-output','none','--include-system-env-vars=false','-e','CAMPAIGN_MANIFEST='+resolve(manifestPath),'-e','CAMPAIGN_REGISTRY='+resolve(dir,'traffic-registry.private.json'),'--summary-export',summaryPath,'evaluation/performance-reliability/real/users.k6.js'],{env:{...env,CAMPAIGN_MANIFEST:resolve(manifestPath),CAMPAIGN_REGISTRY:resolve(dir,'traffic-registry.private.json'),K6_NO_USAGE_REPORT:'true'},stdio:['ignore','pipe','pipe']});
+    child=spawn('k6',['run','--config',resolve(dir,'k6.config.private.json'),'--traces-output','none','--include-system-env-vars=false','-e','CAMPAIGN_MANIFEST='+resolve(manifestPath),'-e','CAMPAIGN_REGISTRY='+resolve(dir,'traffic-registry.private.json'),'--summary-export',summaryPath,'evaluation/performance-reliability/real/users.k6.js'],{env:{...env,CAMPAIGN_MANIFEST:resolve(manifestPath),CAMPAIGN_REGISTRY:resolve(dir,'traffic-registry.private.json'),K6_NO_USAGE_REPORT:'true',K6_BROWSER_HEADLESS:'true',K6_BROWSER_ARGS:'no-sandbox'},stdio:['ignore','pipe','pipe']});
     // Avoid raw k6 logs containing URLs or errors reaching CI. Only exit status
     // and its bounded JSON summary are retained. Buffers are always drained.
     child.stdout.resume();

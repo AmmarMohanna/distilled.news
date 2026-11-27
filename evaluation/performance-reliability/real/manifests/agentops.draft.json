@@ -44,6 +44,7 @@
       "vus": 2
     }
   ],
+  "browserPages": true,
   "notifications": false,
   "cleanup": "archive",
   "budget": {

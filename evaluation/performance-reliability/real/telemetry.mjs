@@ -17,6 +17,10 @@ export function metricsPayload(m,s,now=Date.now(),traffic=null){
   extra.http_requests_per_second=metric('http_reqs')?.rate;
   extra.http_observed_max_vus=metric('vus')?.max;
   extra.http_error_ratio=metric('http_req_failed')?.rate??metric('http_req_failed')?.value;
+  // Reader pages versus API reads, and the real headless-browser reader when enabled.
+  for(const [metricName,prefix]of [['campaign_page_duration','page_latency'],['campaign_api_duration','api_latency'],['browser_web_vital_fcp','browser_fcp'],['browser_web_vital_lcp','browser_lcp'],['browser_http_req_duration','browser_request_latency']])
+   for(const [k,v]of Object.entries(metric(metricName)??{}))if(['p(50)','p(95)'].includes(k))extra[prefix+'_'+k.replace(/[^0-9]/g,'')+'_ms']=v;
+  extra.browser_request_error_ratio=metric('browser_http_req_failed')?.rate??metric('browser_http_req_failed')?.value;
  }
 
  const metrics=Object.entries(names).flatMap(([key,name])=>typeof s?.[key]==='number'&&Number.isFinite(s[key])&&(!['modelCalls','settledUsd','outstandingReservedUsd','uncertainOperations'].includes(key)||s.financialCoverageComplete===true)?[{name:'distilled_campaign_'+name,gauge:{dataPoints:[{attributes,timeUnixNano:String(BigInt(now)*1000000n),asDouble:s[key]}]}}]:[]);

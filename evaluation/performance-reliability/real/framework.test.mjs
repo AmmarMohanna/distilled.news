@@ -265,3 +265,16 @@ test('one metrics-only GraphQL retry is bounded, charged to read budget and fail
   assert.equal(graph,2);assert.equal(queues,permanent?0:1);assert.equal(JSON.parse(readFileSync(resolve(dir,'control-plane-budget.private.json'),'utf8')).requests,permanent?2:3);
  }finally{rmSync(dir,{recursive:true,force:true});}}
 });
+
+test('reader pages must be the app shell and only same-origin hashed bundles are followed',async()=>{
+ const {pageViolation,assetPaths}=await import('./journeys.mjs');
+ const shell='<!doctype html><link rel="stylesheet" crossorigin href="/assets/index-Ab12.css"><script type="module" crossorigin src="/assets/index-Cd34.js"></script><script src="https://evil.example/x.js"></script>';
+ assert.equal(pageViolation('page-home',200,'text/html; charset=utf-8',shell),null);
+ assert.equal(pageViolation('page-feed',200,'application/json','{}'),'PAGE_SHELL_MISMATCH');
+ assert.equal(pageViolation('page-explore',200,'text/html','<html>no app</html>'),'PAGE_SHELL_MISMATCH');
+ assert.equal(pageViolation('page-home',503,'text/html',''),null);
+ assert.equal(pageViolation('account',200,'application/json','{}'),null);
+ assert.deepEqual(assetPaths(shell),['/assets/index-Cd34.js','/assets/index-Ab12.css']);
+ assert.deepEqual(assetPaths('<script src="/assets/../secret"></script>'),[]);
+ assert.deepEqual(assetPaths(null),[]);
+});
