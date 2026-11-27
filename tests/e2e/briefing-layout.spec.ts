@@ -84,6 +84,11 @@ test("published headlines open retained briefing evidence and preserve read-only
   });
   await page.goto("/admin/personal-briefing/");
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
+  const row = page.locator('.news-item').first();
+  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) await row.hover();
+  const rowTop = (await row.boundingBox())!.y;
+  const timeTop = (await row.locator('.news-head time').boundingBox())!.y;
+  expect(timeTop - rowTop).toBeGreaterThanOrEqual(12);
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".news-sources")).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
