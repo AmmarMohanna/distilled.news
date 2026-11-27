@@ -63,6 +63,7 @@ describe('V5 stage routing', () => {
 
 it('pins every Flash-only stage and its recovery to frozen routes', () => {
   const models = flashPairModels();
+  expect(models.editorialPolicy).toBe('interest-and-evidence-v1');
   const [deepseek, gemini] = models.recoveryRoutes!;
   expect(models.generation?.provider).toBe('wafer/us');
   expect(models.stageRoutes?.factualReview).toEqual(gemini);

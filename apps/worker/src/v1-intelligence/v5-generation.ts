@@ -61,7 +61,7 @@ export function flashPairModels(): BriefingModels {
     stage, ['readerInventory', 'correction'].includes(stage) ? deepseek : gemini,
   ]));
   return {editor:deepseek.model, verifier:gemini.model, generation:v5Generation('deepseek-flash-wafer'),
-    recoveryRoutes:[deepseek,gemini], stageRoutes, languageStageRoutes:{ar:{correction:gemini}}};
+    editorialPolicy:"interest-and-evidence-v1", recoveryRoutes:[deepseek,gemini], stageRoutes, languageStageRoutes:{ar:{correction:gemini}}};
 }
 
 export function v5Generation(profile: string | undefined): BriefingGeneration | undefined {

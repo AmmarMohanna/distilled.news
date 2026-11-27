@@ -112,3 +112,21 @@ it('propagates a transport failure without dispatching an alternate model', asyn
   }, new UsageMeter(), {model:'primary',system:'',user:'item',maxTokens:100}, x=>x)).rejects.toThrow('transport');
   expect(switched).toBe(false);
 });
+
+it('uses the exact same schema and validator once on the alternate after a schema-capacity rejection', async () => {
+  const primary = openAiCompatibleModel({
+    url: 'https://x', apiKey: 'k',
+    fetcher: async () => json({error: 'The specified schema produces a constraint that has too many states for serving.'}, 400),
+  });
+  const request = {model:'primary', system:'verify', user:'item', maxTokens:100, responseSchema:{type:'object'}};
+  let alternates = 0;
+  await expect(callJson({
+    complete: primary.complete,
+    recoverInvalid: async retried => {
+      alternates++;
+      expect(retried).toEqual(request);
+      return {text:'{}',inputTokens:1,outputTokens:1};
+    },
+  }, new UsageMeter(), request, () => { throw Error('missing evidence'); })).rejects.toThrow('missing evidence');
+  expect(alternates).toBe(1);
+});
