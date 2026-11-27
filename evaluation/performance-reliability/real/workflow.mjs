@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
@@ -101,9 +102,24 @@ async function main(env) {
     child.stdout.resume();
     child.stderr.resume();
     child.once('error', () => resolveExit(1));
-    child.once('exit', code => resolveExit(code ?? 1));
+    child.once('exit', code => { console.log(`Campaign phase ${phase} exited with code ${code ?? 1}`); resolveExit(code ?? 1); });
   });
-  return runCampaignPhases(phases, run, schedule);
+  const code = await runCampaignPhases(phases, run, schedule);
+  if (code !== 0) printStopReasons(dir);
+  return code;
+}
+
+/** Phase output stays private; only the journal's sanitized stop codes are printed. */
+export function printStopReasons(dir) {
+  let lines = [];
+  try { lines = readFileSync(resolve(dir, 'journal.jsonl'), 'utf8').trim().split('\n'); } catch { return; }
+  const code = value => String(value ?? '').replace(/[^A-Z0-9_]/gi, '_').slice(0, 160);
+  for (const line of lines) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (['phase-stopped', 'cleanup-required', 'URGENT_MANUAL_ROLLBACK_REQUIRED'].includes(event.category))
+      console.error(`Campaign ${code(event.category)}: phase=${code(event.phase)} reason=${code(event.reason)}`);
+  }
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
