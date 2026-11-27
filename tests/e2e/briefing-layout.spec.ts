@@ -114,6 +114,7 @@ test("published headlines open retained briefing evidence and preserve read-only
   await headline.click();
   const reader = page.getByRole('dialog', { name: 'Briefing' });
   await expect(reader).toContainText('The full briefing ends here');
+  await expect(reader.locator('.news-summary')).toHaveCSS('color', 'rgb(96, 96, 100)');
   await expect(page).toHaveURL(/\/admin\/personal-briefing\/$/);
   await reader.getByRole('button', { name: 'Close dialog' }).click();
   await expect(reader).toHaveCount(0);
@@ -140,6 +141,7 @@ test("published headlines open retained briefing evidence and preserve read-only
   const body = page.locator(".briefing-detail-body .news-summary");
   await expect(body).toContainText("The full briefing ends here");
   await expect(body).toHaveCSS("overflow", "visible");
+  await expect(body).toHaveCSS("color", "rgb(96, 96, 100)");
   await page.context().route(sourceUrl, route => route.fulfill({ body: "Publisher article" }));
   const [source] = await Promise.all([page.waitForEvent('popup'), page.locator(".briefing-detail-body .briefing-reference").first().click()]);
   await expect(source).toHaveURL(sourceUrl);
