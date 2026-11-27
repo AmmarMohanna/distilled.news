@@ -2,6 +2,13 @@ import type { BriefingConfig, BriefingEdition, SourceKind, SourceProvider } from
 
 export type AccountRole = "admin" | "user";
 
+export interface ExploreChannel {
+  username: string;
+  publicFeedCount: number;
+  followerCount: number;
+  viewerFollowing?: boolean;
+}
+
 export interface AccountRecord {
   id: string;
   email: string;

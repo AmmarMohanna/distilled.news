@@ -1,7 +1,10 @@
-﻿import type { BriefingConfig } from "@distilled/core";
+import type { BriefingConfig } from "@distilled/core";
 import type { Env } from "./types";
 
 const SKETCH_MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
+export const PENCIL_COVER_STYLE = "pencil-cover-v1";
+export const IMPORTED_COVER_DISPOSITION = 'inline; filename="feed-cover.jpg"';
+export const IMPORTED_PNG_COVER_DISPOSITION = 'inline; filename="feed-cover.png"';
 
 export class SketchError extends Error {
   constructor(public readonly code: string, message: string) { super(message); }
@@ -32,14 +35,16 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 }
 
 
-export function sketchPrompt(briefing: Pick<BriefingConfig, "interestProfile">): string {
-  return [
-    "Monochromatic colored-pencil sketch in #5E5CE6.",
-    `Choose one simple, immediately recognizable subject representing this news interest: ${JSON.stringify(briefing.interestProfile)}`,
-    "Natural, slightly irregular pencil strokes with visible fine-grained pigment and subtle pressure variation.",
-    "Thin-to-medium pencil lines, never thick marker outlines. Clearly visible drawing with light pencil hatching, using only #5E5CE6 pigment on white paper.",
-    "Center the complete subject in a square composition, suitable for a small news-feed thumbnail. No text, logos, signatures, borders, or drawing tools."
-  ].join("\n");
+const QUIET_PENCIL_STYLE = [
+  "Create a quiet editorial colored-pencil study for Distilled.news. Draw one recognizable subject with precise, fine pencil lines and light cross-hatching. Add only a faint environmental cue. Leave most of the composition as untouched off-white paper, with subtle paper grain and restrained shadows.",
+  "Draw one continuous edge-to-edge scene in a wide panorama with the recognizable subject and its important details in the central quarter of the width, and within the central two-thirds of the height, so a centered square crop retains the subject. Let the landscape or background fade naturally into open paper at the edges. Avoid dense scenery and keep the surrounding paper open.",
+  "Use the Distilled.news Create feed button color #5E5CE6 as the dominant colored-pencil ink. Match that exact blue-violet hue in the medium tones. Use deeper values of the same ink for a few sparing shadows and lighter values over Off-White #FAF9FF paper for highlights. Build depth and tonal variation with crisp hatching and layered pencil pressure. Keep the artwork anchored to #5E5CE6 across the canvas and avoid separate pink, magenta, violet or mauve color washes.",
+  "Output artwork only. Never draw words, letters, pseudo-writing, numbers, labels, logos, watermarks, buttons, or UI, including in the sky and on buildings or signage. No inset artwork, picture frames, panels, borders, stock photography, 3D renders, cartoons, anime, fantasy, flat vector art, or dreamy digital painting."
+].join("\n");
+
+export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestProfile">): string {
+  const topic = `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Use both as subject context only. Choose recognizable subjects, landmarks, objects, and settings specific to the primary topic, and compose the scene around them. Vary the viewpoint and environment by subject and avoid generic decoration.`;
+  return `${QUIET_PENCIL_STYLE}\n${topic}`;
 }
 
 export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean>): Promise<boolean> {
@@ -49,8 +54,8 @@ export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'i
   // Klein uses multipart input and a fixed four-step inference process.
   const form = new FormData();
   form.append("prompt", prompt);
-  form.append("width", "1024");
-  form.append("height", "1024");
+  form.append("width", "1920");
+  form.append("height", "480");
   form.append("seed", "42");
   let result;
   try {
@@ -77,7 +82,8 @@ export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'i
   if (stillCurrent && !await stillCurrent()) return false;
   if (await env.RAW_ARCHIVE.head(sketchKey(briefing))) return true;
   try { await env.RAW_ARCHIVE.put(sketchKey(briefing), bytes, {
-    httpMetadata: { contentType: "image/jpeg" }
+    httpMetadata: { contentType: "image/jpeg" },
+    customMetadata: { artworkStyle: PENCIL_COVER_STYLE }
   }); } catch { throw new SketchError("SKETCH_STORAGE_WRITE", "The image was generated, but saving it to R2 failed. Check the RAW_ARCHIVE binding."); }
   return true;
 }

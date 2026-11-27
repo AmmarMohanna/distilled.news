@@ -12,9 +12,9 @@ test("requested feed layout and language controls", async ({ page }) => {
     return route.fulfill({ json: data });
   });
   await page.goto("/");
-  const card = page.locator(".personal-feed-grid .topic-card");
-  await expect(card.locator(".feed-card-identity strong")).toHaveText("Personal Briefing");
-  await expect(card.locator(".feed-card-identity small")).toHaveText("@admin");
+  const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile");
+  await expect(card.locator(".feed-tile-caption > a")).toHaveText("Personal Briefing");
+  await expect(card.getByRole("link", { name: "@admin", exact: true })).toHaveAttribute("href", "/explore?channel=admin");
   await expect(card.locator(".feed-card-status")).toHaveCount(0);
   await expect(card.getByRole('link').first()).toHaveAttribute('href','/admin/personal/');
   await expect(card.locator("time")).toContainText("Updated");
@@ -95,8 +95,9 @@ for(const width of [1280,390])test(`pending scheduled work retains the empty rea
  });
  await page.goto('/admin/personal/');
  await expect(page.getByRole('button',{name:/brief now/i})).toHaveCount(0);
- await expect(page.getByText('no published briefings',{exact:true})).toBeVisible();
- await expect(page.getByText('The next scheduled briefing will appear here.',{exact:true})).toBeVisible();
+ await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'No published briefings yet'})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Explore feeds'})).toHaveAttribute('href','/explore');
  await expect(page.getByText('No new developments in the latest scheduled briefing.',{exact:true})).toHaveCount(0);
  const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/feed/admin/personal');
  await refreshFeed(page);await refreshed;expect(calls).toBe(0);

@@ -13,7 +13,7 @@ for(const width of [320,390,600]) {
         :path.startsWith('/api/feed/')?{briefing:feed,editions:[],viewerHasStarred:false}:{}});
     });
     await page.goto('/');
-    await page.locator('.curated-feed-grid .topic-card > a').first().click();
+    await page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile-artwork').first().click();
     await expect(page.locator('.feed-nav-back')).toBeVisible();
     await expect(page.locator('.experience-header')).toHaveClass(/is-guest/);
     const appearance=page.locator('.experience-header .appearance-menu > summary');

@@ -10,11 +10,12 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith('/sketch'))return route.fulfill({status:404});
+    if(path.endsWith('/editions/one'))return route.fulfill({json:{briefing:feed,edition}});
     if(path.endsWith('/unread-summary')){calls++;expect(route.request().method()).toBe('POST');expect(route.request().postDataJSON()).toEqual({readIds:[]});return route.fulfill({json:{status:'ready',summary}});}
     return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'owner',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path==='/api/me/sources'?{sources:[]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[edition],viewerHasStarred:false,unreadSummaryAvailable:true}:{}});
   });
   await page.goto('/owner/news/');
-  const button=page.getByRole('button',{name:'Summarize unread',exact:true});
+  const button=page.getByRole('button',{name:'Summarize',exact:true});
   await expect(button).toBeVisible();expect(calls).toBe(0);
   await button.click();
   const card=page.getByRole('region',{name:'Unread summary'});
@@ -36,25 +37,21 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
 
   expect(await page.locator('.news-item.is-read').count()).toBe(0);
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
-  const [search,action]=await Promise.all([page.locator('.feed-tools form').boundingBox(),button.boundingBox()]);
-  expect(action!.height).toBeGreaterThanOrEqual(43.99);
-  expect(action!.y+action!.height<=850).toBe(true);
-  if(width>600) {
-    expect(Math.abs(search!.y+search!.height/2-action!.y-action!.height/2)).toBeLessThan(3);
-    expect(search!.width).toBeGreaterThan(action!.width * 2);
-    expect(action!.width).toBeLessThan(280);
-  }
-  else {
-    expect(action!.y).toBeGreaterThanOrEqual(search!.y+search!.height);
-    const status=await page.locator('.feed-check-status').boundingBox();
-    expect(Math.abs(status!.y-action!.y)).toBeLessThan(2);
-    expect(status!.x+status!.width).toBeLessThanOrEqual(action!.x);
-  }
+  const action=(await button.boundingBox())!;
+  const status=(await page.locator('.page-heading > .feed-check-status').boundingBox())!;
+  expect(action.height).toBeGreaterThanOrEqual(43.99);
+  expect(action.y+action.height).toBeLessThanOrEqual(850);
+  expect(status.y+status.height).toBeLessThan(action.y);
+  await expect(page.locator('.feed-tools form')).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
   await page.getByRole('button',{name:'Close summary'}).click();await button.click();await expect(card).toContainText(summary);expect(calls).toBe(2);
   await page.getByRole('button',{name:'Close summary'}).click();
-  await page.locator('.read-button').click();await expect(button).toBeDisabled();
+  await page.locator('.briefing-headline-link').click();
+  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner'],'news'])))).toContain('one');
+  await page.getByRole('link',{name:'Back to feed'}).click();
+  await expect(button).toBeDisabled();
 });
 
 test('Arabic catch-up fits a narrow reader with enlarged text',async({page},info)=>{

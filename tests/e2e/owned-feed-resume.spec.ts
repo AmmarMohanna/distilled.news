@@ -23,7 +23,7 @@ async function mock(page:Page,initial=[existing]){
  });
  return state;
 }
-const cards=(page:Page)=>page.locator('.home-view .personal-feed-grid');
+const cards=(page:Page)=>page.locator('.home-view .feed-tile-grid[data-feed-view=home]');
 
 test('new private feed appears on resume without reload or duplicate reads',async({page})=>{
  const state=await mock(page);await page.goto('/');
@@ -112,7 +112,7 @@ test('an in-flight resume response is ignored if editing starts before it arrive
 
 test('initial owned-feed loading never flashes an empty list, including the archive',async({page})=>{
  const state=await mock(page);let release!:()=>void;state.hold=new Promise<void>(resolve=>{release=resolve;});await page.goto('/');
- await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(cards(page).locator('.topic-card')).toHaveCount(0);
+ await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(cards(page).locator('.feed-tile')).toHaveCount(0);
  await page.getByRole('button',{name:'Archived feeds',exact:true}).click();await expect(page.getByRole('dialog').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText('No archived feeds',{exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Close dialog'}).click();
  release();await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
 });

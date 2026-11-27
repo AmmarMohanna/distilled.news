@@ -28,7 +28,7 @@ for (const width of [390, 1280]) {
     await expect(controls).toBeHidden();
     await expect(page.locator('.feed-nav-back')).toBeVisible();
     const bounds = await header.boundingBox();
-    const back = await page.locator('.feed-nav-back').boundingBox();
+    const navigation = await page.locator('.feed-nav-back').boundingBox();
     const ownershipRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/api/me/briefings');
     resolveSession();
     await ownershipRequest;
@@ -38,7 +38,7 @@ for (const width of [390, 1280]) {
     await expect(controls).toBeVisible();
     await expect(page.locator('.experience-header a[href="/login"]')).toHaveCount(0);
     expect(await header.boundingBox()).toEqual(bounds);
-    expect(await page.locator('.feed-nav-back').boundingBox()).toEqual(back);
+    expect(await page.locator('.feed-nav-back').boundingBox()).toEqual(navigation);
     const samples = await controls.evaluate(async node => {
       const positions: string[] = [];
       for (let frame = 0; frame < 10; frame++) {

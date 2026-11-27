@@ -32,14 +32,14 @@ async function mock(page: Page, role: "admin" | "user" | "guest" = "admin", init
 test("admin Explore preserves the configured editorial order without unavailable publishing controls", async ({ page }) => {
   const requests = await mock(page, "admin", ["quiet", "starred"]);
   await page.goto("/");
-  const card = page.locator(".personal-feed-grid .topic-card").filter({ hasText: "World news" });
+  const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").filter({ hasText: "World news" });
   await card.locator("summary").click();
   await expect(card.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
   await card.locator("summary").press("Escape");
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
-  const cards = page.locator(".curated-feed-grid .topic-card");
-  await expect(cards.locator(".topic-name strong")).toHaveText(["Quiet science", "World news"]);
-  await expect(page.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
+  const cards = page.locator(".explore-view .featured-feeds .catalog-shelf-track .feed-tile");
+  await expect(cards.locator(".feed-tile-caption > a")).toHaveText(["Quiet science", "World news"]);
+  await expect(cards.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
   expect(requests.filter(path => /\/api\/admin\/briefings\/[^/]+\/explore$/.test(path))).toEqual([]);
 });
 
@@ -47,7 +47,7 @@ test("an empty guest Explore has no placeholder feeds or trending claims", async
   const requests = await mock(page, "guest");
   await page.goto("/explore");
   await expect(page.getByText("No feeds have been published to Explore yet.")).toHaveCount(0);
-  await expect(page.locator(".topic-card")).toHaveCount(0);
+  await expect(page.locator(".feed-tile")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Popular topics" })).toHaveCount(0);
   expect(requests).not.toContain("/api/explore/popular");
 });
@@ -55,10 +55,10 @@ test("an empty guest Explore has no placeholder feeds or trending claims", async
 test("users see curated admin feeds and cannot publish their own to Explore", async ({ page }) => {
   await mock(page, "user", ["quiet"]);
   await page.goto("/");
-  await page.locator(".personal-feed-grid summary").click();
+  await page.locator(".feed-tile-grid[data-feed-view=home] summary").click();
   await expect(page.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
-  await page.locator(".personal-feed-grid summary").press("Escape");
+  await page.locator(".feed-tile-grid[data-feed-view=home] summary").press("Escape");
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
-  await expect(page.locator(".curated-feed-grid .topic-name strong")).toHaveText(["Quiet science"]);
-  await expect(page.locator(".curated-feed-grid")).not.toContainText("My user feed");
+  await expect(page.locator(".explore-view .featured-feeds .catalog-shelf-track .feed-tile-caption > a")).toHaveText(["Quiet science"]);
+  await expect(page.locator(".explore-view .featured-feeds .catalog-shelf-track")).not.toContainText("My user feed");
 });

@@ -10,6 +10,7 @@ export function BriefingText(props:{
   fallbackHeadline?:string;
   fallbackSummary?:string;
   hideBody?:boolean;
+  renderHeadline?:(headline:string)=>ReactNode;
   renderReferences?:(sectionIndex?:number)=>ReactNode;
   renderDetails?:(body:string,sectionIndex?:number)=>ReactNode;
   renderBody:(text:string)=>ReactNode;
@@ -18,7 +19,7 @@ export function BriefingText(props:{
   const structured=sections.length>0&&sections.every(s=>!s.title.trim()&&s.summary.includes('\n'))&&
     normalizeSummary(summary)===normalizeSummary(sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'));
   if(!structured){const content=<>
-    {props.fallbackHeadline?<h3 className="news-headline" dir={props.direction}><bdi dir={props.direction}>{props.fallbackHeadline}</bdi>{props.renderReferences?.()}</h3>:null}
+    {props.fallbackHeadline?<h3 className="news-headline" dir={props.direction}>{props.renderHeadline?.(props.fallbackHeadline) ?? <bdi dir={props.direction}>{props.fallbackHeadline}</bdi>}{props.renderReferences?.()}</h3>:null}
     {props.renderDetails?.(normalizeSummary(props.fallbackSummary??summary))}
     {props.hideBody?null:props.renderBody(normalizeSummary(props.fallbackSummary??summary))}
   </>;return props.renderDetails?<div className="news-story" dir={props.direction}>{content}</div>:content;}
@@ -27,7 +28,7 @@ export function BriefingText(props:{
     {sections.map((section,index)=>{
       const text=section.summary.replace(/\r\n/g,'\n'),boundary=text.indexOf('\n');
       return <div className="news-story" key={index}>
-        <h3 className="news-story-heading news-headline"><bdi dir={props.direction}>{text.slice(0,boundary).trim()}</bdi>{props.renderReferences?.(index)}</h3>
+        <h3 className="news-story-heading news-headline">{props.renderHeadline?.(text.slice(0,boundary).trim()) ?? <bdi dir={props.direction}>{text.slice(0,boundary).trim()}</bdi>}{props.renderReferences?.(index)}</h3>
         {props.renderDetails?.(text.slice(boundary+1).trim(),index)}
         {props.hideBody?null:props.renderBody(`${text.slice(boundary+1).trim()} [${index+1}]`)}
       </div>;

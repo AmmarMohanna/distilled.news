@@ -25,6 +25,7 @@ import type {
   AccountWithStats,
   AuthTokenPurpose,
   AuthTokenRecord,
+  ExploreChannel,
   HealthStatus,
   ProcessingJobRecord,
   ProcessingJobState,
@@ -524,35 +525,92 @@ export class D1Repository implements Repository {
     return String(row.revision);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
-    if (limit <= 0) return [];
-    const rows = await all<BriefingRow>(this.exploreStatement(limit, offset, excludeOwnerId, voterId));
-    return rows.map(rowToBriefingCard);
+  async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
+    return all<ExploreChannel>(this.db.prepare(
+      `SELECT accounts.username, COUNT(*) AS publicFeedCount,
+        (SELECT COUNT(*) FROM channel_follows
+          JOIN accounts AS followers ON followers.id = channel_follows.follower_id
+          WHERE channel_id = accounts.id AND followers.disabled_at IS NULL) AS followerCount
+       FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
+       WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+       ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
+       ${viewer ? `AND accounts.id != ? AND ${viewer.followed ? '' : 'NOT '}EXISTS (
+         SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?)` : ''}
+       GROUP BY accounts.id ORDER BY followerCount DESC, SUM(briefings.stars) DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
+    ).bind(...(ownerId === undefined ? [] : [ownerId]), ...(viewer ? [viewer.id, viewer.id] : []), limit));
   }
 
-  async firstExplorePage(limit: number, excludeOwnerId?: string, voterId?: string) {
+  async hasChannelFollow(channelId: string, followerId: string): Promise<boolean> {
+    return Boolean(await first(this.db.prepare(
+      "SELECT 1 FROM channel_follows WHERE channel_id = ? AND follower_id = ?"
+    ).bind(channelId, followerId)));
+  }
+
+  async setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void> {
+    const statement = following
+      ? "INSERT INTO channel_follows (channel_id, follower_id, followed_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT DO NOTHING"
+      : "DELETE FROM channel_follows WHERE channel_id = ? AND follower_id = ?";
+    await this.db.prepare(statement).bind(channelId, followerId).run();
+  }
+
+  async listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string) {
+    const ranked = kind === "trending";
+    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; latest_edition_id: string | null}>(this.db.prepare(
+      `WITH selected AS (
+        SELECT briefings.id FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
+        ${ranked ? "JOIN briefing_stars ON briefing_stars.briefing_id = briefings.id AND briefing_stars.created_at >= ?" : ""}
+        WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+          AND (? IS NULL OR briefings.owner_account_id != ?)
+          ${ranked ? "GROUP BY briefings.id" : "AND briefings.created_at >= ?"}
+        ORDER BY ${ranked ? "COUNT(briefing_stars.voter_id) DESC," : ""} briefings.created_at DESC, briefings.id ASC
+        LIMIT ?
+      )
+      SELECT briefings.*, accounts.username AS owner_username, ${BRIEFING_CARD_FIELDS},
+        COALESCE(
+          (SELECT p.id FROM v1_feed_documents p WHERE p.feed_id=briefings.id AND p.kind='publication_status' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY json_extract(p.json,'$.publishedAt') DESC LIMIT 1),
+          (SELECT e.id FROM briefing_editions e WHERE e.briefing_id=briefings.id AND e.status='published' ORDER BY e.published_at DESC LIMIT 1)
+        ) AS latest_edition_id
+      FROM selected JOIN briefings ON briefings.id = selected.id JOIN accounts ON accounts.id = briefings.owner_account_id
+      ORDER BY ${ranked ? "(SELECT COUNT(*) FROM briefing_stars WHERE briefing_id=briefings.id AND created_at>=?) DESC," : ""}
+        briefings.created_at DESC, briefings.id ASC`
+    ).bind(...(ranked ? [since] : []), excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ranked ? [] : [since]),
+      limit, voterId ?? null, ...(ranked ? [since] : [])));
+    return rows.map(row => ({ ...rowToBriefingCard(row), latestEditionId: row.latest_edition_id ?? undefined }));
+  }
+
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
+    if (limit <= 0) return [];
+    const rows = await all<ExploreBriefingRow>(this.exploreStatement(limit, offset, excludeOwnerId, voterId, ownerId, viewerId, starredOnly));
+    return rows.map(rowToExploreBriefing);
+  }
+
+  async firstExplorePage(limit: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     // Both reads share a transaction so the revision identifies precisely this page.
-    const [revision, page] = await this.db.batch<{ revision: number } | BriefingRow>([
+    const [revision, page] = await this.db.batch<{ revision: number } | ExploreBriefingRow>([
       this.db.prepare('SELECT revision FROM explore_catalog_revision WHERE singleton=1'),
-      this.exploreStatement(limit, 0, excludeOwnerId, voterId)
+      this.exploreStatement(limit, 0, excludeOwnerId, voterId, ownerId, viewerId, starredOnly)
     ]);
     if (!revision.results[0] || !('revision' in revision.results[0])) throw new Error('Explore catalog migration is required');
-    return { before: String(revision.results[0].revision), feeds: (page.results as unknown as BriefingRow[]).map(rowToBriefingCard) };
+    return { before: String(revision.results[0].revision), feeds: (page.results as ExploreBriefingRow[]).map(rowToExploreBriefing) };
   }
 
-  private exploreStatement(limit: number, offset: number, excludeOwnerId?: string, voterId?: string) {
+  private exploreStatement(limit: number, offset: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     return this.db
-        .prepare(
+      .prepare(
           `SELECT briefings.*, accounts.username as owner_username,
-          ${BRIEFING_CARD_FIELDS}
+          ${BRIEFING_CARD_FIELDS},
+          EXISTS (SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?) AS viewer_follows_channel,
+          EXISTS (SELECT 1 FROM account_star_alerts WHERE feed_id=briefings.id AND account_id=?) AS saved_for_account
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
           AND (? IS NULL OR briefings.owner_account_id != ?)
+          ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
+          ${starredOnly ? "AND (EXISTS (SELECT 1 FROM briefing_stars WHERE briefing_id=briefings.id AND voter_id=?) OR EXISTS (SELECT 1 FROM account_star_alerts WHERE feed_id=briefings.id AND account_id=?))" : ""}
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(voterId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset);
+        .bind(voterId ?? null, viewerId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null, viewerId ?? null] : []), limit, offset);
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -588,26 +646,33 @@ export class D1Repository implements Repository {
     return row ? rowToBriefing(row) : null;
   }
 
-  async hasBriefingStar(briefingId: string, voterId: string): Promise<boolean> {
-    const row = await first<{ voter_id: string }>(
-      this.db
-        .prepare("SELECT voter_id FROM briefing_stars WHERE briefing_id = ? AND voter_id = ?")
-        .bind(briefingId, voterId)
-    );
-    return Boolean(row?.voter_id);
+  async hasBriefingStar(briefingId: string, voterId: string | null, accountId?: string): Promise<boolean> {
+    if (accountId && await first(this.db.prepare("SELECT 1 FROM account_star_alerts WHERE feed_id=? AND account_id=?").bind(briefingId, accountId))) return true;
+    return Boolean(voterId && await first(this.db.prepare("SELECT 1 FROM briefing_stars WHERE briefing_id=? AND voter_id=?").bind(briefingId, voterId)));
   }
 
-  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date()): Promise<number> {
-    if (starred) {
-      await this.db
-        .prepare("INSERT OR IGNORE INTO briefing_stars (briefing_id, voter_id, created_at) VALUES (?, ?, ?)")
-        .bind(briefingId, voterId, now.toISOString())
-        .run();
+  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date(), accountId?: string): Promise<number> {
+    const timestamp = now.toISOString();
+    if (starred && accountId) {
+      await this.db.batch([
+        this.db.prepare("INSERT OR IGNORE INTO account_star_alerts (feed_id,account_id,started_at,voter_id) VALUES (?,?,?,?)")
+          .bind(briefingId, accountId, timestamp, voterId),
+        this.db.prepare(`INSERT OR IGNORE INTO briefing_stars (briefing_id,voter_id,created_at)
+          SELECT feed_id,voter_id,started_at FROM account_star_alerts WHERE feed_id=? AND account_id=?`)
+          .bind(briefingId, accountId)
+      ]);
+    } else if (!starred && accountId) {
+      await this.db.batch([
+        this.db.prepare(`DELETE FROM briefing_stars WHERE briefing_id=? AND
+          (voter_id=? OR voter_id=(SELECT voter_id FROM account_star_alerts WHERE feed_id=? AND account_id=?))`)
+          .bind(briefingId, voterId, briefingId, accountId),
+        this.db.prepare("DELETE FROM account_star_alerts WHERE feed_id=? AND account_id=?").bind(briefingId, accountId)
+      ]);
+    } else if (starred) {
+      await this.db.prepare("INSERT OR IGNORE INTO briefing_stars (briefing_id,voter_id,created_at) VALUES (?,?,?)")
+        .bind(briefingId, voterId, timestamp).run();
     } else {
-      await this.db
-        .prepare("DELETE FROM briefing_stars WHERE briefing_id = ? AND voter_id = ?")
-        .bind(briefingId, voterId)
-        .run();
+      await this.db.prepare("DELETE FROM briefing_stars WHERE briefing_id=? AND voter_id=?").bind(briefingId, voterId).run();
     }
 
     const countRow = await first<{ count: number }>(
@@ -692,10 +757,19 @@ export class D1Repository implements Repository {
     if(sources.some(source=>source.briefingId!==input.id))throw new Error('Source belongs to another feed');
     const writes=sources.map(source=>this.configuredSourceWrite(source,now));
     const ids=[...new Set(writes.map(write=>write.sourceId))],guard=crypto.randomUUID();
+    const sourceChange = previous && input.publicFeedEnabled && !input.paused
+      ? [this.db.prepare(`INSERT OR IGNORE INTO social_push_events(id,feed_id,kind,created_at)
+          SELECT json_array('feed-change',?,?),?,'feed-edited',?
+          WHERE EXISTS(SELECT 1 FROM channel_follows WHERE channel_id=?)
+            AND (EXISTS(SELECT 1 FROM sources WHERE briefing_id=? AND enabled=1 AND id NOT IN(SELECT value FROM json_each(?)))
+              OR EXISTS(SELECT 1 FROM json_each(?) desired WHERE NOT EXISTS(SELECT 1 FROM sources WHERE briefing_id=? AND id=desired.value AND enabled=1)))`)
+        .bind(input.id,now.toISOString(),input.id,now.toISOString(),input.ownerAccountId,input.id,JSON.stringify(ids),JSON.stringify(ids),input.id)]
+      : [];
     try {
       await this.db.batch([
         this.db.prepare(`INSERT INTO v1_enrollment_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM accounts WHERE id=? AND disabled_at IS NULL) AND ${row?'EXISTS(SELECT 1 FROM briefings WHERE id=? AND owner_account_id=? AND updated_at=? AND stars=?)':'NOT EXISTS(SELECT 1 FROM briefings WHERE id=?)'} THEN 1 ELSE 0 END`).bind(guard,input.ownerAccountId,input.id,...(row?[input.ownerAccountId,row.updated_at,row.stars]:[])),
         this.briefingWrite(input,now),
+        ...sourceChange,
         ...writes.flatMap(write=>[write.statement,this.db.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND briefing_id=?").bind(write.sourceId,input.id)]),
         this.db.prepare('DELETE FROM sources WHERE briefing_id=? AND enabled=1 AND id NOT IN (SELECT value FROM json_each(?))').bind(input.id,JSON.stringify(ids)),
         this.db.prepare('DELETE FROM v1_enrollment_guards WHERE id=?').bind(guard)
@@ -1839,6 +1913,8 @@ export class InMemoryRepository implements Repository {
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
   starsByBriefing = new Map<string, Set<string>>();
+  private channelFollows = new Map<string, Set<string>>();
+  private starDatesByBriefing = new Map<string, Map<string, string>>();
   jobs = new Map<string, ProcessingJobRecord>();
   settings = new Map<string, string>();
 
@@ -2026,25 +2102,73 @@ export class InMemoryRepository implements Repository {
   }
 
   async getExploreRevision():Promise<string>{
-    return canonicalJson(Array.from(this.briefings.values())
+    const publicFeeds = Array.from(this.briefings.values())
       .filter(feed=>feed.publicFeedEnabled&&!feed.paused&&!this.accounts.get(feed.ownerAccountId)?.disabledAt)
       .sort((a,b)=>a.id.localeCompare(b.id))
-      .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]));
+      .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]);
+    return canonicalJson([publicFeeds, [...this.channelFollows].map(([id, followers]) => [
+      id, [...followers].filter(follower => this.accounts.has(follower) && !this.accounts.get(follower)?.disabledAt).sort()
+    ])]);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
+  async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
+    const channels = new Map<string, { username: string; publicFeedCount: number }>();
+    for (const feed of this.briefings.values()) {
+      if (!feed.publicFeedEnabled || feed.paused || (ownerId !== undefined && feed.ownerAccountId !== ownerId)) continue;
+      const account = this.accounts.get(feed.ownerAccountId);
+      if (!account || account.disabledAt || (viewer && (viewer.id === account.id || Boolean(this.channelFollows.get(account.id)?.has(viewer.id)) !== viewer.followed))) continue;
+      const channel = channels.get(account.id) ?? { username: account.username, publicFeedCount: 0 };
+      channel.publicFeedCount++;
+      channels.set(account.id, channel);
+    }
+    return Array.from(channels, ([id, { username, publicFeedCount }]) => ({
+      username, publicFeedCount,
+      followerCount: Array.from(this.channelFollows.get(id) ?? []).filter(follower => this.accounts.has(follower) && !this.accounts.get(follower)?.disabledAt).length
+    }))
+      .sort((a, b) => b.followerCount - a.followerCount || b.publicFeedCount - a.publicFeedCount || (a.username < b.username ? -1 : Number(a.username > b.username)))
+      .slice(0, limit);
+  }
+
+  async hasChannelFollow(channelId: string, followerId: string): Promise<boolean> {
+    return this.channelFollows.get(channelId)?.has(followerId) ?? false;
+  }
+
+  async setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void> {
+    const followers = this.channelFollows.get(channelId) ?? new Set<string>();
+    if (following) followers.add(followerId);
+    else followers.delete(followerId);
+    if (followers.size) this.channelFollows.set(channelId, followers);
+    else this.channelFollows.delete(channelId);
+  }
+
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && (ownerId === undefined || briefing.ownerAccountId === ownerId) && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter(briefing => !starredOnly || this.cardMetadata(briefing, voterId).viewerHasStarred)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(offset, offset + limit)
-      .map(feed => this.cardMetadata(feed, voterId));
+      .map(feed => ({
+        ...this.cardMetadata(feed, voterId),
+        viewerFollowsChannel: Boolean(viewerId && this.channelFollows.get(feed.ownerAccountId)?.has(viewerId))
+      }));
   }
 
   private cardMetadata(feed:BriefingConfig,voterId?:string) {
     const latest=Array.from(this.editionsByBriefing.get(feed.id)?.values() ?? []).filter(edition=>edition.status==='published').sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt))[0];
     return {...feed,viewerHasStarred:voterId?this.starsByBriefing.get(feed.id)?.has(voterId)??false:false,latestUpdatedAt:latest?.updatedAt??latest?.publishedAt};
+  }
+
+  async listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string) {
+    const feeds = await this.listExploreBriefings(this.briefings.size, 0, excludeOwnerId, voterId);
+    return feeds.map(feed => ({
+      feed,
+      createdAt: this.briefingCreatedAt.get(feed.id) ?? "",
+      recentStars: Array.from(this.starDatesByBriefing.get(feed.id)?.values() ?? []).filter(date => date >= since).length
+    })).filter(item => kind === "trending" ? item.recentStars > 0 : item.createdAt >= since)
+      .sort((a,b) => (kind === "trending" ? b.recentStars - a.recentStars : 0) || b.createdAt.localeCompare(a.createdAt) || a.feed.id.localeCompare(b.feed.id))
+      .slice(0,limit).map(item => item.feed);
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -2064,12 +2188,16 @@ export class InMemoryRepository implements Repository {
     return briefing ? this.withCurrentBriefingOwner(briefing) : null;
   }
 
-  async hasBriefingStar(briefingId: string, voterId: string): Promise<boolean> {
-    return this.starsByBriefing.get(briefingId)?.has(voterId) ?? false;
+  async hasBriefingStar(briefingId: string, voterId: string | null): Promise<boolean> {
+    return voterId ? this.starsByBriefing.get(briefingId)?.has(voterId) ?? false : false;
   }
 
-  async setBriefingStar(briefingId: string, voterId: string, starred: boolean): Promise<number> {
+  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date()): Promise<number> {
     const votes = this.starsByBriefing.get(briefingId) ?? new Set<string>();
+    const dates = this.starDatesByBriefing.get(briefingId) ?? new Map<string, string>();
+    if (starred && !votes.has(voterId)) dates.set(voterId, now.toISOString());
+    if (!starred) dates.delete(voterId);
+    this.starDatesByBriefing.set(briefingId, dates);
     if (starred) votes.add(voterId);
     else votes.delete(voterId);
     this.starsByBriefing.set(briefingId, votes);
@@ -2133,6 +2261,7 @@ export class InMemoryRepository implements Repository {
     this.itemsByBriefing.delete(id);
     this.editionsByBriefing.delete(id);
     this.starsByBriefing.delete(id);
+    this.starDatesByBriefing.delete(id);
 
     for (const [jobId, job] of this.jobs) {
       if (job.briefingId === id) this.jobs.delete(jobId);
@@ -2926,6 +3055,20 @@ async function first<T>(statement: D1PreparedStatement): Promise<T | null> {
 async function all<T>(statement: D1PreparedStatement): Promise<T[]> {
   const result = await statement.all<T>();
   return result.results ?? [];
+}
+
+type ExploreBriefingRow = BriefingRow & {
+  viewer_starred: number;
+  viewer_follows_channel: number;
+  saved_for_account: number;
+};
+
+function rowToExploreBriefing(row: ExploreBriefingRow) {
+  return {
+    ...rowToBriefingCard(row),
+    viewerHasStarred: Boolean(row.viewer_starred || row.saved_for_account),
+    viewerFollowsChannel: Boolean(row.viewer_follows_channel)
+  };
 }
 
 function rowToBriefingCard(row:BriefingRow & {viewer_starred?:number;latest_updated_at?:string|null}) {

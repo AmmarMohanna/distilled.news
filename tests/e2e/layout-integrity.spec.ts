@@ -37,10 +37,14 @@ const CHECK = (): string[] => {
   const controls = [...scope.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [role=switch], [role=button]")].filter(shown).filter(e => !e.closest(".sr-only") && !e.matches(".skip-link"));
   const issues: string[] = [];
   const inView = (r: DOMRect) => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
-  const overlay = (n: Element | null) => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu]");
+  const overlay = (n: Element | null) => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu], .catalog-edge");
   const related = (a: Element, b: Element) => a.contains(b) || b.contains(a) || (a.closest("label") && a.closest("label") === b.closest("label"));
   for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
     const a = controls[i], b = controls[j]; if (related(a, b)) continue;
+    const artworkOverlay = (art: Element, control: Element) => art.matches(".feed-tile-artwork")
+      && Boolean(control.closest(".feed-tile-controls"))
+      && art.closest(".feed-tile-cover") === control.closest(".feed-tile-cover");
+    if (artworkOverlay(a, b) || artworkOverlay(b, a)) continue;
     const chrome = (n: Element) => { for (let e: Element | null = n; e && e !== document.body; e = e.parentElement) { const pos = getComputedStyle(e).position; if (pos === "fixed" || pos === "sticky") return true; } return false; };
     if (chrome(a) !== chrome(b)) continue;
     if (!!overlay(a) !== !!overlay(b)) continue;
@@ -63,21 +67,20 @@ const CHECK = (): string[] => {
   for (const e of scope.querySelectorAll("h1,h2,h3,p,strong,span,a,button,label,summary,time,small")) {
     if (!shown(e)) continue; const s = getComputedStyle(e);
     if ((s.overflow === "hidden" || s.overflowX === "hidden") && s.textOverflow !== "ellipsis" && s.display !== "-webkit-box" && e.scrollWidth > e.clientWidth + 2 && e.clientWidth > 0 && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim())) issues.push(`CLIPPED ${desc(e)} ${e.scrollWidth}>${e.clientWidth}`);
-    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()) && !e.closest("[class*=popover]")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
+    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()) && !e.closest("[class*=popover], .catalog-shelf-track")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
   }
   return issues;
 };
 
 const scenes: { name: string; role: "user" | "admin" | null; url: string; act?: (page: Page) => Promise<void> }[] = [
   { name: "guest landing", role: null, url: "/" },
-  { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-more")).toHaveCount(0); } },
+  { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-banner-menu .feed-more")).toBeVisible(); } },
   { name: "home", role: "user", url: "/" },
-  { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".personal-feed-grid .topic-card").nth(1).locator(".feed-options > summary").click(); } },
+  { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").nth(1).locator(".feed-options > summary").click(); } },
   { name: "explore", role: "user", url: "/explore" },
   { name: "settings", role: "admin", url: "/", act: async page => { await page.locator(".bottom-navigation .navigation-settings").click(); } },
   { name: "feed", role: "user", url: "/joud/lebanon/" },
   { name: "feed with settings open", role: "user", url: "/joud/lebanon/", act: async page => { await page.getByRole("button", { name: "Edit feed settings", exact: true }).click(); } },
-  { name: "feed expanded details", role: "user", url: "/joud/lebanon/", act: async page => { const item=page.locator('.news-item').first(); await item.locator('.briefing-read-more > summary').first().click(); await expect(item.locator('.briefing-expanded-text').first()).toBeVisible(); await expect(item.locator('.briefing-reference').nth(1)).toHaveAttribute('href','https://news.example.org/story2'); } },
 ];
 const variants = [
   { label: "320px", width: 320, height: 568, scale: 1 },

@@ -13,7 +13,7 @@ for (const width of [390, 1280]) {
         : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {feeds:[]}});
     });
     await page.goto('/');
-    const card = page.locator('.personal-feed-grid .topic-card');
+    const card = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile');
     await expect(card).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const navigation = page.locator('.bottom-navigation');

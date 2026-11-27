@@ -61,7 +61,11 @@ export function Dialog(props: {
     ref={ref}
     className={`experience-dialog ${props.className ?? ""}`}
     aria-label={props.label}
-    onCancel={event => { event.preventDefault(); props.onClose(); }}
+    onCancel={event => {
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      props.onClose();
+    }}
     onPointerDown={event => { startedOutside.current = outside(event); }}
     onClick={event => {
       if (startedOutside.current && outside(event)) props.onClose();

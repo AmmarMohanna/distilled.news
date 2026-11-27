@@ -2,7 +2,7 @@ import type { BriefingConfig, BriefingEdition } from "@distilled/core";
 import {EXPLORE_CHANGED_EVENT} from './explore-events';
 import { preferredLanguage } from './LanguageControl';
 import {ApiError, apiError} from './api-errors';
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, ExploreChannel, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -143,6 +143,45 @@ export async function resetPassword(token: string, password: string): Promise<vo
     method: "POST",
     body: JSON.stringify({ token, password })
   });
+}
+
+export async function deleteAccountAvatar(): Promise<void> {
+  await requestJson("/api/me/avatar", { method: "DELETE" });
+}
+
+export function uploadAccountAvatar(file: File): Promise<void> {
+  return uploadAccountPicture(file, false);
+}
+
+export function uploadChannelCover(file: File): Promise<void> {
+  return uploadAccountPicture(file, true);
+}
+
+async function uploadAccountPicture(file: File, cover: boolean): Promise<void> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a JPEG, PNG, or WebP image");
+  }
+  if (file.size > 20 * 1024 * 1024) throw new Error("Choose an image under 20 MB");
+  const photo = await createImageBitmap(file).catch(() => { throw new Error("Unable to read this image"); });
+  try {
+    const canvas = document.createElement("canvas");
+    const aspect = cover ? 4 : 1;
+    const cropWidth = Math.min(photo.width, photo.height * aspect);
+    const cropHeight = cropWidth / aspect;
+    canvas.width = Math.max(1, Math.round(Math.min(cropWidth, cover ? 1440 : 512)));
+    canvas.height = Math.max(1, Math.round(canvas.width / aspect));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to read this image");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(photo, (photo.width - cropWidth) / 2, (photo.height - cropHeight) / 2, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+    const image = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error("Unable to read this image")), "image/jpeg", 0.88
+    ));
+    await requestJson(cover ? "/api/me/channel-cover" : "/api/me/avatar?channel=1", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
+  } finally {
+    photo.close();
+  }
 }
 
 export async function updateAccount(input: {
@@ -345,15 +384,47 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
+export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition }> {
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`, { signal });
+}
+
+export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null; photos?: Array<{ url: string; source: string }> }> {
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}?photo=1`, { signal });
+}
+
 export interface ExplorePage {
   revision?: string;
-  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
+  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; viewerFollowsChannel?: boolean; latestUpdatedAt?: string }>;
   nextOffset: number | null;
 }
 /** One bounded page. The caller retains earlier pages if a subsequent read fails. */
-export async function getExploreFeeds(offset = 0, revision?:string): Promise<ExplorePage> {
-  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}`);
+export async function getExploreFeeds(offset = 0, revision?:string, channel?: string, followed = false): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}${channel?'&channel='+encodeURIComponent(channel):''}${followed ? '&followed=1' : ''}`);
   return { ...payload, nextOffset: payload.nextOffset ?? null };
+}
+
+export async function getExploreChannels(signal: AbortSignal, followed = false): Promise<ExploreChannel[]> {
+  const result = await requestJson<{ channels: ExploreChannel[] }>(followed ? "/api/explore/channels?followed=1" : "/api/explore/channels", { signal });
+  return result.channels ?? [];
+}
+
+export type ExploreHighlight = PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string; latestEditionId?: string };
+
+export function getExploreHighlights(signal: AbortSignal): Promise<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }> {
+  return requestJson("/api/explore/highlights", { signal });
+}
+
+export async function getExploreChannel(username: string, signal: AbortSignal): Promise<ExploreChannel> {
+  const result = await requestJson<{ channel: ExploreChannel }>(`/api/explore/channels/${encodeURIComponent(username)}`, { signal });
+  return result.channel;
+}
+
+export async function setChannelFollow(username: string, following: boolean): Promise<ExploreChannel> {
+  const result = await requestJson<{ channel: ExploreChannel }>(`/api/me/channels/${encodeURIComponent(username)}/follow`, {
+    method: "PUT",
+    body: JSON.stringify({ following })
+  });
+  return result.channel;
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {

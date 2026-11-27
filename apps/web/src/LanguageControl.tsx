@@ -18,6 +18,7 @@ const translations: Record<string, [string, string]> = {
 
   'No matches in loaded feeds. Load more feeds to continue searching.': ['Aucun résultat parmi les fils chargés. Chargez davantage de fils pour poursuivre la recherche.', 'لا توجد نتائج ضمن الخلاصات المحمّلة. حمّل المزيد من الخلاصات لمتابعة البحث.'],
   'No community feeds are available yet.': ['Aucun fil communautaire n’est disponible pour le moment.', 'لا توجد خلاصات مجتمعية متاحة بعد.'],
+  'Check back for new public feeds, or create a feed about a topic you follow.': ['Revenez pour découvrir de nouveaux fils publics, ou créez un fil sur un sujet qui vous intéresse.', 'عُد لاحقًا لاكتشاف خلاصات عامة جديدة، أو أنشئ خلاصة عن موضوع تتابعه.'],
   'Retry sources': ['Réessayer le chargement des sources', 'إعادة تحميل المصادر'],
   'All configured sources are disabled. You can save settings without enabling them.': ['Toutes les sources configurées sont désactivées. Vous pouvez enregistrer les paramètres sans les activer.', 'جميع المصادر المضبوطة معطّلة. يمكنك حفظ الإعدادات دون تفعيلها.'],
   'Could not load feed-management controls. Retry to restore access to settings.': ['Impossible de charger les commandes de gestion du fil. Réessayez pour accéder aux paramètres.', 'تعذّر تحميل أدوات إدارة الخلاصة. أعد المحاولة للوصول إلى الإعدادات.'],
@@ -76,7 +77,7 @@ const translations: Record<string, [string, string]> = {
   "articles could not be fetched under the current access policy.": ["articles n’ont pas pu être récupérés avec les autorisations d’accès actuelles.","مقالات تعذّر جلبها وفق قواعد الوصول الحالية."],
   "Couldn't load your feeds": ["Impossible de charger vos fils", "تعذر تحميل خلاصاتك"],
   "Try Again": ["Réessayer", "حاول مجددًا"],
-  "Summarize unread": ["Résumer les non lus", "لخّص ما لم أقرأه"],
+  "Summarize": ["Résumer", "لخّص"],
   "Summarizing…": ["Résumé en cours…", "جارٍ التلخيص…"],
   "Summary": ["Résumé", "ملخص"],
   "Unread summary": ["Résumé des non lus", "ملخص ما لم أقرأه"],

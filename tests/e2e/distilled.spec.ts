@@ -214,7 +214,7 @@ test("email verification waits for an explicit user action", async ({ page }) =>
   expect(verifyCalls).toBe(1);
 });
 
-test("feed uses username-scoped URL while exposing evidence, refresh, and search", async ({ page }) => {
+test("feed uses username-scoped URL while exposing evidence and refresh", async ({ page }) => {
   let sessionRequests = 0;
   let feedPaused = false;
   let summaryRequests = 0;
@@ -266,21 +266,16 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
-  await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Verified updates");
+  await page.locator(".feed-banner-menu summary").click();
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.locator('.briefing-read-more > summary').click();
-  await expect(page.locator('.briefing-expanded-text')).toContainText('A third operational note stays in the full brief');
-  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href',item.evidence[0].links[0]);
+  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('aria-label','Source 1');
   await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
   await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
 
-  await page.getByPlaceholder("Search briefings").fill("power supply");
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Infrastructure");
 
   expect(sessionRequests).toBeGreaterThan(0);
 });
@@ -309,15 +304,13 @@ test("arabic feed keeps public chrome localized and summary stable when expandin
 
   await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
-  await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
+  await expect(page.getByPlaceholder("البحث في الموجزات")).toHaveCount(0);
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
 
-  await page.locator('.briefing-read-more > summary').click();
   await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
   await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
-  await expect(page.locator('.briefing-expanded-text')).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
   await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
@@ -352,7 +345,14 @@ test("feed pages twenty editions with unread editions first and keeps read editi
   await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
 
-  await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
+  await page.route("**/api/feed/ammar-mohanna/personal/editions/" + feedEditions[0].id, route => route.fulfill({
+    json: { briefing, edition: feedEditions[0] }
+  }));
+  await visibleUnread.first().locator(".briefing-headline-link").click();
+  await expect.poll(() => page.evaluate(({ feedId, editionId }) =>
+    JSON.parse(localStorage.getItem("dn_read:v3:" + JSON.stringify([["anonymous"], feedId])) ?? "[]").includes(editionId),
+    { feedId: briefing.id, editionId: feedEditions[0].id })).toBe(true);
+  await page.getByRole("link", { name: "Back to feed" }).click();
   await expect(visibleUnread).toHaveCount(20);
   await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
   await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);

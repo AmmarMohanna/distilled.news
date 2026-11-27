@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { transparentSketch } from "./sketchImage";
-import { readSavedSketch, saveSketch } from "./sketchCache";
+import { FEED_ART_CACHE_VERSION, readSavedSketch, saveSketch } from "./sketchCache";
 
 // Keep processed artwork across card remounts during Home/Explore navigation.
 // Store blobs rather than object URLs so each card still owns its URL lifecycle.
@@ -9,6 +9,13 @@ const cacheLifetime = 60 * 60 * 1000;
 // Home and Explore may mount the same public feed together. Share its network/conversion work.
 const sketchRequests = new Map<string, Promise<{blob?: Blob; pending: boolean}>>();
 const cacheByteLimit = 16 * 1024 * 1024;
+const inkRotations = [0, 34, 66, 128, 166, 205, 305];
+
+function inkRotation(feedKey: string) {
+  let hash = 2166136261;
+  for (const letter of feedKey) hash = Math.imul(hash ^ letter.codePointAt(0)!, 16777619);
+  return inkRotations[(hash >>> 0) % inkRotations.length];
+}
 function cachedSketch(key: string): Blob | undefined {
   const entry = sketchCache.get(key);
   if (!entry) return;
@@ -28,12 +35,12 @@ function rememberSketch(key: string, blob: Blob) {
   }
 }
 
-export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
-  const [image, setImage] = useState("");
-  const [loaded, setLoaded] = useState(false);
+export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
+  const [image, setImage] = useState<{ url: string; fullCover: boolean }>();
+  const [loadedAspect, setLoadedAspect] = useState(0);
   const [failure, setFailure] = useState("");
   useEffect(() => {
-    setImage(""); setLoaded(false); setFailure("");
+    setImage(undefined); setLoadedAspect(0); setFailure("");
     // Wait for feed metadata rather than fetching the placeholder before visibility is known.
     if (!feed?.ownerUsername || !feed?.slug || feed.publicFeedEnabled === undefined) { return; }
     const controller = new AbortController();
@@ -45,12 +52,14 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     const refreshArtwork = new URLSearchParams(window.location.search).get('refresh-artwork') === feed.id;
     let checkedStorage = refreshArtwork;
     const sketchUrl = `/api/feed/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/sketch`;
+    const cacheKey = centered ? sketchUrl + "?artwork=centered-v2" : sketchUrl;
     const cacheable = feed.publicFeedEnabled === true;
-    const saved = cacheable && !refreshArtwork ? cachedSketch(sketchUrl) : undefined;
-    if (saved) {
-      objectUrl = URL.createObjectURL(saved);
-      setImage(objectUrl);
-    }
+    const show = (blob: Blob) => {
+      objectUrl = URL.createObjectURL(blob);
+      setImage({ url: objectUrl, fullCover: blob.type === "image/jpeg" });
+    };
+    const saved = cacheable && !refreshArtwork ? cachedSketch(cacheKey) : undefined;
+    if (saved) show(saved);
     const schedule = (delay: number) => {
       clearTimeout(timer);
       timer = setTimeout(() => { timer = undefined; void check(); }, delay);
@@ -63,38 +72,45 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
       try {
         if (cacheable && !checkedStorage) {
           checkedStorage = true;
-          const stored = await readSavedSketch(sketchUrl);
+          const stored = await readSavedSketch(cacheKey);
           if (controller.signal.aborted) return;
           if (stored) {
-            rememberSketch(sketchUrl, stored);
-            objectUrl = URL.createObjectURL(stored);
-            setImage(objectUrl);
+            rememberSketch(cacheKey, stored);
+            show(stored);
             return;
           }
         }
         const load = async () => {
-          const response = await fetch(sketchUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
-          if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return {blob:await transparentSketch(await response.blob()),pending:false};
+          const imageRequestUrl = cacheable ? `${sketchUrl}?v=${FEED_ART_CACHE_VERSION}` : sketchUrl;
+          const response = await fetch(imageRequestUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
+          if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
+            const blob = await response.blob();
+            const fullCover = response.headers.get("X-Feed-Artwork-Style") === "pencil-cover-v1";
+            if (fullCover && blob.type === "image/png") return { blob, pending: false };
+            const artwork = fullCover && blob.type === "image/jpeg"
+              ? await transparentSketch(blob, false, true).catch(() => blob)
+              : await transparentSketch(blob, centered);
+            return { blob: artwork, pending: false };
+          }
           // A missing job cannot become ready merely by repeatedly reading its URL.
           return {pending:response.status === 404 && Boolean(response.headers?.get("Retry-After"))};
         };
-        let request = cacheable && !refreshArtwork ? sketchRequests.get(sketchUrl) : undefined;
+        let request = cacheable && !refreshArtwork ? sketchRequests.get(cacheKey) : undefined;
         if (!request) {
           request = load();
           if (cacheable) {
-            sketchRequests.set(sketchUrl, request);
-            void request.then(() => sketchRequests.delete(sketchUrl), () => sketchRequests.delete(sketchUrl));
+            sketchRequests.set(cacheKey, request);
+            void request.then(() => sketchRequests.delete(cacheKey), () => sketchRequests.delete(cacheKey));
           }
         }
         const {blob,pending} = await request;
         if (pending && retries++ < 20 && !controller.signal.aborted) schedule(Math.min(30_000, 3000 * 2 ** Math.min(4, retries - 1)));
         if (blob) {
           if (controller.signal.aborted) return;
-          if (cacheable) rememberSketch(sketchUrl, blob);
+          if (cacheable) rememberSketch(cacheKey, blob);
           clearTimeout(timer);
-          objectUrl = URL.createObjectURL(blob);
-          setImage(objectUrl);
-          if (cacheable) void saveSketch(sketchUrl, blob);
+          show(blob);
+          if (cacheable) void saveSketch(cacheKey, blob);
           if (refreshArtwork) {
             const url = new URL(window.location.href);
             if (url.searchParams.get('refresh-artwork') === feed.id) {
@@ -116,9 +132,16 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     window.addEventListener("feed-sketch-updated", refresh);
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled]);
-  return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
+  }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
+  const panoramic = loadedAspect >= 3;
+  const fullCover = image?.fullCover || panoramic;
+  return <span className={`topic-art pencil-art${fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
 
-    {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
+    {image && <img src={image.url} alt="" className={panoramic ? `panoramic-cover-image${image.fullCover ? "" : " transparent-cover-image"}` : undefined} style={{
+      visibility: loadedAspect ? "visible" : "hidden",
+      filter: fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
+    }} onLoad={({ currentTarget }) => {
+      setLoadedAspect(currentTarget.naturalHeight ? currentTarget.naturalWidth / currentTarget.naturalHeight : 1);
+    }} onError={() => setLoadedAspect(0)}/>}
   </span>;
 }

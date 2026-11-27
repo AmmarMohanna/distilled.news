@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useRef,useState,type Dispatch,type SetStateAction} from 'react';
+import {useCallback,useEffect,useLayoutEffect,useRef,useState,type Dispatch,type SetStateAction} from 'react';
 
 const readerScope=(readerId:string|null)=>readerId===null?['anonymous']:['account',readerId];
 export function readProgressKey(feedId:string,readerId:string|null):string {
@@ -74,7 +74,7 @@ export function useReadProgress(feedId:string|undefined,readerId:string|null|und
   const editionsKey=JSON.stringify([...new Set(editionIds)].sort());
   const [saved,setSaved]=useState<Progress&{key:string|null}>({key:null,ids:empty,considered:empty});
   const latest=useRef(saved);latest.current=saved;
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!key)return;
     setSaved(current=>{
       // Merge only newly discovered IDs into the mounted reader's state. Never

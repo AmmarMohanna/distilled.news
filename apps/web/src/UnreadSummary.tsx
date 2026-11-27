@@ -55,7 +55,7 @@ export function UnreadSummary({username,slug,readIds,contentKey,readerId,hasUnre
   return <div className="unread-summary">
     <button type="button" className="unread-summary-button" onClick={()=>void generate()} disabled={busy||!hasUnread} aria-expanded={visible} aria-controls={visible?resultId:undefined}>
       {busy?<LoaderCircle size={17} className="summary-spinner" aria-hidden/>:<Sparkles size={17} aria-hidden/>}
-      {t(busy?'Summarizing…':'Summarize unread')}
+      {t(busy?'Summarizing…':'Summarize')}
     </button>
     {summaryTarget?createPortal(result,summaryTarget):summaryTarget===undefined?result:null}
   </div>;

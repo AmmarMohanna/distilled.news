@@ -61,36 +61,31 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
   await page.goto('/joud/lebanon/');
   await expect(page.getByText('Briefing delayed', { exact: true })).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await expect(page.locator('.briefings-empty')).toBeVisible();
   await expect(page.locator('.feed-filter')).toBeHidden();
-  const search = await page.locator('.feed-tools .search').boundingBox();
-  const empty = await page.locator('.feed-empty-state').boundingBox();
-  expect(search!.width).toBeGreaterThanOrEqual(300);
-  expect(search!.x + search!.width).toBeLessThanOrEqual(1440);
+  const empty = await page.locator('.briefings-empty').boundingBox();
   expect(empty!.x + empty!.width).toBeLessThanOrEqual(1440);
   await expect(page.locator('.notice')).toHaveCount(0);
   await expect(page.locator('.feed-publication-status')).toHaveCount(0);
   expect(empty!.height).toBeGreaterThanOrEqual(140);
-  await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '40px');
+  await expect(page.locator('.feed-tools .search')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
 });
 
 for (const size of [{width: 1280, height: 640}, {width: 390, height: 664}]) {
-  test(`empty feed fits without extra scroll and renders a complete icon at ${size.width}px`, async ({ page }) => {
+  test(`empty feed keeps its Explore action reachable at ${size.width}px`, async ({ page }) => {
     await mock(page, false);
     await page.setViewportSize(size);
     await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: {...feed, nextBriefingAt: new Date(Date.now() + 1_200_000).toISOString()}, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
     await page.goto('/joud/lebanon/');
-    await expect(page.locator('.feed-empty-state')).toBeVisible();
+    await expect(page.locator('.briefings-empty')).toBeVisible();
     const viewport = page.locator('.app-pages > .screen-page-viewport');
-    await expect.poll(() => viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-    const circle = await page.locator('.feed-empty-icon').boundingBox();
-    const icon = await page.locator('.feed-empty-icon svg').boundingBox();
-    expect(icon!.x).toBeGreaterThan(circle!.x);
-    expect(icon!.y).toBeGreaterThan(circle!.y);
-    expect(icon!.x + icon!.width).toBeLessThan(circle!.x + circle!.width);
-    expect(icon!.y + icon!.height).toBeLessThan(circle!.y + circle!.height);
-    await expect(page.locator('.feed-tools .search')).toHaveCSS('height', '44px');
+    expect(await viewport.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+    const action = page.locator('.briefings-empty a');
+    await expect(action).toHaveAttribute('href','/explore');
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeInViewport();
+    await expect(page.locator('.page-heading > .feed-check-status')).toBeVisible();
   });
 }
 
@@ -104,15 +99,15 @@ test("feed stays quiet while loading and shows empty state only after the respon
   });
   await page.goto('/joud/lebanon/');
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+  await expect(page.locator('.briefings-empty')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveCount(0);
   await expect(page.locator('h1')).not.toContainText(/loading/i);
   await expect(page.locator('.page-heading > p')).not.toContainText(/loading/i);
   await page.screenshot({ path: test.info().outputPath('feed-loading-skeleton.png'), fullPage: true });
   release();
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toBeVisible();
-  await expect(page.locator('.feed-tools input')).toHaveCSS('font-size', '16px');
+  await expect(page.locator('.briefings-empty')).toBeVisible();
+  await expect(page.locator('.feed-tools input')).toHaveCount(0);
 });
 
 test("feed refreshes automatically without a manual refresh control", async ({ page }) => {
@@ -166,7 +161,12 @@ test("Home explains an empty search and an empty library", async ({ page }) => {
   await mock(page, true);
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: [] } }));
   await page.goto("/");
-  await expect(page.getByText("You haven’t created any feeds yet.")).toBeVisible();
+  const empty = page.locator(".feed-library-empty");
+  await expect(empty.getByRole("heading", { name: "You haven’t created any feeds yet." })).toBeVisible();
+  await expect(page.locator(".home-view").getByRole("searchbox")).toHaveCount(0);
+  await expect(page.locator(".home-view").getByRole("button", { name: "Create feed" })).toHaveCount(1);
+  await empty.getByRole("button", { name: "Create feed" }).click();
+  await expect(page.getByRole("dialog", { name: "Add feed" })).toBeVisible();
 });
 
 test("language segments in Settings meet the 44pt target", async ({ page }) => {
@@ -194,12 +194,12 @@ test("a feed card's menu is never covered by the next card", async ({ page }) =>
   for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
     await page.setViewportSize(size);
     await page.goto("/");
-    await page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options > summary").click();
-    const popover = page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options-popover");
+    await page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first().locator(".feed-options > summary").click();
+    const popover = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first().locator(".feed-options-popover");
     await expect(popover).toBeVisible();
     const box = (await popover.boundingBox())!;
     const covered = await page.evaluate(({ x, y, width, height }) => {
-      const popover = document.querySelector(".personal-feed-grid .topic-card .feed-options-popover")!;
+      const popover = document.querySelector(".feed-tile-grid[data-feed-view=home] .feed-tile .feed-options-popover")!;
       const points = [[0.1, 0.1], [0.5, 0.2], [0.9, 0.2], [0.1, 0.5], [0.5, 0.5], [0.9, 0.5], [0.1, 0.9], [0.5, 0.9], [0.9, 0.9]];
       return points.filter(([px, py]) => !popover.contains(document.elementFromPoint(x + width * px, y + height * py))).length;
     }, box);
@@ -244,38 +244,34 @@ test("Add feed microphones align and preferences are a single-column list", asyn
   expect(new Set(tops).size).toBe(tops.length);
 });
 
-test("a few feeds retain bounded compact cards on laptops and phones", async ({ page }) => {
+test("a few feeds retain bounded square tiles on laptops and phones", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const card = page.locator(".personal-feed-grid .topic-card").first();
+  const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first();
   await expect(card).toBeVisible();
-  const large = await card.boundingBox();
-  await expect(page.locator('.personal-feed-grid')).toHaveAttribute('data-size','compact');
-  expect(large!.height).toBeGreaterThanOrEqual(88);
-  expect(large!.height).toBeLessThanOrEqual(144);
-  expect(large!.width).toBeLessThanOrEqual(440);
+  const cover = card.locator(".feed-tile-cover");
+  const large = (await cover.boundingBox())!;
+  expect(large.height).toBeCloseTo(large.width, 0);
+  expect(large.width).toBeLessThanOrEqual(280);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
+  await expect.poll(async () => (await cover.boundingBox())!.width).toBeLessThan(large.width);
 });
 
-test("a feed retains per-edition read controls in one reading column", async ({ page }) => {
+test("a feed shows briefings in one column without manual read controls", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/api/feed/joud/lebanon", route=>route.fulfill({json:{briefing:feed,editions:[{id:"one",title:"Supported update",summary:"A supported development.",publishedAt:"2026-10-24T10:00:00Z",sections:[]}]}}));
   await page.goto("/joud/lebanon/");
   await expect(page.getByRole("button", { name: "All", exact: true })).toHaveCount(0);
   const item = page.locator('.news-item');
-  await item.getByRole('button', { name: 'Mark as read', exact: true }).click();
-  await expect(item).toHaveClass(/is-read/);
-  await item.getByRole('button', { name: 'Mark as unread', exact: true }).click();
-  await expect(item).not.toHaveClass(/is-read/);
+  await expect(item.getByRole('button', { name: /Mark as (un)?read/ })).toHaveCount(0);
   const width = await page.locator(".news-line").evaluate(node => node.getBoundingClientRect().width);
   expect(width).toBeLessThanOrEqual(1440);
 });
 
-test("the guest landing page retains bounded compact cards for a few feeds", async ({ page }) => {
+test("the guest landing page retains bounded square tiles for a few feeds", async ({ page }) => {
   const feeds = ["Lebanon", "Technology"].map((title, index) => ({ ...feed, id: `g${index}`, slug: title.toLowerCase(), title, stars: index }));
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -285,13 +281,11 @@ test("the guest landing page retains bounded compact cards for a few feeds", asy
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const card = page.locator(".curated-feed-grid .topic-card").first();
+  const card = page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile").first();
   await expect(card).toBeVisible();
-  await expect(page.locator('.curated-feed-grid')).toHaveAttribute('data-size','compact');
-  const bounds=(await card.boundingBox())!;
-  expect(bounds.height).toBeGreaterThanOrEqual(88);
-  expect(bounds.height).toBeLessThanOrEqual(144);
-  expect(bounds.width).toBeLessThanOrEqual(440);
+  const bounds = (await card.locator(".feed-tile-cover").boundingBox())!;
+  expect(bounds.height).toBeCloseTo(bounds.width, 0);
+  expect(bounds.width).toBeLessThanOrEqual(280);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });
