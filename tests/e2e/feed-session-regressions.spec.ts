@@ -35,10 +35,13 @@ test('an ownership lookup failure has a visible retry that restores feed setting
 });
 test('logout replaces the open private feed with Home and cannot restore its content using Back',async({page})=>{
  await fixture(page);await page.goto('/');await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
- await page.getByRole('button',{name:'Account profile',exact:true}).click();await page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click();
- // The URL changes at navigation commit, before the replacement document has
- // loaded. Back must wait for that logout navigation rather than abort it.
- await page.waitForURL(/\/$/,{waitUntil:'load'});await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Account profile',exact:true}).click();
+ // Wait for the Home document before Back. The private feed URL also ends in a slash.
+ await Promise.all([
+  page.waitForURL('/',{waitUntil:'load'}),
+  page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click()
+ ]);
+ await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
  await page.goBack();await expect(page.getByText('Protected development',{exact:true})).toHaveCount(0);
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(0);
 });
