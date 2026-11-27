@@ -51,7 +51,7 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
 
 for (const tab of ["home", "explore"] as const) {
   test(`${tab} scrolls within complete rows when feeds exceed the available space`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 664 });
+    await page.setViewportSize({ width: tab === "home" ? 481 : 390, height: tab === "home" ? 934 : 664 });
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
@@ -65,9 +65,11 @@ for (const tab of ["home", "explore"] as const) {
           const artwork = cover.querySelector(".feed-tile-artwork")!.getBoundingClientRect();
           return { left, right, bottom, controlsTop: controls.top, controlsBottom: controls.bottom, artworkBottom: artwork.bottom };
         }));
-      const gridBounds = (await grid.boundingBox())!;
-      expect(first.left - gridBounds.x).toBeCloseTo(gridBounds.x + gridBounds.width - second.right, 0);
-      expect(second.left - first.right).toBeCloseTo(12, 0);
+      const content = (await page.locator(".app-pages > .screen-page-viewport > .screen-page-content").boundingBox())!;
+      const gap = second.left - first.right;
+      expect(gap).toBeGreaterThan(0);
+      expect(first.left - content.x).toBeCloseTo(gap, 0);
+      expect(content.x + content.width - second.right).toBeCloseTo(gap, 0);
       if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
         expect(first.controlsBottom).toBeCloseTo(first.bottom, 0);
         expect(first.artworkBottom).toBeCloseTo(first.controlsTop, 0);

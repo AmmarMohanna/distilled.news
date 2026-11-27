@@ -9,6 +9,11 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
     const viewport = grid.closest<HTMLElement>('.screen-page-viewport');
     const fit = () => {
       if ((window.visualViewport?.scale ?? 1) > 1.01 || document.documentElement.hasAttribute('data-page-magnified')) return;
+      if (view === 'home' && count > 1 && window.matchMedia('(max-width: 520px)').matches) {
+        grid.style.removeProperty('--feed-fit-columns');
+        grid.style.removeProperty('--feed-fit-size');
+        return;
+      }
       const width = grid.clientWidth;
       if (!width) return;
 
@@ -66,6 +71,6 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       observer.disconnect();
       window.removeEventListener('resize', fit);
     };
-  }, [count]);
+  }, [count, view]);
   return <div className="adaptive-feed-grid feed-tile-grid" data-feed-view={view} ref={ref}>{children}</div>;
 }

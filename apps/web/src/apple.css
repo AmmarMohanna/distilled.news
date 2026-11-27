@@ -4254,6 +4254,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience .feed-tile-grid[style*="--feed-fit-columns"] {
     grid-template-columns: repeat(var(--feed-fit-columns), minmax(0, var(--feed-fit-size, clamp(170px, 39dvh, 280px))));
   }
+  :root.apple-ui.apple-ui .experience .feed-tile-grid[data-feed-view="home"]:has(> .feed-tile:nth-child(2)) {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  :root.apple-ui.apple-ui .experience .feed-tile-grid[data-feed-view="home"] > .feed-tile:not(:only-child) { max-width: none; }
   :root.apple-ui.apple-ui .feed-tile-grid > .feed-tile:only-child { max-width: min(var(--feed-fit-size, 280px), 59vw); }
 }
 :root.apple-ui.apple-ui .profile-dialog .profile-dialog-content {
