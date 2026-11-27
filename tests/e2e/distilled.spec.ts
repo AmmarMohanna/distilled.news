@@ -346,7 +346,7 @@ test("reader fetches eight briefings at a time in chronological order", async ({
   expect(pages).toBe(0);
   await rows.first().locator(".briefing-headline-link").click();
   await expect(page.locator(".briefing-detail-hero")).toBeVisible();
-  await page.getByRole("link", { name: "Back to feed" }).click();
+  await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
   await expect(rows.first()).toContainText("Published briefing item 1.");
   await expect(page.locator(".is-read,.news-unread,.read-button")).toHaveCount(0);
   expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("dn_read:")))).toBe(false);

@@ -48,7 +48,7 @@ test('logout replaces the open private feed with Home and cannot restore its con
 test('renaming the owner follows its canonical feed URL and retains editor controls and published briefings',async({page})=>{
  await fixture(page);await page.goto('/owner/news/');await page.locator('.briefing-headline-link').click();
  await expect(page.locator('.briefing-detail-hero')).toBeVisible();
- await page.getByRole('link',{name:'Back to feed'}).click();
+ await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
  await rename(page);await expect(page).toHaveURL(/\/renamed-owner\/news\/$/);
  await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
  await expect(page.locator('.news-item')).toContainText('Protected development');

@@ -163,17 +163,21 @@ test("language changes keep navigation in place and localize empty Explore", asy
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   await expect(navigation).toBeVisible();
   const before = await navigation.boundingBox();
-  const searchBefore = await page.locator('.explore-search:visible').boundingBox();
-  for (const language of ['fr', 'ar']) {
+  const empty = page.locator('[data-empty-view="explore"]');
+  await expect(empty.getByRole('heading')).toHaveText('Stay curious.');
+  const emptyBefore = (await empty.boundingBox())!;
+  for (const [language, heading] of [['fr', 'Restez curieux.'], ['ar', 'ابقَ فضوليًا.']]) {
     await cycleLanguage(page);
     await expect(page.locator('html')).toHaveAttribute('lang', language);
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     const after = await navigation.boundingBox();
     expect(after!.x).toBeCloseTo(before!.x, 0);
     expect(after!.y).toBeCloseTo(before!.y, 0);
-    if (language !== 'ar') expect((await page.locator('.explore-search:visible').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect((await page.locator('.explore-search:visible').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
+    await expect(empty.getByRole('heading')).toHaveText(heading);
+    await expect(page.getByRole('searchbox')).toHaveCount(0);
+    const emptyAfter = (await empty.boundingBox())!;
+    expect(emptyAfter.x + emptyAfter.width / 2).toBeCloseTo(emptyBefore.x + emptyBefore.width / 2, 0);
   }
   await expect(page.getByRole('heading', { name: 'استكشف', exact: true })).toBeVisible();
   await expect(page.locator('.feed-tile')).toHaveCount(0);

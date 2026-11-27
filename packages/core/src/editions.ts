@@ -21,6 +21,22 @@ export interface BuildBriefingEditionInput {
   processedItems?: BriefingItem[];
 }
 
+export const BRIEFING_PHOTO_TARGET = 3;
+
+export function retainedBriefingPhotos(edition: Pick<BriefingEdition, "sections">) {
+  const photos = new Map<string, { url: string; source: string }>();
+  for (const section of edition.sections) for (const evidence of section.evidence) for (const media of evidence.media) {
+    if (media.type !== "photo" || !media.url) continue;
+    try {
+      const url = new URL(media.url);
+      if (url.protocol === "https:" && !url.username && !url.password) {
+        photos.set(url.href, { url: url.href, source: evidence.sourceTitle });
+      }
+    } catch { /* Ignore unavailable image references. */ }
+  }
+  return [...photos.values()];
+}
+
 const REFERENCE_LIMITS: Record<BriefingConfig["briefingCadence"], number> = {
   hourly: 6,
   daily: 8,

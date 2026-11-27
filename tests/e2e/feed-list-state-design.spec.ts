@@ -11,7 +11,7 @@ async function setup(page:Page,width:number,dark:boolean,arabic=false){
 for(const width of [320,390,1280])for(const dark of [false,true])test(`branded loading and retry at ${width}px ${dark?'dark':'light'}`,async({page},info)=>{
  const state=await setup(page,width,dark);
  try{
-  const surface=page.locator('.home-view .feed-list-state');await expect(surface).toBeVisible();await expect(surface).toHaveAttribute('role','status');await expect(surface.locator('button')).toHaveCount(0);await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);
+  const surface=page.locator('.home-view .feed-list-state');await expect(surface).toBeVisible();await expect(surface).toHaveAttribute('role','status');await expect(surface.locator('button')).toHaveCount(0);await expect(page.getByText(/No feeds yet/)).toHaveCount(0);
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-loading.png`,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   const logo=surface.locator('.feed-state-logo'),art=surface.locator('.feed-state-art');

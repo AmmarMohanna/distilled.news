@@ -84,6 +84,11 @@ test("published headlines open retained briefing evidence and preserve read-only
   });
   await page.goto("/admin/personal-briefing/");
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
+  const row = page.locator('.news-item').first();
+  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) await row.hover();
+  const rowTop = (await row.boundingBox())!.y;
+  const timeTop = (await row.locator('.news-head time').boundingBox())!.y;
+  expect(timeTop - rowTop).toBeGreaterThanOrEqual(12);
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".news-sources")).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
@@ -104,18 +109,31 @@ test("published headlines open retained briefing evidence and preserve read-only
   const feedLogin = (await login.boundingBox())!;
   const backLabel = page.locator(".experience-header .feed-nav-back > span");
   const feedBackLabel = await backLabel.boundingBox();
-  await page.locator(".briefing-headline-link").click();
+  const headline = page.locator(".briefing-headline-link");
+  const detailHref = (await headline.getAttribute('href'))!;
+  await headline.click();
+  const reader = page.getByRole('dialog', { name: 'Briefing' });
+  await expect(reader).toContainText('The full briefing ends here');
+  await expect(reader.locator('.news-summary')).toHaveCSS('color', 'rgb(96, 96, 100)');
+  await expect(page).toHaveURL(/\/admin\/personal-briefing\/$/);
+  await reader.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(reader).toHaveCount(0);
+  await page.goto(detailHref);
   await expect(login).toBeVisible();
   const detailLogin = (await login.boundingBox())!;
   expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
   expect(detailLogin.x + detailLogin.width).toBeCloseTo(feedLogin.x + feedLogin.width, 0);
   expect(detailLogin.y + detailLogin.height / 2).toBeCloseTo(feedLogin.y + feedLogin.height / 2, 0);
-  const menu = page.locator('.briefing-detail-feed-row .feed-more > summary');
+  const menu = page.locator('.briefing-detail-title-row .feed-more > summary');
   await expect(menu).toHaveCSS('border-radius', '50%');
-  const titleBounds = (await page.locator('.briefing-detail-feed-row .briefing-parent-feed').boundingBox())!;
+  await expect(page.locator('.briefing-detail-hero a[href="/admin/personal-briefing/"]')).toHaveCount(0);
+  const titleBounds = (await page.locator('.briefing-detail-title-row h1').boundingBox())!;
   const menuBounds = (await menu.boundingBox())!;
   expect(menuBounds.x).toBeGreaterThan(titleBounds.x + titleBounds.width);
   expect(menuBounds.y + menuBounds.height / 2).toBeCloseTo(titleBounds.y + titleBounds.height / 2, 0);
+  await menu.click();
+  await expect(page.locator('.briefing-detail-menu .feed-options-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await menu.press('Escape');
   await page.evaluate(() => document.documentElement.lang = 'ar');
   await expect(page.locator('.briefing-detail-hero h1')).toHaveCSS('direction', 'ltr');
   await expect(page.locator('.briefing-detail-body .news-summary')).toHaveCSS('direction', 'ltr');
@@ -123,10 +141,10 @@ test("published headlines open retained briefing evidence and preserve read-only
   const body = page.locator(".briefing-detail-body .news-summary");
   await expect(body).toContainText("The full briefing ends here");
   await expect(body).toHaveCSS("overflow", "visible");
-  await page.locator(".briefing-detail-body .briefing-reference").first().click();
-  const source = page.getByRole("dialog", { name: "Source preview" });
-  await expect(source).toContainText("The full briefing ends here");
-  await expect(source.getByRole("link", { name: "Read full article" })).toHaveAttribute("href", sourceUrl);
+  await expect(body).toHaveCSS("color", "rgb(96, 96, 100)");
+  await page.context().route(sourceUrl, route => route.fulfill({ body: "Publisher article" }));
+  const [source] = await Promise.all([page.waitForEvent('popup'), page.locator(".briefing-detail-body .briefing-reference").first().click()]);
+  await expect(source).toHaveURL(sourceUrl);
 });
 
 for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and menu follow ${language} layout`, async ({ page }) => {
@@ -135,16 +153,19 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   const photoUrl = "https://example.test/briefing-photo.svg";
   const secondPhotoUrl = "https://example.test/second-briefing-photo.svg";
   let photoRequests = 0;
+  let releaseEdition!: () => void;
+  const editionReady = new Promise<void>(resolve => { releaseEdition = resolve; });
   await page.route("https://example.test/*briefing-photo.svg", route => route.fulfill({
     contentType: "image/svg+xml",
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
   }));
-  await page.route("**/api/**", route => {
+  await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     if (url.searchParams.has("photo")) {
       photoRequests++;
       return route.fulfill({ json: { photos: [{ url: photoUrl, source: "Example" }, { url: secondPhotoUrl, source: "Second publisher" }] } });
     }
+    if (url.pathname.endsWith("/editions/latest")) await editionReady;
     if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
     return route.fulfill({ json: url.pathname === "/api/auth/session"
       ? { authenticated: false } : { briefing: { ...briefing, language }, editions: [edition], edition, viewerHasStarred: false } });
@@ -154,7 +175,13 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   await expect(headline).toBeVisible();
   expect(photoRequests).toBe(0);
   await headline.click();
+  try {
+    await expect.poll(() => photoRequests).toBe(1);
+  } finally {
+    releaseEdition();
+  }
   await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("fetchpriority", "high");
   const menu = (await page.locator(".briefing-detail-menu summary").boundingBox())!;
   const photo = (await page.locator(".briefing-detail-photo").boundingBox())!;
   if (language === "ar") expect(menu.x).toBeCloseTo(photo.x, 0);
@@ -163,8 +190,15 @@ for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and me
   if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
     await page.locator(".briefing-photo-viewport").hover();
   }
-  await page.getByRole("button", { name: "Next image" }).click();
+  const next = page.getByRole("button", { name: "Next image" });
+  const viewport = page.locator(".briefing-photo-viewport");
+  const bounds = (await viewport.boundingBox())!;
+  const nextBounds = (await next.boundingBox())!;
+  const rtl = await viewport.evaluate(node => getComputedStyle(node).direction === "rtl");
+  expect(nextBounds.x + nextBounds.width / 2).toBeCloseTo(rtl ? bounds.x : bounds.x + bounds.width, 0);
+  await next.click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) await viewport.hover();
   await page.getByRole("button", { name: "Previous image" }).click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
   expect(photoRequests).toBe(1);

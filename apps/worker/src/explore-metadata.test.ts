@@ -53,5 +53,13 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   await repo.setChannelFollow(owner.id, follower.id, false);
   expect(await repo.hasChannelFollow(owner.id, follower.id)).toBe(false);
   expect(await repo.listExploreChannels(1, owner.id)).toEqual([channel]);
+  const empty = await repo.createAccount({email:'empty@example.invalid',username:'empty',passwordHash:'test',role:'user',emailVerifiedAt:yearAgo});
+  await repo.setChannelFollow(empty.id, follower.id, true);
+  const emptyChannel = { username: empty.username, publicFeedCount: 0, followerCount: 1 };
+  expect(await repo.listExploreChannels(1, empty.id)).toEqual([emptyChannel]);
+  expect(await repo.listExploreChannels(8)).toEqual([channel]);
+  expect(await repo.listExploreChannels(8, undefined, { id: follower.id, followed: true })).toEqual([emptyChannel]);
+  await repo.upsertBriefing({...make('first-public-feed'),ownerAccountId:empty.id,ownerUsername:empty.username});
+  expect(await local.db.prepare('SELECT kind FROM social_push_events WHERE feed_id=?').bind('first-public-feed').first()).toEqual({kind:'feed-added'});
  }finally{await local.dispose()}
 },30000);
