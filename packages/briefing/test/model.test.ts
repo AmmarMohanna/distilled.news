@@ -85,3 +85,48 @@ describe("callJson", () => {
     expect(meter.usage.calls).toBe(2);
   });
 });
+
+it('uses a single alternate only after two received invalid responses, with the failed validation as feedback', async () => {
+  const users: string[] = [];
+  const reply = (text: string) => ({text, inputTokens: 1, outputTokens: 1});
+  const meter = new UsageMeter();
+  const parse = (v: unknown) => {
+    if (v !== true) throw Error('missing evidence for F1');
+    return v;
+  };
+  const result = await callJson({
+    complete: async r => { users.push(r.user); return reply('{"valid":false}'); },
+    recoverInvalid: async r => { users.push(r.user); return reply('{"valid":true}'); },
+  }, meter, {model:'primary', system:'', user:'item A', maxTokens:100}, raw => parse((raw as {valid:boolean}).valid));
+  expect(result).toBe(true);
+  expect(meter.usage.calls).toBe(3);
+  expect(users[0]).toBe('item A');
+  expect(users.slice(1).every(user => user.includes('missing evidence for F1'))).toBe(true);
+});
+
+it('propagates a transport failure without dispatching an alternate model', async () => {
+  let switched = false;
+  await expect(callJson({
+    complete: async () => { throw Error('transport'); },
+    recoverInvalid: async () => { switched=true; throw Error('unexpected alternate'); },
+  }, new UsageMeter(), {model:'primary',system:'',user:'item',maxTokens:100}, x=>x)).rejects.toThrow('transport');
+  expect(switched).toBe(false);
+});
+
+it('uses the exact same schema and validator once on the alternate after a schema-capacity rejection', async () => {
+  const primary = openAiCompatibleModel({
+    url: 'https://x', apiKey: 'k',
+    fetcher: async () => json({error: 'The specified schema produces a constraint that has too many states for serving.'}, 400),
+  });
+  const request = {model:'primary', system:'verify', user:'item', maxTokens:100, responseSchema:{type:'object'}};
+  let alternates = 0;
+  await expect(callJson({
+    complete: primary.complete,
+    recoverInvalid: async retried => {
+      alternates++;
+      expect(retried).toEqual(request);
+      return {text:'{}',inputTokens:1,outputTokens:1};
+    },
+  }, new UsageMeter(), request, () => { throw Error('missing evidence'); })).rejects.toThrow('missing evidence');
+  expect(alternates).toBe(1);
+});

@@ -100,8 +100,7 @@ def validate_configs(configs):
         require(variables["BRIEFING_ENGINE"] == "v3" and variables.get("BRIEFING_SOURCE_BINDINGS_ENABLED") == "true"
                 and rollout.pop("BRIEFING_V5_AUTO_PUBLICATION_ENABLED", None) in ("true", "false")
                 and rollout == {
-                    "BRIEFING_V5_FEEDS_CREATED_FROM": "2026-11-26T19:54:12.096Z",
-                    "BRIEFING_V5_GENERATION_PROFILE": "deepseek-flash-wafer",
+                    "BRIEFING_V5_GENERATION_PROFILE": "flash-pair",
                 }, f"{target}: expected the approved V5 rollout on the source-bound V3 publication path")
         require(not {"RELEASE_SHA", "CI_STAGING_READ_ONLY"} & variables.keys(),
                 f"{target}: release markers are set by CI")

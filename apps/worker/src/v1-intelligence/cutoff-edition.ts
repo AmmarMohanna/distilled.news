@@ -70,8 +70,8 @@ export async function cutoffSemanticAuthorized(store:V1FeedStore,input:SemanticO
  const models:BriefingModels=JSON.parse(row.models);
  const request=state.request;
  if(request && request.model!==input.model)return false;
- if(request?.generation || request?.stageRoute){
-  if(frozenRouteError(models,row.language,request))return false;
+ if(models.recoveryRoutes || request?.generation || request?.stageRoute){
+  if(!request || frozenRouteError(models,row.language,request))return false;
  }else if(input.model!==models.editor && input.model!==models.verifier)return false;
  return cutoffEvidenceAuthorized(store,{feedId:input.feedId,cutoffPolicy:row.policy,evidenceRevisionIds:input.evidenceRevisionIds,input:{windowEnd:row.cutoff}});
 }

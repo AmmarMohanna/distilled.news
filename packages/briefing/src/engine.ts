@@ -107,6 +107,10 @@ interface Draft {
 
 const RELATIONS = new Set(["new", "update", "correction"]);
 
+const QUALIFIED_HEADLINE = "Write the headline as a stand-alone claim. Preserve the source's authority, evidence status, and any scope limit that changes its meaning. Attribute an author's conjecture to the author; distinguish an internal benchmark, a proxy task, a pilot, a proposal, and a confirmed result. For a major unconfirmed announcement, report what was announced and the outstanding verification. A headline naming a disputed or unconfirmed result must say what has actually been checked and what remains unverified, even if the body already explains it. Preserve that distinction in every rewrite.";
+const DEVELOPMENT_SELECTION = "Assess each distinct development inside a source before deciding whether to use it. Compare the specific result, benchmark or milestone with what this reader already knows. An article’s genre or a familiar topic alone cannot establish repetition. Rank the new, supported developments across sources by consequence for the reader’s stated interests. Keep only those that earn a place, with their material qualifications; leave out the surrounding commentary and routine updates.";
+const INTEREST_SELECTION = "Compare eligible developments against the priorities explicitly stated in READER INTEREST. Lead with the strongest concrete new result, release, decision, or test on the topics the reader prioritizes. A major claimed breakthrough may qualify before independent confirmation: retain the claim with its verification status. Prefer original evidence and measurable outcomes; an essay, prediction, or advocacy proposal needs a material contribution to this reader beyond topical overlap. Respect a reader who explicitly requests commentary. When the reader deprioritizes speculation, omit forecasts, advocacy and thought experiments with no concrete new evidence or decision, even when space remains. A purported breakthrough with a checkable artifact can qualify with explicit caveats. Before returning the shortlist, look for consequential benchmarks, deployments and releases you passed over.";
+
 function advisoryHeadlines(models: BriefingModels): boolean {
   return models.generation?.prompt === 'v5-source-first-v6';
 }
@@ -251,6 +255,8 @@ async function edit(
   const generation = models.generation;
   const ceiling = readingBudgetWords(input.feed.windowMinutes);
   const draftTarget = Math.floor(ceiling * 0.85);
+  const editorialSelection = models.editorialPolicy === 'interest-and-evidence-v1'
+    ? `\n${INTEREST_SELECTION} ${QUALIFIED_HEADLINE}` : '';
   const writingTarget = advisoryHeadlines(models)
     ? 'Use the headline reading target as guidance. Keep consequential developments even if their headlines exceed the target. Keep optional details concise and preserve necessary qualifications.'
     : `Select only developments that can be told faithfully in ${draftTarget} words including headlines. The reader limit is ${ceiling} words. Leave room for verification corrections.`;
@@ -271,7 +277,7 @@ async function edit(
     {
       model: generation?.model ?? models.editor,
       ...(generation ? { generation } : {}),
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules+qualificationRules+spaceRules+(reliability?history.linkInstruction:'')+(generation&&researchSynthesisPolicy==='eligible-v1'?RESEARCH_SYNTHESIS:''),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+editorialSelection+(models.developmentSelection === 'individual-developments-v1' ? '\n'+DEVELOPMENT_SELECTION : '')+additionalRules+qualificationRules+spaceRules+(reliability?history.linkInstruction:'')+(generation&&researchSynthesisPolicy==='eligible-v1'?RESEARCH_SYNTHESIS:''),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior: history.items, articles, partial, promptVersion, headlinesOnly: advisoryHeadlines(models) })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: Math.min(generation?.maxOutputTokens ?? Infinity, accountingPolicy ? Math.max(4000, articles.length * 48) : 4000),
@@ -355,7 +361,7 @@ async function consolidate(
         feed: input.feed,
         prior: history.items,
         drafts: drafts.map((d) => ({ headline: d.headline, body: d.body, relation: d.relation, updates: history.wireId(d.updatesId), importance: d.importance }))
-      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':'')+(noveltyPolicy?OCCURRENCE_PROSE:'')+budgetRule+emptyCuts+(reliability?history.linkInstruction:''),
+      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':'')+(noveltyPolicy?OCCURRENCE_PROSE:'')+budgetRule+(models.editorialPolicy === "interest-and-evidence-v1" ? "\n"+QUALIFIED_HEADLINE : "")+emptyCuts+(reliability?history.linkInstruction:''),
       maxTokens: 4000,
       ...(schema ? { responseSchema: schema } : {}),
     },
@@ -482,7 +488,7 @@ async function verify(
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
-  const batches = batchesBySourceSize(indices, drafts, byRef, maxChars,input.feed.verificationOutputPolicy==='reader-load-batches-v1');
+  const batches = models.recoveryRoutes ? indices.map(index => [index]) : batchesBySourceSize(indices, drafts, byRef, maxChars,input.feed.verificationOutputPolicy==='reader-load-batches-v1');
   await Promise.all(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
@@ -583,7 +589,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed)+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_REPAIR_V2:SUPPORTED_CORE_REPAIR):''),
+      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed)+(models.editorialPolicy === 'interest-and-evidence-v1' ? '\n'+QUALIFIED_HEADLINE : '')+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_REPAIR_V2:SUPPORTED_CORE_REPAIR):''),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -651,6 +657,23 @@ export async function generateBriefing(
       throw Error('V5_STAGE_ROUTING_REQUIRES_SOURCE_BOUND_V5');
     }
     models = { ...models, stageRoutes: { ...models.stageRoutes, ...models.languageStageRoutes?.[input.feed.language] } };
+  }
+  if (models.recoveryRoutes) {
+    const upstream = port;
+    const routes = models.recoveryRoutes;
+    port = {
+      complete: request => upstream.complete(request),
+      recoverInvalid(request) {
+        const route = routes.find(candidate => candidate.model !== request.model);
+        if (!route || request.maxTokens > route.maxOutputTokens) throw Error('INVALID_FLASH_RECOVERY_ROUTE');
+        if (request.generation) {
+          const generation = { ...route, prompt: request.generation.prompt };
+          return upstream.complete({ ...request, model: route.model, generation });
+        }
+        if (!request.stageRoute) throw Error('UNROUTED_FLASH_RECOVERY');
+        return upstream.complete({ ...request, model: route.model, stageRoute: { stage: request.stageRoute.stage, route } });
+      },
+    };
   }
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
@@ -797,19 +820,29 @@ export async function generateBriefing(
     const memory=verificationMemory(input.prior??[],drafts,options.now());
     const redundant=options.noveltyPolicy?await timed('novelty',async()=>{
       // Reuse evidence-size batching; every draft and its complete cited evidence is retained.
-      const decisions=(await Promise.all(batchesBySourceSize(drafts.map((_,i)=>i),drafts,byRef,options.maxVerifyChars).map(async batch=>{
+      const indices=drafts.map((_,i)=>i);
+      const batches=models.recoveryRoutes?indices.map(i=>[i]):batchesBySourceSize(indices,drafts,byRef,options.maxVerifyChars);
+      const unavailable=new Set<number>();
+      const decisions=(await Promise.all(batches.map(async batch=>{
         const selected=batch.map(i=>drafts[i]);
-        const rows=await occurrenceNovelty(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),reliabilityRevision(models)?'compact-history-v1':options.noveltyWirePolicy);
-        return rows.map(row=>({...row,i:batch[row.i]}));
+        try {
+          const rows=await occurrenceNovelty(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),reliabilityRevision(models)?'compact-history-v1':options.noveltyWirePolicy);
+          return rows.map(row=>({...row,i:batch[row.i]}));
+        } catch(error) {
+          if (!models.recoveryRoutes || !(error instanceof BriefingOutputError) || error.uncertain) throw error;
+          unavailable.add(batch[0]);
+          editorialFailures.push({headline:selected[0].headline,reason:'Unresolved novelty: '+(error.validationFailure ?? error.message.split('; last reply began:')[0]),carry:true,sourceIds:sourceIdsOfRefs(selected[0].refs)});
+          return [];
+        }
       }))).flat();
       for(const d of decisions)if(d.redundant)repeatReasons.set(drafts[d.i],`Same occurrence already covered in ${d.priorIds.join(', ')}: ${d.sameOccurrence}`);
       if(options.editorSelectionPolicy)for(const d of decisions)if(!d.redundant&&d.relation&&d.relation!=='repeat'){
         drafts[d.i].relation=d.relation;
         drafts[d.i].updatesId=d.relation==='new'?undefined:d.priorIds[0];
       }
-      return new Set(decisions.filter(d=>d.redundant).map(d=>d.i));
+      return new Set([...unavailable,...decisions.filter(d=>d.redundant).map(d=>d.i)]);
     }):await timed('novelty',()=>redundantDrafts(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,drafts,memory));
-    exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
+    exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)&&(!models.recoveryRoutes||repeatReasons.has(drafts[i]))));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
   if (review && exactRepeats.length) await checkpoint("novelty_excluded",exactRepeats,exactRepeats.map(d=>({
@@ -848,7 +881,7 @@ export async function generateBriefing(
     const refs=await timed('source_coverage',()=>completeStorySources(modelStage(port,models.stageRoutes,'citationCoverage'),meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
-  const sourceInventoryCache:SourceInventoryCache|undefined = models.generation && options.reuseSourceInventory==='per-window-v1' ? new Map() : undefined;
+  const sourceInventoryCache:SourceInventoryCache|undefined = models.generation && (models.recoveryRoutes || options.reuseSourceInventory==='per-window-v1') ? new Map() : undefined;
   const accepted = new Set<number>();
   const acceptedProofs = new Map<number, string[]>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
@@ -890,7 +923,17 @@ export async function generateBriefing(
         [...flagged].map(([index,issues])=>({headline:drafts[index].headline,reason:issues.join(' | '),
           sourceIds:sourceIdsOfRefs(drafts[index].refs),carry:true})));
       for(const [index,issues]of flagged)repairHistory.set(index,[...(repairHistory.get(index)??[]),{headline:drafts[index].headline,body:drafts[index].body,issues:[...issues]}]);
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy,repairHistory,round===options.maxRepairs-1));
+      const groups = models.recoveryRoutes ? [...flagged].map(entry => new Map([entry])) : [flagged];
+      const fixes = new Map((await timed("repair", () => Promise.all(groups.map(async group => {
+        try {
+          const repaired = await repair(port, meter, models, input, drafts, group, byRef, options.promptVersion >= 4,
+            options.promptVersion, options.noveltyPolicy, repairHistory, round === options.maxRepairs - 1);
+          return [...repaired];
+        } catch (error) {
+          if (models.recoveryRoutes && error instanceof BriefingOutputError && !error.uncertain) return [];
+          throw error;
+        }
+      })))).flat());
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {
@@ -908,7 +951,7 @@ export async function generateBriefing(
 
   if(input.feed.verificationRecoveryPolicy==='supported-core-v2'){
     const repaired=[...accepted].filter(index=>repairHistory.has(index));
-    for(const batch of batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
+    for(const batch of models.recoveryRoutes?repaired.map(i=>[i]):batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
       const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
       let issues:Map<number,string>;
       try{

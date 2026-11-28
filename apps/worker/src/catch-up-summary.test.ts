@@ -121,6 +121,7 @@ it.each([false,true])('revalidates the prior cached 110-word response without in
     ...market.sections[0],storyId:`story-${i}`,summary:`Published market development ${i}.`
   }))}],'en',since,now);
   const {responseSchema:_,...previous}=catchUpSummaryRequest(data);
+  previous.model='openai/gpt-4.1-mini';
   previous.system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
   const id='reader_catch_up_v2:'+await sha256(JSON.stringify(['reader','feed',previous]));
   const sentences=[
