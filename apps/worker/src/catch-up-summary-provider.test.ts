@@ -20,6 +20,8 @@ it('reserves before inference, settles reported cost and reuses its immutable re
   expect(held!.n).toBe(1);
   expect(String(init?.body)).not.toContain('one:story');
   expect(String(init?.body)).not.toContain('canonicalEvidence');
+  expect(JSON.parse(String(init?.body))).toMatchObject({model:'google/gemini-3.8-flash',
+    provider:{only:['google-ai-studio/flex'],allow_fallbacks:false,max_price:{prompt:0.375,completion:1.875,request:0}}});
   return summaryResponse();
  });
  const port=catchUpSummaryPort(config(),'summary-test','reader',fetcher);
@@ -67,7 +69,7 @@ it('retains summary generation identity for metadata-only recovery when billed c
   const port=catchUpSummaryPort({DB:local.db,OPENROUTER_API_KEY:'test-only'} as Env,'recovery-feed','reader',fetcher);
   await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow('usage could not be confirmed');
   const row=await local.db.prepare('SELECT id FROM v1_model_spending_reservations').first<{id:string}>();
-  const metadata=vi.fn(async(url:RequestInfo|URL)=>{expect(String(url)).toContain('/generation?id=gen-summary-recovery');return Response.json({data:{id:'gen-summary-recovery',model:'openai/gpt-4.1-mini',total_cost:.0003,finish_reason:'stop'}})});
+  const metadata=vi.fn(async(url:RequestInfo|URL)=>{expect(String(url)).toContain('/generation?id=gen-summary-recovery');return Response.json({data:{id:'gen-summary-recovery',model:catchUpSummaryRequest(input).model,total_cost:.0003,finish_reason:'stop'}})});
   expect(await recoverProviderGeneration(local.db,row!.id,'test-only',metadata)).toEqual({state:'SETTLED',costUsd:.0003});
   expect(metadata).toHaveBeenCalledOnce();
   await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow('could not be confirmed');

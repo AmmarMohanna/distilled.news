@@ -33,6 +33,11 @@ const POLICY='v3-fixed-window-editor-verifier-v1';
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
+function scheduledV5Policy(env: Env): V3WindowInput['v5PublicationPolicy'] {
+ const enabled = env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED;
+ if (env.BRIEFING_V5_GENERATION_PROFILE === 'flash-pair' && (enabled === 'true' || enabled === 'false')) return 'verified-automatic-v1';
+ if (enabled === 'true' && env.BRIEFING_V5_FEEDS_CREATED_FROM) return 'verified-automatic-v1';
+}
 function automaticV5Window(input: V3WindowInput): boolean {
  const prompt=input.models.generation?.prompt;
  return input.v5PublicationPolicy==='verified-automatic-v1' && (prompt==='v5-source-first-v5'||prompt==='v5-source-first-v6');
@@ -56,6 +61,10 @@ export function productV3Models(env: Env, createdAt?: string): BriefingModels {
    ? env.BRIEFING_SOURCE_BINDINGS_MODEL ?? 'openai/gpt-4.1'
    : env.BRIEFING_VERIFIER_MODEL ?? 'openai/gpt-4.1-mini',
  };
+ if (env.BRIEFING_V5_GENERATION_PROFILE === 'flash-pair') {
+  if (env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true' || env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('INVALID_FLASH_PAIR_CONFIGURATION');
+  return flashPairModels();
+ }
  const cutoff = env.BRIEFING_V5_FEEDS_CREATED_FROM;
  if (cutoff !== undefined) {
   const instant = Date.parse(cutoff);
@@ -64,10 +73,6 @@ export function productV3Models(env: Env, createdAt?: string): BriefingModels {
   }
   const created = Date.parse(createdAt ?? '');
   if (!Number.isFinite(created) || created < instant) return base;
- }
- if (env.BRIEFING_V5_GENERATION_PROFILE === 'flash-pair') {
-  if (env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true' || env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('INVALID_FLASH_PAIR_CONFIGURATION');
-  return flashPairModels();
  }
  const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
  if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
@@ -206,7 +211,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),createdAt=>productV3Models(env,createdAt),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env),env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED==='true'&&env.BRIEFING_V5_FEEDS_CREATED_FROM?'verified-automatic-v1':undefined);snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),createdAt=>productV3Models(env,createdAt),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2',env.BRIEFING_SOURCE_BINDINGS_ENABLED==='true'?'source-bound-claims-v3':'arabic-person-role-v1','preserve-selected-developments-v1',productV3VerificationInputPolicy(env),scheduledV5Policy(env));snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;

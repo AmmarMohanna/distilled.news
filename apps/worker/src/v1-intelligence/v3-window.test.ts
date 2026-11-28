@@ -88,10 +88,16 @@ it.each([
   return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const reportingWindow=scheduled?livePublicationWindow({durationMinutes:30,timezone:'Asia/Beirut',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z')):window;
- const candidate={...env,CUTOFF_EDITIONS_ENABLED:String(Boolean(scheduled)),BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window:reportingWindow};
+ const candidate={...env,CUTOFF_EDITIONS_ENABLED:String(Boolean(scheduled)),BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:profile==='flash-pair'?undefined:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window:reportingWindow};
  const generation=profile==='flash-pair' ? generationProfiles.flashPairModels().generation : generationProfiles.v5Generation(profile);
  const revision=legacyFrozen?'v5-source-first-v5':'v5-source-first-v6';
  const oldDefault=legacyFrozen&&generation?vi.spyOn(generationProfiles,'v5Generation').mockReturnValue({...generation,prompt:'v5-source-first-v5'}):undefined;
+ if (profile==='flash-pair' && automatic) {
+  const held=await processV1Briefing({...candidate,BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'false'},message,()=>window.end,undefined,provider,{scheduledDelivery:scheduled});
+  expect(held).toBeUndefined();
+  expect(calls).toHaveLength(0);
+  expect(await store.read('feed-1','v3_window_inputs',await windowIdentity('feed-1',reportingWindow))).toMatchObject({v5PublicationPolicy:'verified-automatic-v1'});
+ }
  let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider,{scheduledDelivery:scheduled});
  oldDefault?.mockRestore();
  if(legacyFrozen)expect(calls[0].messages[0].content).toContain("words including headlines");

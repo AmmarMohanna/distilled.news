@@ -6,7 +6,7 @@ import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError,type CatchUpModelRequest} from './catch-up-summary';
+import {CATCH_UP_ROUTE,summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError,type CatchUpModelRequest} from './catch-up-summary';
 
 const MAX_SUMMARY_ATTEMPTS=3;
 const REFUSAL_KIND='reader_catch_up_provider_refusal';
@@ -28,6 +28,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
   const receiptKind=discovery?'website_link_discovery_provider':'reader_catch_up_provider_v1';
   return {async complete(request){
     const {signal,canonicalEvidence,...body}=request as Partial<Pick<CatchUpModelRequest,'canonicalEvidence'>>&typeof request;
+    if(!discovery && request.model!==CATCH_UP_ROUTE.model)throw new BriefingBudgetError('Unexpected summary model.');
     const identity=discovery?[feedId,scopeId,body]:[feedId,scopeId,body,canonicalEvidence];
     const requestId=(discovery?operation+'-provider:':READER_CATCH_UP_RESERVATION_PREFIX)+await sha256(JSON.stringify(identity));
     const maxAttempts=discovery?1:MAX_SUMMARY_ATTEMPTS;
@@ -50,10 +51,13 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       if(!refused)throw new CatchUpSummaryError('SUMMARY_OUTCOME_UNKNOWN');
     }
     if(attempt===maxAttempts)throw new CatchUpSummaryError('SUMMARY_PROVIDER_REFUSED');
-    const capability=modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
+    const capability=discovery?modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON):{
+      inputUsdPerToken:CATCH_UP_ROUTE.price.prompt/1_000_000,outputUsdPerToken:CATCH_UP_ROUTE.price.completion/1_000_000,
+      contextTokens:CATCH_UP_ROUTE.contextTokens,maxOutputTokens:CATCH_UP_ROUTE.maxOutputTokens,transport:'CHAT',
+    };
     if(!capability)throw new BriefingBudgetError('Summary model is not configured.');
     const inputTokens=summaryTokenUpperBound(request);
-    if(discovery&&(capability.transport==='DECISIONS'||request.maxTokens>capability.maxOutputTokens||
+    if((capability.transport==='DECISIONS'||request.maxTokens>capability.maxOutputTokens||
       inputTokens+request.maxTokens>capability.contextTokens))throw new BriefingBudgetError('Discovery request exceeds model capacity.');
     const estimate=inputTokens*capability.inputUsdPerToken+request.maxTokens*capability.outputUsdPerToken;
     if(discovery&&(!Number.isFinite(estimate)||estimate>0.01))throw new BriefingBudgetError('Discovery estimate exceeds its per-call limit.');
@@ -94,7 +98,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       }
     });
     let response:ModelResponse;
-    try{response=await raw.complete({...body,signal});}
+    try{response=await raw.complete({...body,...(!discovery && {generation:CATCH_UP_ROUTE}),signal});}
     catch(error){
       if(error instanceof BriefingModelError&&!error.uncertain){
         if(discovery){await settleModelSpending(db,id,token,{costUsd:0,reported:true});}

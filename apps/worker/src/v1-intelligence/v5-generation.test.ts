@@ -75,7 +75,8 @@ it('pins every Flash-only stage and its recovery to frozen routes', () => {
   const env = {BRIEFING_V5_GENERATION_PROFILE:'flash-pair', BRIEFING_SOURCE_BINDINGS_ENABLED:'true',
     BRIEFING_V5_FEEDS_CREATED_FROM:cutoff} as Env;
   expect(productV3Models(env, cutoff)).toEqual(models);
-  expect(productV3Models(env, '2026-11-26T19:54:12.095Z').generation).toBeUndefined();
+  expect(productV3Models(env, '2026-11-26T19:54:12.095Z')).toEqual(models);
+  expect(productV3Models(env)).toEqual(models);
   expect(models.stageRoutes?.factualReview).toEqual(gemini);
   expect(models.stageRoutes?.readerInventory).toEqual(deepseek);
   expect(models.languageStageRoutes?.ar?.correction).toEqual(gemini);
