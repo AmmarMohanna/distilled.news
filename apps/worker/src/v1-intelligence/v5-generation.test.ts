@@ -65,7 +65,17 @@ it('pins every Flash-only stage and its recovery to frozen routes', () => {
   const models = flashPairModels();
   expect(models.editorialPolicy).toBe('interest-and-evidence-v1');
   const [deepseek, gemini] = models.recoveryRoutes!;
-  expect(models.generation?.provider).toBe('wafer/us');
+  expect(models.developmentSelection).toBe('individual-developments-v1');
+  expect(models.generation).toMatchObject({model:gemini.model, provider:gemini.provider});
+  const writer = {model:gemini.model, generation:models.generation, system:'', user:'', maxTokens:4000};
+  expect(frozenRouteError(models, 'en', writer)).toBeUndefined();
+  expect(frozenRouteError(models, 'en', {...writer, model:deepseek.model,
+    generation:{...deepseek, prompt:models.generation!.prompt}})).toBeUndefined();
+  const cutoff = '2026-11-26T19:54:12.096Z';
+  const env = {BRIEFING_V5_GENERATION_PROFILE:'flash-pair', BRIEFING_SOURCE_BINDINGS_ENABLED:'true',
+    BRIEFING_V5_FEEDS_CREATED_FROM:cutoff} as Env;
+  expect(productV3Models(env, cutoff)).toEqual(models);
+  expect(productV3Models(env, '2026-11-26T19:54:12.095Z').generation).toBeUndefined();
   expect(models.stageRoutes?.factualReview).toEqual(gemini);
   expect(models.stageRoutes?.readerInventory).toEqual(deepseek);
   expect(models.languageStageRoutes?.ar?.correction).toEqual(gemini);

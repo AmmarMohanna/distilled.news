@@ -64,6 +64,7 @@ it.each([
  {compact:true, profile:undefined, routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined},
  {compact:true, profile:'deepseek-flash-wafer', routing:undefined, automatic:true},
+ {compact:true, profile:'flash-pair', routing:undefined, automatic:true},
  {compact:true, profile:'deepseek-flash-wafer', automatic:true, scheduled:true, routing:JSON.stringify({
   default:{sourceInventory:'deepseek-flash-wafer'},en:{sourceInventory:'gemini-ai-studio-flex'},
  })},
@@ -88,7 +89,7 @@ it.each([
  }) as typeof fetch;
  const reportingWindow=scheduled?livePublicationWindow({durationMinutes:30,timezone:'Asia/Beirut',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z')):window;
  const candidate={...env,CUTOFF_EDITIONS_ENABLED:String(Boolean(scheduled)),BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing,...(automatic?{BRIEFING_V5_AUTO_PUBLICATION_ENABLED:'true',BRIEFING_V5_FEEDS_CREATED_FROM:olderFeed?'2026-10-04T00:00:00.000Z':'2026-10-03T11:00:00.000Z'}:{})},message={type:'v1_briefing' as const,feedId:'feed-1',window:reportingWindow};
- const generation=generationProfiles.v5Generation(profile);
+ const generation=profile==='flash-pair' ? generationProfiles.flashPairModels().generation : generationProfiles.v5Generation(profile);
  const revision=legacyFrozen?'v5-source-first-v5':'v5-source-first-v6';
  const oldDefault=legacyFrozen&&generation?vi.spyOn(generationProfiles,'v5Generation').mockReturnValue({...generation,prompt:'v5-source-first-v5'}):undefined;
  let edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider,{scheduledDelivery:scheduled});
@@ -123,6 +124,13 @@ it.each([
  const expectedCalls=cancelVerifier?5:4;
  expect(calls).toHaveLength(expectedCalls);
  const id=await windowIdentity('feed-1',reportingWindow),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
+ if(profile==='flash-pair'){
+  expect(frozen.models.developmentSelection).toBe('individual-developments-v1');
+  expect(calls[0].model).toBe('google/gemini-3.8-flash');
+  expect(calls[0].messages[0].content).toContain('Assess each distinct development inside a source');
+  expect(calls.slice(1).every(r=>!r.messages[0].content.includes('Assess each distinct development inside a source'))).toBe(true);
+  expect(calls.every(r=>['google/gemini-3.8-flash','deepseek/deepseek-v4.1-flash-1017'].includes(r.model))).toBe(true);
+ }
  if(scheduled){
   expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');
   expect(edition?.scheduledFor).toBe('2026-10-03T12:30:00.000Z');
