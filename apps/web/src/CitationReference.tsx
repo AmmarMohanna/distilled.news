@@ -17,6 +17,7 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
   const [loaded, setLoaded] = useState<BriefingEdition>();
   const [pending, setPending] = useState(false);
   const request = useRef<Promise<BriefingEdition | null> | undefined>(undefined);
+  const opening = useRef(false);
   const [dismissed, setDismissed] = useState(false);
   function sourceFor(value: BriefingEdition) {
     const references = briefingReferences(value);
@@ -41,21 +42,32 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     if (entry) return loaded ?? edition;
     if (request.current) return request.current;
     setPending(true);
-    request.current = loadDetail();
+    request.current = loadDetail().catch(() => null);
     try { const detail = await request.current; if (detail) setLoaded(detail); return detail; }
     finally { setPending(false); request.current = undefined; }
   }
-  return <span className="citation-reference" onMouseEnter={() => { setDismissed(false); fitPreview(); void prepare(); }} onFocus={() => { setDismissed(false); fitPreview(); void prepare(); }}
+  return <span className="citation-reference"
     onKeyDown={event => { if (event.key === 'Escape') setDismissed(true); }}>
-    <a ref={trigger} className="briefing-reference" href={url} target={url ? '_blank' : undefined} rel="noopener noreferrer"
-      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher ? id : undefined}
+    <a ref={trigger} className="briefing-reference" href={url}
+      onMouseEnter={() => { setDismissed(false); fitPreview(); void prepare(); }}
+      onFocus={() => { fitPreview(); void prepare(); }} target={url ? '_blank' : undefined} rel="noopener noreferrer"
+      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher && !dismissed ? id : undefined}
       aria-busy={pending} role="link" tabIndex={0} onKeyDown={event => { if (!url && event.key === 'Enter') { event.preventDefault(); event.currentTarget.click(); } }} onClick={async event => {
         setDismissed(true);
         if (url) return;
         event.preventDefault();
+        if (entry || opening.current) return;
+        opening.current = true;
+        // A touch can arrive before evidence has loaded. Reserve the tab during the gesture.
+        const tab = window.open("about:blank", "_blank");
+        if (tab) tab.opener = null;
         const detail = await prepare();
-        const source = detail && sourceFor(detail), destination = source && readerEvidenceUrl(source);
-        if (destination) window.location.assign(destination);
+        const source = detail && sourceFor(detail);
+        const href = source && readerEvidenceUrl(source);
+        opening.current = false;
+        if (!href) { tab?.close(); return; }
+        if (tab && !tab.closed) tab.location.replace(href);
+        else if (!tab) window.location.assign(href);
       }}><bdi dir="ltr">[{number}]</bdi>
     {entry && publisher && !dismissed && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
       <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/><strong>{publisher}</strong>

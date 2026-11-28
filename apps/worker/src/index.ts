@@ -12,6 +12,7 @@ import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {continueFeedReview} from './connector-review-continuation';
 import {productRuntimeEnv} from './product-feeds';
 import { sendBriefingNotifications } from './push';
+import { sendSocialNotifications } from './social-push';
 import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,deferConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
 import {expireSharedPublicFetches} from './connector-public-cache';
 import {dispatchTelegramLane} from './connector-telegram-lane';
@@ -35,6 +36,7 @@ import { v3RuntimeFromEnv } from "./briefing-v3";
 import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
+import { expireCatchUpOpens } from './reader-history';
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,AuthenticatedXAcquisitionRequestMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, PublicAcquisitionRequestMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
 import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
@@ -347,6 +349,9 @@ async function runProjectionMaintenance(env:Env):Promise<void> {
 }
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
+  const maintenanceTime=new Date();
+  if(maintenanceTime.getUTCMinutes()%15===0)try {await expireCatchUpOpens(env.DB,maintenanceTime);}
+  catch {console.warn('Catch-up opened history cleanup deferred');}
   if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   if(editionArtifactBackfillEnabled(env))try {await backfillEditionArtifacts(env,{maxAttached:5,budgetMs:5000})}
@@ -376,6 +381,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
     // Preserve reader notifications in the indexed scheduling path.
     try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+    try {await sendSocialNotifications(env)} catch {console.warn('Could not send social notifications')}
     await runProjectionMaintenance(env);
     // Keep auxiliary recovery/retention; avoid the legacy population scans below.
     const repo=new D1Repository(env.DB),now=new Date();
@@ -394,6 +400,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+  try {await sendSocialNotifications(env)} catch {console.warn('Could not send social notifications')}
   await runProjectionMaintenance(env);
   const repo = new D1Repository(env.DB);
   const now = new Date();

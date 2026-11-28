@@ -106,6 +106,9 @@ export interface BriefingItem {
 
 export interface BriefingEditionSection {
   developmentId?:string;
+  storyId?:string;
+  relation?:'new'|'update'|'correction';
+  updatesId?:string;
   claims?:GroundedClaim[];
   changes?:DevelopmentChange[];
   ranking?:DevelopmentRank;

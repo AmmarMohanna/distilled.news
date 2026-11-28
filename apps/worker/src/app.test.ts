@@ -10,6 +10,7 @@ import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessa
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 import {rememberSourceAssessment} from './source-assessment-cache';
 import * as searchRelevance from './source-search-relevance';
+import * as briefingPhotos from './briefing-photo';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -82,6 +83,174 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("persists channel follows for the signed-in viewer and rejects self-follows", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel-follow-owner@example.invalid", "Channel Follow Owner");
+    const reader = await createVerifiedUser(app, repo, "channel-follower@example.invalid", "Channel Follower");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false, paused: false });
+    const username = encodeURIComponent(owner.account.username);
+    const follow = (following: boolean, cookie = "") => app.request(`/api/me/channels/${username}/follow`, {
+      method: "PUT",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ following })
+    }, env());
+    expect((await follow(true)).status).toBe(401);
+    expect((await follow(true, owner.cookie)).status).toBe(400);
+    expect(await (await follow(true, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, followerCount: 1, publicFeedCount: 0 } });
+    const profile = (cookie: string) => app.request(`/api/explore/channels/${username}`, { headers: { cookie } }, env());
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, publicFeedCount: 0 } });
+    expect(await (await profile(owner.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false } });
+    expect(await (await app.request('/api/explore/channels', { headers: { cookie: reader.cookie } }, env())).json()).toEqual({ channels: [] });
+    expect(await (await app.request(`/api/explore/feeds?channel=${username}`, {}, env())).json()).toMatchObject({ feeds: [] });
+    expect(await (await app.request('/api/explore/channels?followed=1', { headers: { cookie: reader.cookie } }, env())).json())
+      .toMatchObject({ channels: [{ username: owner.account.username, publicFeedCount: 0 }] });
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, publicFeedCount: 1 } });
+    expect(await (await follow(false, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false, followerCount: 0 } });
+  });
+
+  it("serves a channel cover with or without public feeds and lets only its owner remove it", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "cover-owner@example.invalid", "Cover Owner");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const other = await createVerifiedUser(app, repo, "cover-other@example.invalid", "Other Owner");
+    const objects = new Map<string, { bytes: Uint8Array<ArrayBuffer>; channel: string }>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>, options: {customMetadata: {channel: string}}) => {
+        objects.set(key, { bytes, channel: options.customMetadata.channel });
+      },
+      get: async (key: string) => {
+        const object = objects.get(key);
+        return object ? { body: new Response(object.bytes).body, customMetadata: { channel: object.channel } } : null;
+      },
+      delete: async (key: string) => { objects.delete(key); }
+    } } as unknown as Env;
+    const upload = "/api/me/channel-cover";
+    const original = new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]);
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(upload, { method: "PUT", body: original }, runtime)).status).toBe(401);
+    expect((await app.request(upload, { method: "PUT", body: original, headers }, runtime)).status).toBe(200);
+    expect((await app.request("/api/me/avatar", {headers}, runtime)).status).toBe(404);
+    const cover = `/api/explore/channels/${encodeURIComponent(owner.account.username)}/cover`;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
+    expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
+    expect((await app.request(upload, { method: "DELETE" }, runtime)).status).toBe(401);
+    expect((await app.request(upload, { method: "DELETE", headers: { cookie: other.cookie } }, runtime)).status).toBe(200);
+    expect((await app.request(cover, {}, runtime)).status).toBe(200);
+    expect((await app.request(upload, { method: "DELETE", headers: { ...headers, origin: "https://elsewhere.example" } }, runtime)).status).toBe(403);
+    expect((await app.request("/api/me/avatar", { method: "PUT", body: original, headers }, runtime)).status).toBe(200);
+    expect((await app.request(upload, { method: "DELETE", headers }, runtime)).status).toBe(200);
+    expect((await app.request(cover, {}, runtime)).status).toBe(404);
+    expect((await app.request("/api/me/avatar", { headers }, runtime)).status).toBe(200);
+  });
+
+  it("skips publisher photo lookup when an edition has three distinct retained photos", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "photo-owner@example.invalid", "Photo Owner");
+    const briefing = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...briefing, language: "en", publicFeedEnabled: true });
+    const summary = "The coastal road reopened after an overnight security closure.";
+    const saveEdition = (id: string, hoursAgo: number, urls: string[]) => {
+      const at = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+      return repo.saveBriefingEdition({
+        id, briefingId: briefing.id, status: "published", title: "Road update", summary, cadence: "hourly",
+        windowStart: at, windowEnd: at, publishedAt: at, createdAt: at, updatedAt: at,
+        sections: [{ title: "Road update", summary, evidence: [{
+          messageId: id, sourceId: "news", sourceTitle: "Publisher", sourceType: "channel",
+          sourceUrl: "https://publisher.example/article", postedAt: at, text: summary, links: [],
+          media: urls.map(url => ({ type: "photo", url }))
+        }] }]
+      });
+    };
+    const photoResponse = (id: string) => app.request(`/api/feed/photo-owner/personal/editions/${id}?photo=1`, {}, env());
+    const fallback = { url: "https://publisher.example/fallback.jpg", source: "Publisher" };
+    const publisherLookup = vi.spyOn(briefingPhotos, "briefingPublisherPhotos").mockResolvedValue([fallback]);
+    const first = "https://publisher.example/1.jpg";
+    const second = "https://publisher.example/2.jpg";
+    try {
+      await saveEdition("has-photos", 2, [first, second, "https://publisher.example/3.jpg"]);
+      const complete = await photoResponse("has-photos");
+      expect(complete.status).toBe(200);
+      expect(await complete.json()).toEqual({ photo: null, photos: [] });
+      expect(publisherLookup).not.toHaveBeenCalled();
+
+      await saveEdition("needs-photos", 1, [first, second, first, "http://publisher.example/3.jpg"]);
+      const incomplete = await photoResponse("needs-photos");
+      expect(incomplete.status).toBe(200);
+      expect(await incomplete.json()).toEqual({ photo: fallback, photos: [fallback] });
+      expect(publisherLookup).toHaveBeenCalledTimes(1);
+    } finally {
+      publisherLookup.mockRestore();
+    }
+  });
+
+  it("stores a replacement avatar privately for the signed-in account", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "avatar-owner@example.invalid", "Picture Owner");
+    const other = await createVerifiedUser(app, repo, "avatar-other@example.invalid", "Other Reader");
+    const objects = new Map<string, Uint8Array<ArrayBuffer>>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>) => { objects.set(key, bytes); },
+      get: async (key: string) => objects.has(key) ? { body: new Response(objects.get(key)).body } : null,
+      delete: async (key: string) => { objects.delete(key); }
+    } } as unknown as Env;
+    const path = "/api/me/avatar";
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(path, { method: "PUT", body: "not a JPEG", headers }, runtime)).status).toBe(415);
+    for (const byte of [0x01, 0x02]) {
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, byte, 0xff, 0xd9]);
+      expect((await app.request(path, { method: "PUT", body: jpeg, headers }, runtime)).status).toBe(200);
+      const saved = await app.request(path, { headers }, runtime);
+      expect(saved.headers.get("cache-control")).toBe("private, no-store");
+      expect(new Uint8Array(await saved.arrayBuffer())).toEqual(jpeg);
+    }
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { headers: { cookie: other.cookie } }, runtime)).status).toBe(404);
+    expect((await app.request(path, {}, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE" }, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE", headers: { ...headers, origin: "https://other.example" } }, runtime)).status).toBe(403);
+    expect((await app.request(path, { method: "DELETE", headers: { cookie: other.cookie } }, runtime)).status).toBe(200);
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { method: "DELETE", headers }, runtime)).status).toBe(200);
+    expect((await app.request(path, { headers }, runtime)).status).toBe(404);
+  });
+
+  it("keeps feed stars separate from channel follows and exposes only active public feeds and opted-in photos", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel@example.invalid", "Channel Owner");
+    const original = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...original, publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "another-public", slug: "another", publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "private", slug: "private", publicFeedEnabled: false, paused: false });
+    await repo.upsertBriefing({ ...original, id: "paused", slug: "paused", publicFeedEnabled: true, paused: true });
+    await repo.setBriefingStar(original.id, "same-reader", true);
+    await repo.setBriefingStar("another-public", "same-reader", true);
+    await repo.setBriefingStar("private", "private-reader", true);
+    await repo.setBriefingStar("paused", "paused-reader", true);
+    const prefix = "/api/explore/channels";
+    const channel = { username: owner.account.username, publicFeedCount: 2, followerCount: 0 };
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [channel] });
+    const filtered = await (await app.request(`/api/explore/feeds?channel=${owner.account.username}`, { headers: { cookie: owner.cookie } }, env())).json() as { feeds: Array<{ slug: string }> };
+    expect(filtered.feeds.map(feed => feed.slug).sort()).toEqual(["another", "personal"]);
+    let visibility = "private";
+    const avatarRuntime = { ...env(), RAW_ARCHIVE: { get: async () => ({ body: new Response("picture").body, customMetadata: { channel: visibility } }) } } as unknown as Env;
+    const avatarPath = `${prefix}/${owner.account.username}/avatar`;
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    visibility = "public";
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(200);
+    await repo.updateAccount({ id: owner.account.id, disabled: true });
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [] });
+  });
+
   it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
     const repo=new InMemoryRepository(),app=createApp({repository:repo});
     const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');
@@ -104,6 +273,38 @@ describe("worker app accounts", () => {
       const after=await(await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env())).json() as {editions:Array<{id:string}>};
       expect(after.editions.some(edition=>edition.id===old.id)).toBe(false);
     }
+  });
+  it('pages recent publications by time and ID and leaves quiet history searchable',async()=>{
+    const now=new Date('2026-11-26T12:00:00Z');
+    const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>now});
+    const user=await createVerifiedUser(app,repo,'timeline@example.invalid','Timeline Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    const path='/api/feed/timeline-owner/personal';
+    const read=async(before?:string)=>{
+      const response=await app.request(`${path}?timeline=1${before?'&before='+encodeURIComponent(before):''}`,{},env());
+      expect(response.status).toBe(200);
+      return response.json() as Promise<{editions:{id:string}[];timelineNextCursor:string|null}>;
+    };
+    let sequence=0;
+    const publish=(id:string,at:string,status:'published'|'empty'='published')=>repo.saveBriefingEdition({
+      id,briefingId:briefing.id,cadence:'daily',windowStart:new Date(Date.parse(at)-++sequence*60_000).toISOString(),windowEnd:at,
+      title:'Coastal news',summary:'The coastal road reopened after an overnight security closure.',
+      sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status,publishedAt:at,createdAt:at,updatedAt:at
+    });
+    expect((await read()).editions).toEqual([]);
+    await publish('archive','2026-10-01T11:00:00.000Z');
+    expect(await read()).toMatchObject({editions:[],timelineNextCursor:null});
+    const time='2026-11-26T11:00:00.000Z';
+    for(let i=0;i<10;i++)await publish(`recent-${i}`,time);
+    await publish('withdrawn',time,'empty');
+    await publish('future','2026-11-26T13:00:00.000Z');
+    const first=await read();
+    expect(first.editions.map(edition=>edition.id)).toEqual([9,8,7,6,5,4,3,2].map(i=>`recent-${i}`));
+    const second=await read(first.timelineNextCursor!);
+    expect(second.editions.map(edition=>edition.id)).toEqual(['recent-1','recent-0']);
+    expect(second.timelineNextCursor).toBeNull();
+    const search=await (await app.request(`${path}/search?q=coastal`,{},env())).json() as {editions:{id:string}[]};
+    expect(search.editions.some(edition=>edition.id==='archive')).toBe(true);
   });
   it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});

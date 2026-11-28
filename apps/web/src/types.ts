@@ -2,6 +2,13 @@ import type { BriefingConfig, BriefingEdition, SourceKind, SourceProvider } from
 
 export type AccountRole = "admin" | "user";
 
+export interface ExploreChannel {
+  username: string;
+  publicFeedCount: number;
+  followerCount: number;
+  viewerFollowing?: boolean;
+}
+
 export interface AccountRecord {
   id: string;
   email: string;
@@ -63,18 +70,25 @@ export interface PublicationProgress {
   pending:number;
 }
 
-export interface FeedPayload {
+export interface FeedTimelinePage {
+  editions: BriefingEdition[];
+  timelineNextCursor?: string | null;
+  timelineSince?: string;
+  /** Changes when the published records may have changed. */
+  publicationVersion?: string;
+}
+
+export interface FeedPayload extends FeedTimelinePage {
   /** Whether editions covers the complete searchable publication set. */
   editionsComplete?: boolean;
-  /** Changes when the bounded searchable publication window changes. */
-  publicationVersion?: string;
-  unreadSummaryAvailable?: boolean;
+  catchUpAvailable?: boolean;
+  readerIntervalMinutes?: number;
+  hasPublishedBriefings?: boolean;
   publicationProgress?: PublicationProgress;
   publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'partial'|'service_blocked';
   sourceHealthUnavailable?: boolean;
   sourceAvailability?: {sourceId:string;title:string;state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:string;acquisition?:{completed:number;pending:number;failed:number;issues?:{reason:string;count:number}[]};warning?:string;collectionError?:string;collectionAlerts?:('SOURCE_NO_RECENT_SUCCESS'|'SOURCE_NEVER_COLLECTED')[]}[];
   briefing: PublicBriefing;
-  editions: BriefingEdition[];
   viewerHasStarred: boolean;
 }
 

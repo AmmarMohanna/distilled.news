@@ -32,24 +32,34 @@ it("sends the interest to Klein 4B as multipart form data and saves the returned
   expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
   const fields = await request.formData();
   expect([...fields.keys()].sort()).toEqual(["height", "prompt", "seed", "width"]);
-  expect(fields.get("width")).toBe("1024");
-  expect(fields.get("height")).toBe("1024");
+  expect(fields.get("width")).toBe("1920");
+  expect(fields.get("height")).toBe("480");
   expect(fields.get("seed")).toBe("42");
   expect(fields.get("prompt")).toContain('"Parliament news"');
-  expect(fields.get("prompt")).not.toContain("World politics");
-  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({ httpMetadata: { contentType: "image/jpeg" } }));
+  expect(fields.get("prompt")).toContain("World politics");
+  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({
+    httpMetadata: { contentType: "image/jpeg" },
+    customMetadata: { artworkStyle: "pencil-cover-v1" }
+  }));
 });
 
-it("uses only the interest for subject selection and preserves the full allowed interest text", () => {
+it("uses the title and full interest text with the shared illustration palette", () => {
   const interestProfile = 'Follow "AI" research\n'.repeat(190) + " and the latest partnerships";
   const first = { title: "Unrelated title", interestProfile };
   const renamed = { title: "Another unrelated title", interestProfile };
   const prompt = sketchPrompt(first);
-  expect(prompt).toBe(sketchPrompt(renamed));
+  expect(prompt).not.toBe(sketchPrompt(renamed));
+  expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("Monochromatic colored-pencil sketch in #5E5CE6.");
-  expect(prompt).toContain("Natural, slightly irregular pencil strokes with visible fine-grained pigment and subtle pressure variation.");
-  expect(prompt).toContain("Thin-to-medium pencil lines, never thick marker outlines.");
+  expect(prompt).toContain("quiet editorial colored-pencil study");
+  expect(prompt).toContain("light cross-hatching");
+  expect(prompt).toContain("one continuous edge-to-edge scene");
+  expect(prompt).toContain("No inset artwork, picture frames, panels");
+  expect(prompt).toContain("centered square crop");
+  expect(prompt).toContain("Never draw words, letters, pseudo-writing");
+  expect(prompt).toContain("Create feed button color #5E5CE6");
+  expect(prompt).toContain("Off-White #FAF9FF");
+  expect(prompt).toContain("avoid separate pink, magenta, violet or mauve color washes");
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {

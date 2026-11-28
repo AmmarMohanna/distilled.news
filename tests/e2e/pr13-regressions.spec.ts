@@ -24,7 +24,7 @@ test('successful login survives a feed-list outage and retry needs no second log
  await expect(page.getByRole('button',{name:'Account profile'})).toBeVisible();await expect(page.locator('.auth-dialog')).toHaveCount(0);
  await expect(page.locator('.home-view .feed-list-state')).toHaveAttribute('role','alert');
  await page.locator('.home-view .feed-list-state').getByRole('button',{name:'Try Again'}).click();
- await expect(page.locator('.personal-feed-grid')).toContainText('Science');expect(logins).toBe(1);expect(reads).toBe(2);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toContainText('Science');expect(logins).toBe(1);expect(reads).toBe(2);
 });
 
 test('tabs survive refresh and follow browser Back and Forward',async({page})=>{
@@ -45,12 +45,12 @@ test('thirty Home cards render current listing metadata without feed-detail read
   if(path.startsWith('/api/feed/')){if(path.endsWith('/sketch'))return route.fulfill({status:404});detailReads++;return route.fulfill({json:{briefing:feed,editions:[]}});}
   return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:account()}:path==='/api/me/briefings'?{briefings:Array.from({length:30},(_,i)=>({...feed,id:'own-'+i,slug:'own-'+i,ownerAccountId:'reader',ownerUsername:'reader'}))}:path==='/api/explore/feeds'?{feeds:[],nextOffset:null}:{}});
  });
- await page.goto('/');await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(30);
- await expect(page.locator('.personal-feed-grid time')).toHaveCount(30);await expect(page.locator('.personal-feed-grid button[aria-pressed="true"]')).toHaveCount(30);
+ await page.goto('/');await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveCount(30);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=home] time')).toHaveCount(30);await expect(page.locator('.feed-tile-grid[data-feed-view=home] button[aria-pressed="true"]')).toHaveCount(30);
  expect(detailReads).toBe(0);
 });
 
-test('read progress is account-specific and corrupt data does not crash the feed',async({page})=>{
+test('the feed ignores old read state without removing it',async({page})=>{
  let reader='reader-a';const failures:string[]=[];page.on('pageerror',error=>failures.push(error.message));
  await page.addInitScript(()=>{localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','reader-a'],'publisher','science']),'{broken');localStorage.setItem('ln_read:publisher:science','["edition-one"]');});
  await page.route('**/api/**',route=>{
@@ -58,8 +58,8 @@ test('read progress is account-specific and corrupt data does not crash the feed
   if(path.endsWith('/sketch'))return route.fulfill({status:404});
   return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:account(reader)}:path==='/api/feed/publisher/science'?{briefing:feed,editions:[edition],viewerHasStarred:false}:path==='/api/explore/feeds'?{feeds:[],nextOffset:null}:{}});
  });
- await page.goto('/publisher/science/');await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Mark as read',exact:true}).click();await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
+ await page.goto('/publisher/science/');await expect(page.locator('.news-item')).not.toHaveClass(/is-read/);
+ await page.evaluate(id=>localStorage.setItem('dn_read:v3:'+JSON.stringify([['account','reader-a'],id]),'["edition-one"]'),feed.id);
  // Remove the init script by opening a fresh page in the SAME browser context; storage remains shared.
  const next=await page.context().newPage();await next.route('**/api/**',route=>{
   const path=new URL(route.request().url()).pathname;
@@ -67,8 +67,9 @@ test('read progress is account-specific and corrupt data does not crash the feed
   return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:account(reader)}:path==='/api/feed/publisher/science'?{briefing:feed,editions:[edition],viewerHasStarred:false}:{}});
  });
  try{
-  reader='reader-b';await next.goto('/publisher/science/');await expect(next.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
-  reader='reader-a';await next.reload();await expect(next.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
+  reader='reader-b';await next.goto('/publisher/science/');await expect(next.locator('.news-item')).not.toHaveClass(/is-read/);
+  reader='reader-a';await next.reload();await expect(next.locator('.news-item')).not.toHaveClass(/is-read/);
+  expect(await next.evaluate(() => localStorage.getItem('ln_read:publisher:science'))).toBe('["edition-one"]');
   expect(failures).toEqual([]);
  }finally{await next.close();}
 });

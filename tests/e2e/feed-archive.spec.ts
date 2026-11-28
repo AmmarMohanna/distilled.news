@@ -28,8 +28,8 @@ test('Home archive resumes owned feeds; Explore shows active community feeds onl
     return route.fulfill({json:{}});
   });
   await page.goto('/');
-  await expect(page.locator('.personal-feed-grid')).toContainText('Active news');
-  await expect(page.locator('.personal-feed-grid')).not.toContainText('Archived news');
+  await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toContainText('Active news');
+  await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).not.toContainText('Archived news');
   const archive=page.getByRole('button',{name:'Archived feeds',exact:true});
   await archive.click();
   const dialog=page.getByRole('dialog',{name:'Archived feeds'});
@@ -45,9 +45,9 @@ test('Home archive resumes owned feeds; Explore shows active community feeds onl
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(archive).toBeFocused();
-  await expect(page.locator('.personal-feed-grid')).toContainText('Archived news');
+  await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toContainText('Archived news');
   await page.getByRole('button',{name:'Explore',exact:true}).click();
-  await expect(page.locator('.explore-view .curated-feed-grid')).toContainText('Community news');
+  await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track')).toContainText('Community news');
   await expect(page.locator('.explore-view')).not.toContainText('Active news');
   await expect(page.locator('.explore-view')).not.toContainText('Archived news');
   await page.getByRole('button',{name:'Home',exact:true}).click();

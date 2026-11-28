@@ -69,8 +69,8 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let indexAvailable=false;
   const readIndex=()=>readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)indexAvailable=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt,origin)=>context?true:queryMatches(title,excerpt,origin)}).catch(()=>[]);
   // Independent public lookups overlap; the model sees their combined results once.
-  const indexTask=context?readIndex():undefined;
-  const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache,env).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
+  const indexTask=readIndex();
+  const webTask=env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache,env).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
   const pools:SourceSearchResult[][]=[];
   let publisherAvailable=false;
   // A known publisher can be searched through its actual article feed even
@@ -102,7 +102,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let available=publisherAvailable;
   let accessIncomplete=false;
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
-    const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache,env));
+    const web=await webTask!;
     available=available||web.available;
     accessIncomplete=web.accessIncomplete;
     const webResults:SourceSearchResult[]=[];
@@ -113,10 +113,9 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
       // when the indexed profile/article itself is publicly readable.
       webResults.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});
     }
-    if(context)pools.push(webResults);else results.push(...webResults);
-    if(results.length&&!context)return {results,unavailable:false,accessIncomplete};
+    pools.push(webResults);
   }
-  const evidence=await (indexTask??readIndex());
+  const evidence=await indexTask;
   const indexed:SourceSearchResult[]=[];
   for(const item of evidence){
     if(!context&&!queryMatches(item.title,item.excerpt,item.publisherOrigin))continue;
@@ -125,16 +124,23 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
     try{prepareProductSourceInput(item.publisherOrigin+'/');}catch{continue;}
     indexed.push({source:item.publisherOrigin+'/',title:item.title,publisher:new URL(item.publisherOrigin).hostname,articleUrl:item.url,excerpt:item.excerpt});
   }
-  if(context){
-    pools.push(indexed);
-    // Share the bounded model batch across feeds and routes. Limit displayed
-    // matches after relevance rather than cutting each feed to five first.
-    const seen=new Set<string>();
-    for(let index=0;index<60&&results.length<60;index++)for(const pool of pools){
-      const item=pool[index];if(!item)continue;
-      const identity=item.articleUrl??item.source;if(seen.has(identity))continue;
-      seen.add(identity);results.push(item);if(results.length===60)break;
-    }
-  }else results.push(...indexed);
-  return {results,unavailable:!(available||indexAvailable),accessIncomplete};
+  pools.push(indexed);
+  // Give each publisher a turn in the bounded relevance and access batch.
+  const seen=new Set(results.map(row=>row.articleUrl??row.source));
+  const byPublisher=new Map<string,SourceSearchResult[]>();
+  for(const pool of pools)for(const row of pool){
+    const identity=row.articleUrl??row.source;
+    if(seen.has(identity))continue;
+    seen.add(identity);
+    const host=row.publisher.replace(/^www\./,'');
+    const group=byPublisher.get(host)??[];
+    group.push(row);
+    byPublisher.set(host,group);
+  }
+  for(let index=0;index<60&&results.length<60;index++)for(const group of byPublisher.values()){
+    const row=group[index];
+    if(row)results.push(row);
+    if(results.length===60)break;
+  }
+  return {results,unavailable:!(available||indexAvailable||results.length),accessIncomplete};
 }

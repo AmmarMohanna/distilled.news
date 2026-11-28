@@ -12,7 +12,7 @@ async function render(node: React.ReactNode, check: (host: HTMLDivElement) => vo
   try { await act(async () => root.render(node)); await check(host); }
   finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
 }
-it('links a citation directly to its article and previews the publisher logo and domain', async () => {
+it('shows the citation destination and previews the publisher logo and domain', async () => {
   const loadDetail = vi.fn(async () => edition);
   await render(<CitationReference number={1} edition={edition} loadDetail={loadDetail} label="Source 1"/>, async host => {
     const link = host.querySelector('a')!;
@@ -69,11 +69,23 @@ it('omits empty read-more controls for headline-only stories', async () => {
     expect(host.querySelector('button, details')).toBeNull();
   });
 });
-it('dismisses the publisher popup when opening its article', async () => {
+it('leaves the known article link to the browser without a source dialog', async () => {
   await render(<CitationReference number={1} edition={edition} loadDetail={async () => edition} label="Source 1"/>, async host => {
     const link = host.querySelector('a')!;
     link.addEventListener('click', event => event.preventDefault());
     await act(async () => link.click());
     expect(host.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    expect(link.href).toBe('https://www.bbc.co.uk/news/article');
+  });
+});
+it('opens the article when a citation is clicked before its details are loaded', async () => {
+  const replace = vi.fn();
+  const tab = { opener: window, closed: false, location: { replace }, close: vi.fn() };
+  await render(<CitationReference number={1} edition={{ ...edition, sections: [] }} loadDetail={async () => edition} label="Source 1"/>, async host => {
+    vi.stubGlobal('open', vi.fn(() => tab));
+    await act(async () => host.querySelector('a')!.click());
+    expect(tab.opener).toBeNull();
+    expect(replace).toHaveBeenCalledWith('https://www.bbc.co.uk/news/article');
   });
 });

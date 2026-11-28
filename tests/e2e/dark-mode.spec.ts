@@ -37,10 +37,10 @@ test('dark Home, Explore and creation controls retain readable contrast',async({
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   expect(await contrast(page.locator('.welcome-copy h1'))).toBeGreaterThanOrEqual(7);
   expect(await contrast(page.locator('.home-add-feed'))).toBeGreaterThanOrEqual(4.5);
-  expect(await contrast(page.locator('.personal-feed-grid .topic-name strong'))).toBeGreaterThanOrEqual(7);
+  expect(await contrast(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.getByRole('button',{name:'Explore',exact:true}).click();
-  await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(1);
-  expect(await contrast(page.locator('.curated-feed-grid .topic-name strong'))).toBeGreaterThanOrEqual(7);
+  await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(1);
+  expect(await contrast(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.screenshot({path:`.local-reports/dark-mode/${info.project.name}-explore.png`});
   await page.getByRole('button',{name:'Create feed',exact:true}).click();
   const dialog=page.getByRole('dialog');
@@ -61,9 +61,28 @@ test('dark reader text, metadata, citations and actions meet contrast thresholds
   expect(await contrast(page.locator('.feed-header-actions > button').first())).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(page.locator('.news-head time'))).toBeGreaterThanOrEqual(4.5);
   await page.screenshot({path:`.local-reports/dark-mode/${info.project.name}-reader.png`});
-  await page.locator('.read-button').click();
+  await page.reload();
+  await expect(page.locator('.news-item')).not.toHaveClass(/is-read/);
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(4.5);
   await page.emulateMedia({contrast:'more',reducedMotion:'reduce'});
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(4.5);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('feed banner uses a subtle theme gradient and keeps its text readable after switching',async({page})=>{
+  await mock(page);
+  await page.setViewportSize({width:1280,height:900});
+  await page.addInitScript(()=>localStorage.setItem('dn_theme','light'));
+  await page.goto('/owner/news/');
+  const title=page.locator('.page-heading h1');
+  const backdrop=page.locator('.feed-hero-art');
+  await expect(title).toBeVisible();
+  await expect(backdrop).toHaveCSS('background-image',/^linear-gradient/);
+  const light=await backdrop.evaluate(node=>getComputedStyle(node).backgroundImage);
+  expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
+  await page.locator('.experience-header .theme-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(backdrop).not.toHaveCSS('background-image',light);
+  await expect(backdrop).toHaveCSS('background-image',/^linear-gradient/);
+  expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
 });

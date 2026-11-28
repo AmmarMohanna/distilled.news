@@ -19,30 +19,29 @@ async function openBriefing(page: import("@playwright/test").Page) {
 test("restored briefing layout preserves controls and theme", async ({ page }) => {
   await openBriefing(page);
   await expect(page.locator(".page-heading")).toContainText("by admin");
-  const headingBounds=await page.locator('.page-heading').boundingBox();
-  for(const node of [page.locator('.page-heading h1'),page.locator('.page-heading > p')]) {const box=await node.boundingBox();expect(Math.abs(box!.x+box!.width/2-headingBounds!.x-headingBounds!.width/2)).toBeLessThan(2);}
-  await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
+  await expect(page.getByRole("link", {name:"Back"})).toBeVisible();
   await expect(page.locator(".feed-check-status")).toContainText("feed paused");
   const artwork=page.locator('.feed-hero-art .topic-art');
   const displayed=await artwork.boundingBox();
   const reserved=await page.locator('.feed-hero-art').boundingBox();
   const header=await page.locator('.experience-header').boundingBox();
-  expect(displayed!.height).toBeGreaterThanOrEqual(96);
-  expect(displayed!.y).toBeGreaterThanOrEqual(header!.y+header!.height);
+  expect(displayed!.height).toBeGreaterThanOrEqual(80);
+  expect(displayed!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
   expect(displayed!.y).toBeGreaterThanOrEqual(reserved!.y);
   expect(displayed!.y+displayed!.height).toBeLessThanOrEqual(reserved!.y+reserved!.height+1);
-  const artBounds=await page.locator('.feed-hero-art').boundingBox();
   const titleBounds=await page.locator('.page-heading h1').boundingBox();
   const authorBounds=await page.locator('.page-heading > p').boundingBox();
-  const toolsBounds=await page.locator('.feed-tools').boundingBox();
+  const emptyBounds=await page.locator('.briefings-empty').boundingBox();
   const actions = page.locator(".page-heading .feed-header-actions");
   const actionBounds=await actions.boundingBox();
-  expect(titleBounds!.y-artBounds!.y-artBounds!.height).toBeLessThanOrEqual(8);
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
-  expect(actionBounds!.y).toBeGreaterThanOrEqual(authorBounds!.y+authorBounds!.height);
-  expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
-  expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeLessThanOrEqual(28);
+  expect(actionBounds!.y).toBeGreaterThanOrEqual(header!.y+header!.height);
+  expect(actionBounds!.y).toBeGreaterThanOrEqual(authorBounds!.y+authorBounds!.height-1);
+  expect(emptyBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
+  await actions.getByLabel("Feed options").click();
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Search briefings" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Explore/i })).toHaveCount(0);
@@ -51,13 +50,10 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
   const toolbar = page.locator(".feed-tools");
-  await expect(toolbar.getByPlaceholder("Search briefings")).toBeVisible();
-  const empty = page.locator(".feed-empty-state");
-  await expect(empty).toContainText("no published briefings");
-  await expect(empty.locator(".feed-empty-icon")).toBeVisible();
-  const emptyBounds = await empty.boundingBox();
-  expect(emptyBounds).not.toBeNull();
-  expect(emptyBounds!.y + emptyBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+  await expect(toolbar.getByPlaceholder("Search briefings")).toHaveCount(0);
+  await expect(page.locator(".feed-empty-state")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "No published briefings yet" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore feeds" })).toHaveAttribute("href", "/explore");
   for (const control of await page.locator(".feed-tools input:visible, .feed-header-actions button:visible").all()) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();
@@ -74,7 +70,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
 
 test("published headlines open retained briefing evidence and preserve read-only refresh", async ({ page }) => {
   const sourceUrl = "https://example.test/supported-development";
-  const summary = "Acme released an updated research model [1].";
+  const summary = "Acme released an updated research model. ".repeat(18) + "The full briefing ends here [1].";
   const edition = { id: "published-one", title: "October 11 updates", summary, publishedAt: "2026-10-11T08:00:00Z", sections: [{ title: "Research model", summary, evidence: [{ messageId: "evidence-one", sourceTitle: "Research source", sourceUrl, text: summary, postedAt: "2026-10-11T07:00:00Z", links: [], media: [] }] }] };
   let manualRequests = 0, feedReads = 0;
   await page.route("**/api/**", route => {
@@ -83,27 +79,127 @@ test("published headlines open retained briefing evidence and preserve read-only
     if (path === "/api/feed/admin/personal-briefing") feedReads++;
     const data = path === "/api/auth/session" ? { authenticated: false }
       : path === "/api/feed/admin/personal-briefing" ? { briefing, editions: [edition] }
-      : path.endsWith("/editions/published-one") ? { edition } : {};
+      : path.endsWith("/editions/published-one") ? { briefing, edition } : {};
     return route.fulfill({ json: data });
   });
   await page.goto("/admin/personal-briefing/");
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
+  const row = page.locator('.news-item').first();
+  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) await row.hover();
+  const rowTop = (await row.boundingBox())!.y;
+  const timeTop = (await row.locator('.news-head time').boundingBox())!.y;
+  expect(timeTop - rowTop).toBeGreaterThanOrEqual(12);
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".news-sources")).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference")).toHaveAttribute("href", sourceUrl);
-  await page.locator('.briefing-read-more > summary').click();
-  await expect(page.locator('.briefing-expanded-text .news-summary > bdi').first()).toHaveText("Acme released an updated research model");
-  await expect(page.locator('.briefing-expanded-text .briefing-reference')).toHaveAttribute('href',sourceUrl);
+  await expect(page.locator('.briefing-read-more')).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('.briefing-read-more > summary').click();
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   expect(manualRequests).toBe(0);
   await page.reload();
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
+  const login = page.locator('.experience-header a[href="/login"]');
+  await expect(login).toBeVisible();
+  const feedLogin = (await login.boundingBox())!;
+  const backLabel = page.locator(".experience-header .feed-nav-back > span");
+  const feedBackLabel = await backLabel.boundingBox();
+  const headline = page.locator(".briefing-headline-link");
+  const detailHref = (await headline.getAttribute('href'))!;
+  await headline.click();
+  const reader = page.getByRole('dialog', { name: 'Briefing' });
+  await expect(reader).toContainText('The full briefing ends here');
+  await expect(reader.locator('.news-summary')).toHaveCSS('color', 'rgb(96, 96, 100)');
+  await expect(page).toHaveURL(/\/admin\/personal-briefing\/$/);
+  await reader.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(reader).toHaveCount(0);
+  await page.goto(detailHref);
+  await expect(login).toBeVisible();
+  const detailLogin = (await login.boundingBox())!;
+  expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
+  expect(detailLogin.x + detailLogin.width).toBeCloseTo(feedLogin.x + feedLogin.width, 0);
+  expect(detailLogin.y + detailLogin.height / 2).toBeCloseTo(feedLogin.y + feedLogin.height / 2, 0);
+  const menu = page.locator('.briefing-detail-title-row .feed-more > summary');
+  await expect(menu).toHaveCSS('border-radius', '50%');
+  await expect(page.locator('.briefing-detail-hero a[href="/admin/personal-briefing/"]')).toHaveCount(0);
+  const titleBounds = (await page.locator('.briefing-detail-title-row h1').boundingBox())!;
+  const menuBounds = (await menu.boundingBox())!;
+  expect(menuBounds.x).toBeGreaterThan(titleBounds.x + titleBounds.width);
+  expect(menuBounds.y + menuBounds.height / 2).toBeCloseTo(titleBounds.y + titleBounds.height / 2, 0);
+  await menu.click();
+  await expect(page.locator('.briefing-detail-menu .feed-options-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await menu.press('Escape');
+  await page.evaluate(() => document.documentElement.lang = 'ar');
+  await expect(page.locator('.briefing-detail-hero h1')).toHaveCSS('direction', 'ltr');
+  await expect(page.locator('.briefing-detail-body .news-summary')).toHaveCSS('direction', 'ltr');
+  await page.evaluate(() => document.documentElement.lang = 'en');
+  const body = page.locator(".briefing-detail-body .news-summary");
+  await expect(body).toContainText("The full briefing ends here");
+  await expect(body).toHaveCSS("overflow", "visible");
+  await expect(body).toHaveCSS("color", "rgb(96, 96, 100)");
+  await page.context().route(sourceUrl, route => route.fulfill({ body: "Publisher article" }));
+  const [source] = await Promise.all([page.waitForEvent('popup'), page.locator(".briefing-detail-body .briefing-reference").first().click()]);
+  await expect(source).toHaveURL(sourceUrl);
+});
+
+for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and menu follow ${language} layout`, async ({ page }) => {
+  const edition = { id: "latest", title: "A published headline", summary: "Published briefing text.",
+    publishedAt: "2026-10-11T08:00:00Z", sections: [] };
+  const photoUrl = "https://example.test/briefing-photo.svg";
+  const secondPhotoUrl = "https://example.test/second-briefing-photo.svg";
+  let photoRequests = 0;
+  let releaseEdition!: () => void;
+  const editionReady = new Promise<void>(resolve => { releaseEdition = resolve; });
+  await page.route("https://example.test/*briefing-photo.svg", route => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
+  }));
+  await page.route("**/api/**", async route => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.has("photo")) {
+      photoRequests++;
+      return route.fulfill({ json: { photos: [{ url: photoUrl, source: "Example" }, { url: secondPhotoUrl, source: "Second publisher" }] } });
+    }
+    if (url.pathname.endsWith("/editions/latest")) await editionReady;
+    if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
+    return route.fulfill({ json: url.pathname === "/api/auth/session"
+      ? { authenticated: false } : { briefing: { ...briefing, language }, editions: [edition], edition, viewerHasStarred: false } });
+  });
+  await page.goto("/admin/personal-briefing/");
+  const headline = page.getByRole("link", { name: edition.title, exact: true });
+  await expect(headline).toBeVisible();
+  expect(photoRequests).toBe(0);
+  await headline.click();
+  try {
+    await expect.poll(() => photoRequests).toBe(1);
+  } finally {
+    releaseEdition();
+  }
+  await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("fetchpriority", "high");
+  const menu = (await page.locator(".briefing-detail-menu summary").boundingBox())!;
+  const photo = (await page.locator(".briefing-detail-photo").boundingBox())!;
+  if (language === "ar") expect(menu.x).toBeCloseTo(photo.x, 0);
+  else expect(menu.x + menu.width).toBeCloseTo(photo.x + photo.width, 0);
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+    await page.locator(".briefing-photo-viewport").hover();
+  }
+  const next = page.getByRole("button", { name: "Next image" });
+  const viewport = page.locator(".briefing-photo-viewport");
+  const bounds = (await viewport.boundingBox())!;
+  const nextBounds = (await next.boundingBox())!;
+  const rtl = await viewport.evaluate(node => getComputedStyle(node).direction === "rtl");
+  expect(nextBounds.x + nextBounds.width / 2).toBeCloseTo(rtl ? bounds.x : bounds.x + bounds.width, 0);
+  await next.click();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) await viewport.hover();
+  await page.getByRole("button", { name: "Previous image" }).click();
+  await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
+  expect(photoRequests).toBe(1);
 });

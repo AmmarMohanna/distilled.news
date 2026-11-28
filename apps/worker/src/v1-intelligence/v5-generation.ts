@@ -1,4 +1,5 @@
-import { BRIEFING_MODEL_STAGES, type BriefingGeneration, type BriefingModelStage, type BriefingRoute, type BriefingStageRoutes, type FeedSpec } from '@distilled/briefing';
+import {canonicalJson} from '../v1-intake/canonical';
+import { BRIEFING_MODEL_STAGES, type BriefingGeneration, type BriefingModels, type ModelRequest, type BriefingModelStage, type BriefingRoute, type BriefingStageRoutes, type FeedSpec } from '@distilled/briefing';
 
 // OpenRouter endpoint metadata checked 2026-11-25. Cap reservations at the
 // maximum tier, including completion-priced reasoning. Only one endpoint is
@@ -59,6 +60,23 @@ export function v5Generation(profile: string | undefined): BriefingGeneration | 
   return {
     ...sources[profile as keyof typeof sources],
     maxOutputTokens: 6_500,
-    prompt: 'v5-source-first-v5',
+    prompt: 'v5-source-first-v6',
   };
+}
+
+// Shared by live admission and the historical-evidence authorization check.
+// The route includes provider and price caps, even when two roles use one model.
+export function frozenRouteError(models: BriefingModels, language: FeedSpec['language'], request: ModelRequest) {
+  const {generation, stageRoute} = request;
+  if (stageRoute) {
+    const expected = models.languageStageRoutes?.[language]?.[stageRoute.stage] ?? models.stageRoutes?.[stageRoute.stage];
+    if (generation || !models.generation || !expected || request.model !== expected.model ||
+      !(request.maxTokens <= expected.maxOutputTokens) || canonicalJson(stageRoute.route) !== canonicalJson(expected)) {
+      return 'V5_STAGE_SCOPE_MISMATCH';
+    }
+  }
+  if (generation && (!models.generation || request.model !== models.generation.model ||
+    !(request.maxTokens <= models.generation.maxOutputTokens) || canonicalJson(generation) !== canonicalJson(models.generation))) {
+    return 'V5_GENERATION_SCOPE_MISMATCH';
+  }
 }

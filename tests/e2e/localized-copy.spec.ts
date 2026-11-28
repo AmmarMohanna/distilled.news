@@ -13,7 +13,7 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  });
  await page.goto('/');
  await expect(page.locator('html')).toHaveAttribute('dir',language==='ar'?'rtl':'ltr');
- await expect(page.locator('.home-view .topic-card .feed-card-identity strong').first()).toHaveText('Science');
+ await expect(page.locator('.home-view .feed-tile .feed-tile-caption > a').first()).toHaveText('Science');
  await page.getByRole('navigation').getByRole('button',{name:language==='fr'?'Explorer':'استكشف',exact:true}).click();
  await expect(page.locator('.explore-view')).toBeVisible();
  await page.locator('.navigation-settings').click();
@@ -32,7 +32,6 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  await expect(page.locator('.feed-check-status')).toHaveAttribute('aria-label',language==='fr'?/^prochaine vérif\. dans /:/^التحقق التالي بعد /);
  if(language==='fr')await expect(page.locator('.feed-check-status-compact')).toHaveText(/^Vérif\. dans /);
  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href','https://publisher.example/article');
- await page.locator('.briefing-read-more > summary').click();
  await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
  await expect(page.locator('.briefing-reference > bdi')).toHaveText(['[1]','[2]']);
@@ -40,7 +39,7 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  await expect(supporting).toHaveAttribute('href','https://supporting.example/report');
  await supporting.focus();
  await expect(supporting.getByRole('tooltip')).toHaveText('supporting.example');
- expect(await page.locator('.briefing-expanded-text').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+ expect(await page.locator('.briefing-row-copy').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  await page.screenshot({path:info.outputPath(`brief-${language}.png`)});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });

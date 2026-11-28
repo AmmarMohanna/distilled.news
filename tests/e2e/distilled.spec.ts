@@ -214,7 +214,7 @@ test("email verification waits for an explicit user action", async ({ page }) =>
   expect(verifyCalls).toBe(1);
 });
 
-test("feed uses username-scoped URL while exposing evidence, refresh, and search", async ({ page }) => {
+test("feed uses username-scoped URL while exposing evidence and refresh", async ({ page }) => {
   let sessionRequests = 0;
   let feedPaused = false;
   let summaryRequests = 0;
@@ -266,21 +266,16 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
-  await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Verified updates");
+  await page.locator(".feed-banner-menu summary").click();
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.locator('.briefing-read-more > summary').click();
-  await expect(page.locator('.briefing-expanded-text')).toContainText('A third operational note stays in the full brief');
-  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href',item.evidence[0].links[0]);
+  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('aria-label','Source 1');
   await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
   await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
 
-  await page.getByPlaceholder("Search briefings").fill("power supply");
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Infrastructure");
 
   expect(sessionRequests).toBeGreaterThan(0);
 });
@@ -309,73 +304,62 @@ test("arabic feed keeps public chrome localized and summary stable when expandin
 
   await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
-  await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
+  await expect(page.getByPlaceholder("البحث في الموجزات")).toHaveCount(0);
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
 
-  await page.locator('.briefing-read-more > summary').click();
   await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
   await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
-  await expect(page.locator('.briefing-expanded-text')).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
   await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
   await expect(page.getByText("Search briefings")).toHaveCount(0);
 });
 
-test("feed pages twenty editions with unread editions first and keeps read editions accessible", async ({ page }) => {
-  // Read tracking requires a confirmed viewer; a missing session route exercises
-  // the unresolved-session safeguard rather than this pagination scenario.
-  await page.route("**/api/auth/session", route => route.fulfill({
-    json: { authenticated: false, setupRequired: false }
+test("reader fetches eight briefings at a time in chronological order", async ({ page }) => {
+  let pages = 0;
+  await page.route("**/api/auth/session", route => route.fulfill({ json: { authenticated: false } }));
+  await page.route(/\/api\/feed\/ammar-mohanna\/personal(?:\?|$)/, route => {
+    const url = new URL(route.request().url());
+    const cursor = url.searchParams.get("before");
+    if (!cursor) expect(route.request().headers()["x-distilled-reader-timeline"]).toBe("1");
+    else pages++;
+    const start = Number(cursor ?? 0);
+    return route.fulfill({ json: {
+      briefing,
+      editions: feedEditions.slice(start, start + 8),
+      publicationVersion: "1",
+      timelineNextCursor: start + 8 < feedEditions.length ? String(start + 8) : null,
+      viewerHasStarred: false
+    } });
+  });
+  await page.route("**/api/feed/ammar-mohanna/personal/editions/" + feedEditions[0].id, route => route.fulfill({
+    json: { briefing, edition: feedEditions[0] }
   }));
-  await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        briefing,
-        editions: feedEditions,
-        viewerHasStarred: false
-      })
-    });
-  });
-  await page.route("**/api/explore/feeds", async (route) => {
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: exploreFeeds }) });
-  });
-
   await page.goto("/ammar-mohanna/personal/");
-
-  const visibleUnread = page.locator(".news-item:not(.is-read)");
-  await expect(visibleUnread).toHaveCount(20);
-  await expect(page.getByText("Published briefing item 20.")).toBeVisible();
-  await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
-
-  await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
-  await expect(visibleUnread).toHaveCount(20);
-  await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
-  await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);
-
-  // A background status refresh can leave the debounced payload reconciliation
-  // pending while the reader loads another page. Advancing that callback must
-  // not undo the reader's explicit pagination choice.
-  const now = new Date();
-  await page.clock.install({ time: now });
-  await page.clock.pauseAt(new Date(now.getTime() + 1000));
-  await Promise.all([
-    page.waitForResponse(response => new URL(response.url()).pathname === "/api/feed/ammar-mohanna/personal"),
-    page.evaluate(() => window.dispatchEvent(new Event("focus")))
-  ]);
-  await page.clock.runFor(50);
-  await page.getByRole("button", { name: "Load More" }).click();
-  await page.clock.runFor(50);
-  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
-  await expect(page.locator(".news-item").last()).toHaveClass(/is-read/);
-  await expect(page.locator(".news-item").last()).toContainText("Published briefing item 1.");
-  await page.clock.runFor(300);
-  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
-  await expect(page.locator(".news-item.is-read")).toHaveCount(1);
+  const rows = page.locator(".news-item");
+  const loadMore = page.getByRole("button", { name: "Load more", exact: true });
+  await expect(rows).toHaveCount(8);
+  await expect(rows.first()).toContainText("Published briefing item 1.");
+  await expect(rows.last()).toContainText("Published briefing item 8.");
+  expect(pages).toBe(0);
+  await rows.first().locator(".briefing-headline-link").click();
+  await expect(page.locator(".briefing-detail-hero")).toBeVisible();
+  await page.getByRole('dialog',{name:'Briefing'}).getByRole('button',{name:'Close dialog'}).click();
+  await expect(rows.first()).toContainText("Published briefing item 1.");
+  await expect(page.locator(".is-read,.news-unread,.read-button")).toHaveCount(0);
+  expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("dn_read:")))).toBe(false);
+  await loadMore.click();
+  await expect(rows).toHaveCount(16);
+  await expect(rows.last()).toContainText("Published briefing item 16.");
+  expect(pages).toBe(1);
+  await loadMore.click();
+  await expect(rows).toHaveCount(24);
+  await loadMore.click();
+  await expect(rows).toHaveCount(25);
+  await expect(rows.last()).toContainText("Published briefing item 25.");
+  await expect(loadMore).toHaveCount(0);
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {

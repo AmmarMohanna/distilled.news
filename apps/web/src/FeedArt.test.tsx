@@ -4,6 +4,7 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {transparentSketch} from './sketchImage';
 vi.mock('./sketchImage',()=>({transparentSketch:vi.fn(async(blob:Blob)=>blob)}));
 import {FeedArt} from './FeedArt';
+import {FEED_ART_CACHE_VERSION} from './sketchCache';
 it('waits quietly without a spinner or substitute artwork when no sketch is saved',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const fetcher=vi.fn().mockResolvedValue({ok:false,status:404,headers:new Headers({'Retry-After':'3'})});vi.stubGlobal('fetch',fetcher);
  const host=document.createElement('div'),root=createRoot(host);
@@ -25,6 +26,26 @@ afterEach(async()=>{for(const root of testRoots)await act(async()=>root.unmount(
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r});return {promise,resolve}}
 function renderHost(){vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div'),root=createRoot(host);testRoots.add(root);return {host,root}}
 const sketch=()=>({ok:true,status:200,headers:new Headers({'content-type':'image/png'}),blob:async()=>new Blob(['sketch'],{type:'image/png'})});
+it.each(['image/jpeg', 'image/png'])('keeps panoramic layout and transparency for %s covers', async type => {
+  const cover = new Blob(['cover'], { type });
+  if (type === 'image/jpeg') vi.mocked(transparentSketch).mockResolvedValueOnce(new Blob(['ink'], { type: 'image/png' }));
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(cover, {
+    headers: { 'content-type': type, 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+  })));
+  const create = vi.fn(() => 'blob:full-cover');
+  vi.stubGlobal('URL', Object.assign(class {}, { createObjectURL: create, revokeObjectURL: vi.fn() }));
+  const { host, root } = renderHost();
+  await act(async () => root.render(<FeedArt centered feed={{ id: 'cover', publicFeedEnabled: false, title: 'Science', ownerUsername: 'owner', slug: 'cover' }}/>));
+  const image = host.querySelector('img')!;
+  Object.defineProperties(image, { naturalWidth: { value: 1920 }, naturalHeight: { value: 480 } });
+  await act(async () => image.dispatchEvent(new Event('load')));
+  expect(image.classList.contains('panoramic-cover-image')).toBe(true);
+  expect(host.querySelector('.full-cover-art')).not.toBeNull();
+  expect(image.style.filter).toBe('');
+  expect(create.mock.calls[0]).toHaveLength(1);
+  if (type === 'image/jpeg') expect(transparentSketch).toHaveBeenCalledWith(expect.any(Blob), false, true);
+  else expect(transparentSketch).not.toHaveBeenCalled();
+});
 it('does not flash fallback artwork while a saved sketch is loading',async()=>{
  const pending=deferred<ReturnType<typeof sketch>>();vi.stubGlobal('fetch',vi.fn(()=>pending.promise));
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:stable-sketch',revokeObjectURL:vi.fn()}));
@@ -91,7 +112,7 @@ it('shares public artwork retrieval and conversion across simultaneous cards',as
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:shared',revokeObjectURL:vi.fn()}));
  const a=renderHost(),b=renderHost(),feed={id:'shared',title:'News',ownerUsername:'owner',slug:'shared',publicFeedEnabled:true};
  await act(async()=>{a.root.render(<FeedArt feed={feed}/>);b.root.render(<FeedArt feed={feed}/>)});
- expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/shared/sketch',expect.objectContaining({cache:'default'}));
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith(`/api/feed/owner/shared/sketch?v=${FEED_ART_CACHE_VERSION}`,expect.objectContaining({cache:'default'}));
  await act(async()=>pending.resolve(sketch()));expect(transparentSketch).toHaveBeenCalledTimes(1);expect(a.host.querySelector('img')).not.toBeNull();expect(b.host.querySelector('img')).not.toBeNull();
 });
 it('never persists private artwork or reuses it across remounts',async()=>{
@@ -117,7 +138,7 @@ it('refreshes only explicitly requested artwork even when a processed image is c
  try{
   await act(async()=>root.render(<FeedArt feed={feed}/>));
   expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch',expect.objectContaining({cache:'reload'}));
+  expect(fetcher).toHaveBeenLastCalledWith(`/api/feed/owner/refresh-one/sketch?v=${FEED_ART_CACHE_VERSION}`,expect.objectContaining({cache:'reload'}));
   expect(window.location.search).toBe('?keep=1');
  }finally{window.history.replaceState(null,'','/');}
 });

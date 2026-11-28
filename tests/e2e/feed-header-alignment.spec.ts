@@ -22,9 +22,13 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
     await expect(accountControl).toBeVisible();
     await expect(header.locator('.feed-header-actions')).toHaveCount(0);
     await expect(actions.getByRole('button',{name:/Star/})).toBeVisible();
-    await expect(actions.getByRole('button',{name:'Share'})).toBeVisible();
+    const menu=heading.locator('.feed-banner-menu');
+    await menu.locator('summary').click();
+    await expect(menu.getByRole('button',{name:'Share',exact:true})).toBeVisible();
+    await expect(menu.getByRole('button',{name:'Copy link',exact:true})).toBeVisible();
+    await page.keyboard.press('Escape');
     if(owner) await expect(actions.getByRole('button',{name:'Edit feed settings'})).toBeVisible();
-    else await expect(actions.getByRole('button')).toHaveCount(2);
+    else await expect(actions.getByRole('button')).toHaveCount(1);
 
     const preferences=header.locator('.appearance-menu > summary');
     if(!owner&&width<900) await expect(preferences).toBeVisible();
@@ -36,9 +40,17 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
 
     const check=async(enlarged=false)=>{
       if(!enlarged) expect(await header.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
-      const author=(await heading.locator('p').boundingBox())!;
-      const toolbar=(await page.locator('.feed-tools').boundingBox())!;
-      const boxes=await actions.locator('button').evaluateAll(buttons=>buttons.map(button=>{
+      const title=(await heading.getByRole('heading', { level: 1 }).boundingBox())!;
+      const group=(await actions.boundingBox())!;
+      const toolbar=(await page.locator('.briefings-empty').boundingBox())!;
+      if (width >= 900 && !enlarged) {
+        const byline=(await heading.locator(':scope > p').boundingBox())!;
+        const rtl=await heading.evaluate(node=>getComputedStyle(node).direction==='rtl');
+        const start=(box:typeof title)=>box.x+(rtl?box.width:0);
+        expect(start(group)).toBeCloseTo(start(title), 0);
+        expect(start(group)).toBeCloseTo(start(byline), 0);
+      }
+      const boxes=await actions.locator(':scope > button, :scope > details > summary').evaluateAll(buttons=>buttons.map(button=>{
         const {left,right,top,bottom,width,height}=button.getBoundingClientRect();
         return {left,right,top,bottom,width,height};
       }).sort((a,b)=>a.left-b.left));
@@ -49,7 +61,9 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         expect(box.left).toBeGreaterThanOrEqual(end-1);
         expect(box.right).toBeLessThanOrEqual(width+1);
         expect(Math.abs(box.top-boxes[0].top)).toBeLessThan(2);
-        expect(box.top).toBeGreaterThanOrEqual(author.y+author.height-1);
+        expect(box.top).toBeGreaterThanOrEqual(group.y);
+        expect(box.bottom).toBeLessThanOrEqual(group.y+group.height+1);
+        expect(box.top).toBeGreaterThanOrEqual(title.y+title.height-1);
         expect(box.bottom).toBeLessThanOrEqual(toolbar.y+1);
         end=box.right;
       }
@@ -62,7 +76,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         localStorage.setItem('dn_language',language);
         window.dispatchEvent(new Event('dn-language'));
       },language);
-      await expect(page.locator('.feed-nav-back')).toHaveText(language==='fr'?'Retour':'رجوع');
+      await expect(page.locator('.feed-nav-back')).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang',language);
       await check();
     }

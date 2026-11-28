@@ -14,6 +14,9 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     await page.getByRole("button", { name: "Account profile" }).click();
     const dialog = page.locator(".profile-dialog");
     await expect(dialog.getByRole("button", { name: "Log out" })).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds!.x + bounds!.width / 2).toBeCloseTo(size.width / 2, 0);
+    expect(bounds!.y + bounds!.height / 2).toBeCloseTo(size.height / 2, 0);
     const result = await dialog.evaluate(node => ({
       viewportHeight: node.querySelector(".screen-page-viewport")!.clientHeight,
       scrollHeight: node.querySelector(".screen-page-viewport")!.scrollHeight,
@@ -23,6 +26,14 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     await dialog.getByRole("button", { name: "Log out" }).scrollIntoViewIfNeeded();
     await expect(dialog.getByRole("button", { name: "Log out" })).toBeInViewport();
     expect(result.height).toBeLessThanOrEqual(size.height);
+    await dialog.getByRole("button", { name: "Edit username" }).click();
+    await dialog.getByRole("button", { name: /^Security/ }).click();
+    const username = await dialog.locator(".profile-username-field").boundingBox();
+    for (const label of ["Current Password", "New Password"]) {
+      const password = await dialog.getByLabel(label, { exact: true }).boundingBox();
+      expect(password!.x).toBeCloseTo(username!.x, 0);
+      expect(password!.width).toBeCloseTo(username!.width, 0);
+    }
   });
 }
 

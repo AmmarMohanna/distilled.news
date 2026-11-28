@@ -1,10 +1,14 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {apiError,apiErrorCopy,ApiError,toUiError,renderApiError} from './api-errors';
-import {login,resendVerification} from './api';
+import {catchUp,login,resendVerification} from './api';
 afterEach(()=>{localStorage.clear();vi.unstubAllGlobals();});
 it('preserves the already-verified resend response in the real API path',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:'Email is already verified. Please sign in or reset your password.'},{status:409})));
  await expect(resendVerification('verified@example.invalid')).rejects.toMatchObject({id:'AUTH_EMAIL_ALREADY_VERIFIED',uiMessage:{details:{status:409}}});
+});
+it('shows an incomplete summary as a specific 422 error',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:'The summary was incomplete. Your briefings are still available.',code:'SUMMARY_INVALID_OUTPUT'},{status:422})));
+ await expect(catchUp('owner','feed',new AbortController().signal)).rejects.toMatchObject({id:'SUMMARY_INVALID_OUTPUT',uiMessage:{details:{status:422}}});
 });
 // These are actual business-error strings returned by the Worker auth routes.
 it.each([

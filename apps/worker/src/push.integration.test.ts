@@ -6,6 +6,7 @@ import {feedFixture,seedIntelligence} from './v1-intelligence/test-utils';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import {readEditionDelivery} from './v1-intelligence/delivery-status';
 import {sendBriefingNotifications} from './push';
+import {sendSocialNotifications} from './social-push';
 import {recordPushAcceptance,settlePushOutbox} from './push-outbox';
 import {createApp} from './app';
 import {createSession} from './auth';
@@ -146,4 +147,33 @@ it('the authenticated subscription API renews identity and fences an in-flight o
  await recordPushAcceptance(ctx.db,{endpoint,account_id:'owner-1',subscription_json:subscription,notification_version:'subscription-v1',last_notified_at:cutoff,newest:'2026-10-03T13:00:00Z'},token,new Date().toISOString());
  expect(await store.list('feed-1','browser_push_receipts')).toHaveLength(0);
  const removed=await app.request('/api/me/push',{method:'DELETE',headers,body:JSON.stringify({endpoint})},env);expect(removed.status).toBe(200);expect(await ctx.db.prepare('SELECT endpoint FROM push_subscriptions WHERE endpoint=?').bind(endpoint).first()).toBeNull();
+},30000);
+
+it('sends public feed changes to channel followers and verified editions to starred-feed readers',async()=>{
+ const repo=new D1Repository(ctx.db);
+ const follower=await repo.createAccount({email:'follower@example.invalid',username:'follower',passwordHash:'test',role:'user'});
+ const reader=await repo.createAccount({email:'reader@example.invalid',username:'reader',passwordHash:'test',role:'user'});
+ const now=new Date();
+ const base=new Date(now.getTime()-60_000).toISOString();
+ for (const [account,kind] of [[follower,'channel'],[reader,'starred']] as const) {
+  const destination=endpoint+'-'+kind;
+  await ctx.db.prepare('INSERT INTO push_subscriptions(endpoint,account_id,subscription_json,language,last_notified_at,created_at,notification_version) VALUES(?,?,?,?,?,?,?)')
+   .bind(destination,account.id,subscription.replace(endpoint,destination),'en',base,base,kind).run();
+ }
+ await repo.setChannelFollow('owner-1',follower.id,true);
+ await repo.setBriefingStar('feed-1','test-browser-vote',true,new Date(base),reader.id);
+ const eventTime=new Date(now.getTime()+10_000).toISOString();
+ await ctx.db.prepare("UPDATE briefings SET title='Updated news',updated_at=? WHERE id='feed-1'").bind(eventTime).run();
+ await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.status','WITHDRAWN') WHERE kind='publication_status' AND id=?").bind(editionId).run();
+ await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.status','PUBLISHED','$.publishedAt',?) WHERE kind='publication_status' AND id=?").bind(eventTime,editionId).run();
+ const send=vi.fn(async(_destination:string)=>new Response(null,{status:201}));
+ vi.stubGlobal('fetch',send);
+ await sendSocialNotifications(env,new Date(now.getTime()+20_000));
+ await sendSocialNotifications(env,new Date(now.getTime()+20_000));
+ expect(send.mock.calls.map(([destination])=>destination).sort()).toEqual([endpoint+'-channel',endpoint+'-starred']);
+ const receipts=await ctx.db.prepare('SELECT subscription_version,kind FROM social_push_receipts JOIN social_push_events ON social_push_events.id=event_id ORDER BY subscription_version').all();
+ expect(receipts.results).toEqual([{subscription_version:'channel',kind:'feed-edited'},{subscription_version:'starred',kind:'briefing'}]);
+ await ctx.db.prepare("UPDATE briefings SET title='Private title',public_feed_enabled=0,updated_at=? WHERE id='feed-1'").bind(eventTime).run();
+ await sendSocialNotifications(env,new Date(now.getTime()+20_000));
+ expect(send).toHaveBeenCalledTimes(2);
 },30000);

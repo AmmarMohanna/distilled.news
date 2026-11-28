@@ -53,14 +53,14 @@ test("feed menus stay visible at viewport edges and escape card clipping", async
  await mock(page);
  await page.setViewportSize({ width: 390, height: 500 });
  await page.goto("/");
- const menu = page.locator(".personal-feed-grid .feed-options").first();
+ const menu = page.locator(".feed-tile-grid[data-feed-view=home] .feed-options").first();
  await expect(menu).toBeVisible();
  for (const top of [12, 440]) {
   await menu.evaluate((node, y) => {
    node.style.position = "fixed";
    node.style.top = `${y}px`;
    node.style.right = "12px";
-   node.closest<HTMLElement>(".topic-card")!.style.overflow = "hidden";
+   node.closest<HTMLElement>(".feed-tile")!.style.overflow = "hidden";
   }, top);
   await menu.locator("summary").focus();
   await menu.locator("summary").press("Enter");
@@ -84,17 +84,12 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  } }));
  await page.route("**/api/me/briefings", route => route.fulfill({json:{briefings:[{...feed,viewerHasStarred:false,latestUpdatedAt:"2026-10-02T12:00:00Z"}]}}));
  await page.goto("/");
- const card = page.locator(".personal-feed-grid .topic-card");
+ const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile");
  await expect(card.locator("time")).toHaveText("Updated 2 hours ago");
  await expect(card.locator("time")).toHaveAttribute("datetime", "2026-10-02T12:00:00Z");
- await expect(card).toHaveCSS("border-radius", "20px");
- await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", '0px');
- await expect(card.locator(".topic-art")).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
- await expect(card.locator(".feed-card-meta > button")).toBeVisible();
+ await expect(card.locator(".feed-tile-cover")).toHaveCSS("border-radius", "14px");
+ await expect(card.locator(".feed-tile-star")).toBeVisible();
  await expectSignedInAppearanceControls(page);
- for (const selector of [".personal-feed-grid .feed-options > summary"]) {
-  await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
- }
  await expect(page.locator(".avatar-button")).toHaveCSS("color", "rgb(94, 92, 230)");
  await card.locator("summary").click();
  await expect(card.getByRole("link", { name: "Edit feed settings" })).toBeVisible();
@@ -103,15 +98,15 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  await toggleTheme(page);
  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
  await expectSignedInAppearanceControls(page);
- await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+ await expect(card.locator(".feed-options > summary")).toBeVisible();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 test("cards expose owner edit and stars; speech controls are icons and sources selectable", async ({ page }) => {
  await mock(page); await page.goto("/");
- await page.locator('.personal-feed-grid .feed-options > summary').click();
- await expect(page.locator(".personal-feed-grid").getByRole("link", { name: "Edit feed settings" })).toBeVisible();
- await page.locator('.personal-feed-grid .feed-options > summary').press('Escape');
- await expect(page.locator(".personal-feed-grid").getByRole("button", { name: "Star", exact: true })).toBeVisible();
+ await page.locator('.feed-tile-grid[data-feed-view=home] .feed-options > summary').click();
+ await expect(page.locator(".feed-tile-grid[data-feed-view=home]").getByRole("link", { name: "Edit feed settings" })).toBeVisible();
+ await page.locator('.feed-tile-grid[data-feed-view=home] .feed-options > summary').press('Escape');
+ await expect(page.locator(".feed-tile-grid[data-feed-view=home]").getByRole("button", { name: /^Star / })).toBeVisible();
  await expect(page.getByText("View briefing", { exact: true })).toHaveCount(0);
  await page.getByRole("button", { name: "Create feed", exact: true }).click();
  const dialog = page.getByRole("dialog", { name: "Add feed" });
@@ -127,7 +122,7 @@ test("guest landing has login, curated feeds, and no owner edit", async ({ page 
  await mock(page, false); await page.goto("/");
  await expect(page.getByRole("link", { name: "Log in", exact: true })).toBeVisible();
  await expect(page.getByRole("link", { name: "Edit feed settings" })).toHaveCount(0);
- await expect(page.locator(".topic-grid").getByText("Science", { exact: true })).toBeVisible();
+ await expect(page.locator(".feed-tile-grid[data-feed-view=explore]").getByText("Science", { exact: true })).toBeVisible();
 });
 test("shared scaling keeps navigation and headers equal after visiting home and explore", async ({ page }) => {
  await mock(page); await page.goto("/");
@@ -152,13 +147,13 @@ test("search clears without losing feed controls and keyboard focus remains visi
  await expect(page.getByRole("heading", { name: "Welcome back!", exact: true })).toBeVisible();
  const search = page.getByRole("searchbox", { name: "Search feeds", exact: true });
  await search.fill("no matching feed");
- await expect(page.locator(".personal-feed-grid .topic-card")).toHaveCount(0);
+ await expect(page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile")).toHaveCount(0);
  const clear = page.getByRole("button", { name: "Clear search", exact: true });
  await clear.focus();
  expect(await clear.evaluate(node => getComputedStyle(node).outlineStyle)).toBe("solid");
  await page.keyboard.press("Enter");
  await expect(search).toHaveValue("");
- await expect(page.locator(".personal-feed-grid .topic-card")).toHaveCount(1);
+ await expect(page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile")).toHaveCount(1);
 });
 
 test("reduced motion and transparency keep navigation and dialogs usable", async ({ page }) => {

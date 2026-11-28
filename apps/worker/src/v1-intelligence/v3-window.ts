@@ -21,7 +21,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
-import {v5Generation,v5StageRouting} from './v5-generation';
+import {frozenRouteError,v5Generation,v5StageRouting} from './v5-generation';
 import {validateEditorApprovedEdition,type V5ReviewCase} from './v5-review-contract';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
@@ -33,6 +33,11 @@ const POLICY='v3-fixed-window-editor-verifier-v1';
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
+function automaticV5Window(input: V3WindowInput): boolean {
+ const prompt=input.models.generation?.prompt;
+ return input.v5PublicationPolicy==='verified-automatic-v1' && (prompt==='v5-source-first-v5'||prompt==='v5-source-first-v6');
+}
+
 export interface V3WindowInput {v5PublicationPolicy?:'verified-automatic-v1';noveltyWirePolicy?:'consistent-links-v2';editorSelectionPolicy?:'preserve-selected-developments-v1';noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1'|'isolate-unaccounted-sources-v2';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 export interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
@@ -125,12 +130,8 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
    const generation = request.generation;
    const stage = request.stageRoute;
    const route = generation ?? stage?.route;
-   if (stage) {
-    const configured = snapshot.models.languageStageRoutes?.[snapshot.input.feed.language]?.[stage.stage]
-      ?? snapshot.models.stageRoutes?.[stage.stage];
-    if (generation || !snapshot.models.generation || !configured || request.model !== stage.route.model ||
-      request.maxTokens > configured.maxOutputTokens || canonicalJson(configured) !== canonicalJson(stage.route)) throw Error('V5_STAGE_SCOPE_MISMATCH');
-   }
+   const scopeError=frozenRouteError(snapshot.models,snapshot.input.feed.language,request);
+   if(scopeError)throw Error(scopeError);
    const capability = route
     ? {
      contextTokens: route.contextTokens,
@@ -140,8 +141,6 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
      source: route.provider,
     }
     : modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
-   if (generation && (generation.model !== request.model || !snapshot.models.generation ||
-     canonicalJson(generation) !== canonicalJson(snapshot.models.generation))) throw Error('V5_GENERATION_SCOPE_MISMATCH');
    const admission=admitModelOperation(request.model,state,{type:'object',properties:{},required:[],additionalProperties:false},capability,request.maxTokens);
    admission.providerLimits=configuredProviderLimits(env,'openrouter');
    const runOperation=async(cancelledVerifierId?:string)=>{
@@ -235,7 +234,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
-  const automaticV5=frozen.models.generation?.prompt==='v5-source-first-v5'&&frozen.v5PublicationPolicy==='verified-automatic-v1';
+  const automaticV5=automaticV5Window(frozen);
   if(automaticV5&&env.BRIEFING_V5_AUTO_PUBLICATION_ENABLED!=='true')return undefined;
   const editorialReview=Boolean(frozen.models.generation)&&!automaticV5&&env.BRIEFING_V5_EDITOR_REVIEW_ENABLED==='true';
   let blocked:{code:string;operationIds:string[]}|undefined;
@@ -368,8 +367,7 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
  const inputId=edition.v3InputId??edition.id;
  const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');
- if(input.models.generation&&(input.v5PublicationPolicy!=='verified-automatic-v1'||
-    input.models.generation.prompt!=='v5-source-first-v5'||input.input.feed.identityFidelityPolicy!=='source-bound-claims-v3'||
+ if(input.models.generation&&(!automaticV5Window(input)||input.input.feed.identityFidelityPolicy!=='source-bound-claims-v3'||
     !saved.result.items.length||saved.result.items.some(item=>!item.sourceIds.length)))throw new HandoffError('SCOPE_DENIED');
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
  else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId,input.evidenceRevisionIds);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}

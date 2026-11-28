@@ -62,7 +62,7 @@ for(const width of [390,1280]){
   });
   test(`feed options close on their open trigger at ${width}px`,async({page})=>{
     await page.setViewportSize({width,height:850});await mock(page);await page.goto('/');
-    const details=page.locator('.personal-feed-grid .feed-options').first(),trigger=details.locator('summary'),panel=details.locator('.feed-options-popover');
+    const details=page.locator('.feed-tile-grid[data-feed-view=home] .feed-options').first(),trigger=details.locator('summary'),panel=details.locator('.feed-options-popover');
     await trigger.click();await expect(panel).toBeVisible();await trigger.click();await expect(panel).toBeHidden();
   });
 }
