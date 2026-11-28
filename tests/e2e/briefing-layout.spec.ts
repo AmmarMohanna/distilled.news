@@ -68,7 +68,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("published headlines open retained briefing evidence and preserve read-only refresh", async ({ page }) => {
+test("published headlines navigate directly to the briefing and preserve read-only refresh", async ({ page }) => {
   const sourceUrl = "https://example.test/supported-development";
   const summary = "Acme released an updated research model. ".repeat(18) + "The full briefing ends here [1].";
   const edition = { id: "published-one", title: "October 11 updates", summary, publishedAt: "2026-10-11T08:00:00Z", sections: [{ title: "Research model", summary, evidence: [{ messageId: "evidence-one", sourceTitle: "Research source", sourceUrl, text: summary, postedAt: "2026-10-11T07:00:00Z", links: [], media: [] }] }] };
@@ -105,6 +105,12 @@ test("published headlines open retained briefing evidence and preserve read-only
   const backLabel = page.locator(".experience-header .feed-nav-back > span");
   const feedBackLabel = await backLabel.boundingBox();
   await page.locator(".briefing-headline-link").click();
+  await expect(page).toHaveURL("/admin/personal-briefing/briefing/published-one/");
+  await expect(page.locator(".briefing-detail-body")).toContainText("The full briefing ends here");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".briefing-detail-body")).toContainText("The full briefing ends here");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(login).toBeVisible();
   const detailLogin = (await login.boundingBox())!;
   expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
