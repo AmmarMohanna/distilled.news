@@ -10,12 +10,18 @@ beforeAll(async()=>{ctx=await createIntakeDatabase({product:true});await ctx.db.
 afterAll(async()=>ctx?.dispose());
 const text='Officials proposed a change, subject to approval.';
 const input={language:'en',briefings:[{id:'one',publishedAt:'2026-10-26T12:00:00Z',stories:[{id:'one:story',title:'',summary:text,sources:[]}]}]};
-const summaryResponse=(cost=.0001)=>Response.json({choices:[{message:{content:JSON.stringify({sentences:[{text,storyIds:['one:story']}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost}});
+const summaryResponse=(cost=.0001)=>Response.json({choices:[{message:{content:JSON.stringify({sentences:[{text,storyIds:['s1']}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost}});
 const config=()=>({DB:ctx.db,OPENROUTER_API_KEY:'test-only'} as Env);
 // Other tests deliberately leave unresolved operations in this database.
 const refusalConfig=()=>({...config(),V1_PROVIDER_MAX_CONCURRENCY:'6',V1_PROVIDER_REQUESTS_PER_MINUTE:'1000'});
 it('reserves before inference, settles reported cost and reuses its immutable receipt',async()=>{
- const fetcher=vi.fn(async()=>{const held=await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_model_spending_reservations WHERE feed_id='summary-test'").first<{n:number}>();expect(held!.n).toBe(1);return summaryResponse();});
+ const fetcher=vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>{
+  const held=await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_model_spending_reservations WHERE feed_id='summary-test'").first<{n:number}>();
+  expect(held!.n).toBe(1);
+  expect(String(init?.body)).not.toContain('one:story');
+  expect(String(init?.body)).not.toContain('canonicalEvidence');
+  return summaryResponse();
+ });
  const port=catchUpSummaryPort(config(),'summary-test','reader',fetcher);
  const first=await port.complete(catchUpSummaryRequest(input));expect(first.costUsd).toBe(.0001);
  expect(await port.complete(catchUpSummaryRequest(input))).toEqual(first);expect(fetcher).toHaveBeenCalledOnce();

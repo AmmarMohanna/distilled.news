@@ -62,7 +62,7 @@ it('uses account-wide opened history, with no effect from a detail GET or on ano
  expect((await openEdition('newer')).status).toBe(204);
  expect((await openEdition('newer')).status).toBe(204);
  const owner=(await repo.getAccountByUsername('owner'))!;
- const otherSession='dn_session='+await createSession('test-secret',owner,new Date(Date.now()-1000));
+ const otherSession='dn_session='+await createSession('test-secret',owner,new Date(Date.now()-60_000));
  expect(otherSession).not.toBe(cookie);
  await post({},{cookie:otherSession});expect(selected().map(e=>e.id)).toEqual(['older']);
  const other=await repo.createAccount({email:'other@example.invalid',username:'other',role:'user',passwordHash:'test',emailVerifiedAt:new Date().toISOString()});
