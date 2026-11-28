@@ -32,6 +32,6 @@ Earlier single-writer and mixed-model shadow trials used separate profiles, incl
 
 ## Production spending and monitoring
 
-The shared account tracks actual costs with no aggregate hard cap. Each Flash request pins its endpoint and price ceiling. Existing reservations, receipt reconciliation and provider concurrency limits apply. Catch me up uses the pinned Gemini Flex route with its existing reader quota and lifetime authorization. Its focused synthetic validation retained a pending approval and a separate library reopening in two sentences for $0.00022125.
+The shared account tracks actual costs with no aggregate hard cap. Each Flash request pins its endpoint and price ceiling. Existing reservations, receipt reconciliation and provider concurrency limits apply. Catch me up uses the pinned Gemini Flex route with its existing reader quota and lifetime authorization. Its focused synthetic validation retained a pending approval and a separate library reopening in two sentences for $0.000307125 with the production JSON schema.
 
 For each new frozen window, join its request and result to its semantic operations and reported settlements. Monitor total billed cost, unreported reservations, scheduled-to-completion delay, verified items dropped and publication or deferral reason. Confirm delivery receipts and sample published headlines against the authorized evidence for actor, attribution and qualifications. Unknown outcomes require receipt reconciliation before further spend.

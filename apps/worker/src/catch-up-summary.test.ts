@@ -1,10 +1,11 @@
 import {readFileSync} from 'node:fs';
 import {Miniflare} from 'miniflare';
+import {sha256} from '@distilled/contracts';
 import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {BriefingModelError,DEFAULT_PRICES,type ModelPort} from '@distilled/briefing';
 import type {BriefingEdition} from '@distilled/core';
 import {V3SpendGuard} from './v3-spend';
-import {generateCatchUpSummary,parseCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryResourceWait,summaryTokenUpperBound,catchUpSummaryRequest} from './catch-up-summary';
+import {CATCH_UP_PROMPT,generateCatchUpSummary,parseCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryResourceWait,summaryTokenUpperBound,catchUpSummaryRequest} from './catch-up-summary';
 import {migrationStatements} from './test-migrations';
 import {presentProductEditions,type PublishedProductEditionRecord} from './product-feeds';
 import type {BriefingConfig} from '@distilled/core';
@@ -95,12 +96,49 @@ it('recovers a durably recorded response without another model call',async()=>{
   expect(await run(p)).toMatchObject({status:'ready'});expect(p.complete).toHaveBeenCalledOnce();
 });
 
-it('requires a complete response within the word limit',()=>{
-  const summary=Array(80).fill('news').join(' ');
+it('accepts a complete supported response beyond the word target',()=>{
+  const summary=Array(110).fill('news').join(' ');
   expect(parseCatchUpSummary(result(summary),input())).toBe(summary);
-  expect(()=>parseCatchUpSummary(result(summary+' news'),input())).toThrow('too long to show');
   expect(()=>parseCatchUpSummary(result(summary),input(),'length')).toThrow('incomplete');
   expect(()=>parseCatchUpSummary(JSON.stringify({summary,other:'unexpected'}),input())).toThrow('incomplete');
+});
+
+it('gives the model a soft word target and enforces the citation structure',()=>{
+  const request=catchUpSummaryRequest(input());
+  expect(request.system).toContain('Aim for about 80 words');
+  expect(request.system).not.toContain('at most 25 words');
+  expect(request.responseSchema).toMatchObject({
+    type:'object',required:['sentences'],additionalProperties:false,
+    properties:{sentences:{minItems:1,maxItems:3,items:{required:['text','storyIds'],additionalProperties:false,
+      properties:{text:{type:'string'},storyIds:{minItems:1,maxItems:3}}}}}
+  });
+  expect(request.responseSchema).not.toHaveProperty('properties.sentences.items.properties.text.pattern');
+});
+
+it.each([false,true])('revalidates the prior cached 110-word response without inference (valid citations: %s)',async(validCitations)=>{
+  const market=edition('market',1);
+  const data=prepareCatchUpSummary([{...market,sections:Array.from({length:34},(_,i)=>({
+    ...market.sections[0],storyId:`story-${i}`,summary:`Published market development ${i}.`
+  }))}],'en',since,now);
+  const {responseSchema:_,...previous}=catchUpSummaryRequest(data);
+  previous.model='openai/gpt-4.1-mini';
+  previous.system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
+  const id='reader_catch_up_v2:'+await sha256(JSON.stringify(['reader','feed',previous]));
+  const sentences=[
+    {text:Array(25).fill('market').join(' '),storyIds:['s1']},
+    {text:Array(35).fill('market').join(' '),storyIds:['s5','s13','s14']},
+    {text:Array(50).fill('market').join(' '),storyIds:validCitations?['s7','s17','s19']:['s7','s17','s19','s28','s34']}
+  ];
+  const text=JSON.stringify({sentences});
+  await db.prepare('INSERT INTO unread_summary_cache (kind,id,feed_id,json) VALUES (?,?,?,?)')
+    .bind('reader_catch_up_v2',id,'feed',JSON.stringify({status:'failed',response:{text,finishReason:'stop'}})).run();
+  const p=port();
+  if(validCitations){
+    const ready={status:'ready',summary:sentences.map(sentence=>sentence.text).join(' ')};
+    expect(await run(p,'reader',data)).toEqual(ready);
+    expect(await run(p,'reader',data)).toEqual(ready);
+  }else await expect(run(p,'reader',data)).rejects.toMatchObject({code:'SUMMARY_INVALID_OUTPUT'});
+  expect(p.complete).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -145,8 +183,8 @@ it('reports provider capacity as pending without retaining a failed cache claim 
   const available=port();expect(await run(available)).toMatchObject({status:'ready'});expect(available.complete).toHaveBeenCalledOnce();
 });
 
-it('explains retained overlong output on repeated reads without sending another paid request',async()=>{
- const p={complete:vi.fn(async()=>({...response,text:result(Array(178).fill('news').join(' '))}))};
+it('keeps the defensive character ceiling without sending another paid request',async()=>{
+ const p={complete:vi.fn(async()=>({...response,text:result('x'.repeat(3001))}))};
  for(let i=0;i<2;i++)await expect(run(p)).rejects.toMatchObject({code:'SUMMARY_TOO_LONG'});
  expect(p.complete).toHaveBeenCalledOnce();
  expect(await db.prepare('SELECT state FROM v3_model_spend').first()).toMatchObject({state:'settled'});

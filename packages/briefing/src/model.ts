@@ -126,6 +126,8 @@ export function openAiCompatibleModel(config: {
   headers?: Record<string, string>;
   /** Ask OpenRouter to return the billed cost. */
   reportCost?: boolean;
+  /** Require OpenRouter to select a provider that honors the schema. */
+  requireSchemaSupport?: boolean;
 } & TransportOptions): ModelPort {
   return {
     async complete(request) {
@@ -148,6 +150,7 @@ export function openAiCompatibleModel(config: {
               }
             }
             : { temperature: 0.1 }),
+          ...(!route && config.requireSchemaSupport && request.responseSchema ? { provider: { require_parameters: true } } : {}),
           max_tokens: request.maxTokens,
           response_format: request.responseSchema ? {type:'json_schema',json_schema:{name:'source_bindings',strict:true,schema:request.responseSchema}} : { type: "json_object" },
           ...(config.reportCost ? { usage: { include: true } } : {}),
