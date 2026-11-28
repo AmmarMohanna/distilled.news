@@ -11,6 +11,18 @@ const DAY=86_400_000;
 const KIND='reader_catch_up_v2';
 export const CATCH_UP_MAX_EDITIONS=12;
 const MAX_EVIDENCE_BYTES=24_000;
+const SHORT_REFERENCE_PROMPT=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
+const BOUNDED_PROMPT=SHORT_REFERENCE_PROMPT+' Use at most 25 words per sentence and one development per sentence. Cite one to three directly supporting stories per sentence. Omit a development if it cannot fit with its attribution and qualifications.';
+const responseSchema={
+  type:'object',additionalProperties:false,required:['sentences'],properties:{
+    sentences:{type:'array',minItems:1,maxItems:3,items:{
+      type:'object',additionalProperties:false,required:['text','storyIds'],properties:{
+        text:{type:'string',pattern:'^\\s*\\S+(?:\\s+\\S+){0,24}\\s*$'},
+        storyIds:{type:'array',minItems:1,maxItems:3,items:{type:'string',pattern:'^s[1-9][0-9]*$'}}
+      }
+    }}
+  }
+};
 
 interface SummaryStory {
   id:string;
@@ -76,12 +88,19 @@ export function catchUpSummaryRequest(input:SummaryInput):CatchUpModelRequest {
       ...story,id:refs.get(story.id),updatesId:story.updatesId?refs.get(story.updatesId):undefined
     }))
   }));
-  const system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
-  return {model:CATCH_UP_MODEL,system,user:JSON.stringify({language:input.language,briefings}),maxTokens:512,canonicalEvidence:input};
+  return {model:CATCH_UP_MODEL,system:BOUNDED_PROMPT,user:JSON.stringify({language:input.language,briefings}),maxTokens:512,canonicalEvidence:input,responseSchema};
+}
+
+/** Provider formatting changes must honor receipts and fences for the same evidence. */
+export function catchUpRequestIdentity<T extends ModelRequest>(request:T){
+  if(request.system!==BOUNDED_PROMPT)return request;
+  const {responseSchema:_,...identity}=request;
+  return {...identity,system:SHORT_REFERENCE_PROMPT};
 }
 export function summaryTokenUpperBound(request:ModelRequest){
   // A UTF-8 byte bound also covers multilingual inputs; include chat framing.
-  return new TextEncoder().encode(request.system+request.user).length+128;
+  const schema=request.responseSchema?JSON.stringify(request.responseSchema):'';
+  return new TextEncoder().encode(request.system+request.user+schema).length+128;
 }
 export type CatchUpSummaryFailureCode='SUMMARY_INPUT_TOO_LONG'|'SUMMARY_TOO_LONG'|'SUMMARY_INVALID_OUTPUT'|'SUMMARY_OUTCOME_UNKNOWN'|'SUMMARY_PROVIDER_REFUSED';
 export class CatchUpSummaryError extends Error {
@@ -129,7 +148,8 @@ export async function generateCatchUpSummary(options:{
 }):Promise<CatchUpSummaryResult>{
   if(!options.input.briefings.length)return {status:'empty'};
   const {db,feedId,input}=options,now=options.now??Date.now();
-  const id=KIND+':'+await sha256(JSON.stringify([options.accountId,feedId,catchUpSummaryRequest(input)]));
+  const request=catchUpSummaryRequest(input);
+  const id=KIND+':'+await sha256(JSON.stringify([options.accountId,feedId,catchUpRequestIdentity(request)]));
   const record:RecordValue={status:'pending',createdAt:now,expiresAt:now+DAY,model:CATCH_UP_MODEL,input};
   const claim=await db.prepare('INSERT INTO unread_summary_cache(kind,id,feed_id,json) VALUES(?,?,?,?) ON CONFLICT(kind,id) DO NOTHING').bind(KIND,id,feedId,JSON.stringify(record)).run();
   if(claim.meta.changes!==1){
@@ -148,7 +168,7 @@ export async function generateCatchUpSummary(options:{
   const save=()=>db.prepare('UPDATE unread_summary_cache SET json=? WHERE kind=? AND id=? AND feed_id=?').bind(JSON.stringify(record),KIND,id,feedId).run();
   const port=options.guard?guardedModelPort(options.port,{guard:options.guard,prices:options.prices!,runId:id,feedId,maxAttempts:1,maxCalls:1,inputTokenUpperBound:summaryTokenUpperBound}):options.port;
   try{
-    const started=Date.now(),response=await port.complete(catchUpSummaryRequest(input));
+    const started=Date.now(),response=await port.complete(request);
     record.usage={inputTokens:response.inputTokens,outputTokens:response.outputTokens,costUsd:response.costUsd,latencyMs:Date.now()-started};
     record.response={text:response.text,finishReason:response.finishReason};
     // Retain the provider response before application validation. An invalid

@@ -1,7 +1,7 @@
 import {afterAll,beforeAll,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {catchUpSummaryPort} from './catch-up-summary-provider';
-import {generateCatchUpSummary,CatchUpSummaryResourceWait,catchUpSummaryRequest} from './catch-up-summary';
+import {CATCH_UP_PROMPT,generateCatchUpSummary,CatchUpSummaryResourceWait,catchUpSummaryRequest} from './catch-up-summary';
 import type {Env} from './types';
 import {authorizeModelSpending,READER_CATCH_UP_RESERVATION_PREFIX,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
 import {recoverProviderGeneration} from './v1-intelligence/provider-recovery';
@@ -20,6 +20,8 @@ it('reserves before inference, settles reported cost and reuses its immutable re
   expect(held!.n).toBe(1);
   expect(String(init?.body)).not.toContain('one:story');
   expect(String(init?.body)).not.toContain('canonicalEvidence');
+  expect(JSON.parse(String(init?.body))).toMatchObject({provider:{require_parameters:true},
+    response_format:{type:'json_schema',json_schema:{strict:true,schema:catchUpSummaryRequest(input).responseSchema}}});
   return summaryResponse();
  });
  const port=catchUpSummaryPort(config(),'summary-test','reader',fetcher);
@@ -28,9 +30,11 @@ it('reserves before inference, settles reported cost and reuses its immutable re
  const result=await generateCatchUpSummary({db:ctx.db,feedId:'summary-test',accountId:'reader',input,port});expect(result.status).toBe('ready');
  expect(await generateCatchUpSummary({db:ctx.db,feedId:'summary-test',accountId:'reader',input,port})).toEqual(result);expect(fetcher).toHaveBeenCalledOnce();
 });
-it('does not resubmit an uncertain provider request',async()=>{
+it('does not resubmit an uncertain provider request across the response schema change',async()=>{
  const fetcher=vi.fn(async()=>{throw new TypeError('connection lost');});const port=catchUpSummaryPort(config(),'summary-test','uncertain-reader',fetcher);
- await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow();await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow('could not be confirmed');expect(fetcher).toHaveBeenCalledOnce();
+ const {responseSchema:_,...previous}=catchUpSummaryRequest(input);
+ previous.system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
+ await expect(port.complete(previous)).rejects.toThrow();await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow('could not be confirmed');expect(fetcher).toHaveBeenCalledOnce();
 });
 it('blocks unknown-cost responses without releasing or retrying the operation',async()=>{
  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:'{"summary":"A change was proposed."}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}}));const port=catchUpSummaryPort(config(),'summary-test','missing-cost',fetcher);

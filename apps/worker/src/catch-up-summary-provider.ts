@@ -6,7 +6,7 @@ import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError,type CatchUpModelRequest} from './catch-up-summary';
+import {catchUpRequestIdentity,summaryTokenUpperBound,CatchUpSummaryResourceWait,CatchUpSummaryQuotaError,CatchUpSummaryError,type CatchUpModelRequest} from './catch-up-summary';
 
 const MAX_SUMMARY_ATTEMPTS=3;
 const REFUSAL_KIND='reader_catch_up_provider_refusal';
@@ -28,7 +28,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
   const receiptKind=discovery?'website_link_discovery_provider':'reader_catch_up_provider_v1';
   return {async complete(request){
     const {signal,canonicalEvidence,...body}=request as Partial<Pick<CatchUpModelRequest,'canonicalEvidence'>>&typeof request;
-    const identity=discovery?[feedId,scopeId,body]:[feedId,scopeId,body,canonicalEvidence];
+    const identity=discovery?[feedId,scopeId,body]:[feedId,scopeId,catchUpRequestIdentity(body),canonicalEvidence];
     const requestId=(discovery?operation+'-provider:':READER_CATCH_UP_RESERVATION_PREFIX)+await sha256(JSON.stringify(identity));
     const maxAttempts=discovery?1:MAX_SUMMARY_ATTEMPTS;
     let attempt=0,id=requestId;
@@ -83,7 +83,7 @@ function accountedModelPort(env:Env,feedId:string,scopeId:string,fetcher:typeof 
       if(receipt.stage==='USAGE'&&receipt.reportedCostUsd!==undefined)statements.push(modelSettlementStatement(db,id,token,{costUsd:receipt.reportedCostUsd,reported:true}));
       await db.batch(statements);
     };
-    const raw=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:env.OPENROUTER_API_KEY!,reportCost:true,retries:0,timeoutMs:discovery?8_000:25_000,prices:{},fetcher,
+    const raw=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:env.OPENROUTER_API_KEY!,reportCost:true,requireSchemaSupport:!discovery,retries:0,timeoutMs:discovery?8_000:25_000,prices:{},fetcher,
       onResponseHeaders:async response=>{header=providerResponseReceipt(response,'OPENROUTER',request.model);await capture(header)},
       onResponseBody:async payload=>{
         const body=payload as {id?:unknown;usage?:{cost?:unknown};choices?:{finish_reason?:string}[]}|null;

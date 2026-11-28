@@ -1,10 +1,11 @@
 import {readFileSync} from 'node:fs';
 import {Miniflare} from 'miniflare';
+import {sha256} from '@distilled/contracts';
 import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {BriefingModelError,DEFAULT_PRICES,type ModelPort} from '@distilled/briefing';
 import type {BriefingEdition} from '@distilled/core';
 import {V3SpendGuard} from './v3-spend';
-import {generateCatchUpSummary,parseCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryResourceWait,summaryTokenUpperBound,catchUpSummaryRequest} from './catch-up-summary';
+import {CATCH_UP_PROMPT,generateCatchUpSummary,parseCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryResourceWait,summaryTokenUpperBound,catchUpSummaryRequest} from './catch-up-summary';
 import {migrationStatements} from './test-migrations';
 import {presentProductEditions,type PublishedProductEditionRecord} from './product-feeds';
 import type {BriefingConfig} from '@distilled/core';
@@ -101,6 +102,42 @@ it('requires a complete response within the word limit',()=>{
   expect(()=>parseCatchUpSummary(result(summary+' news'),input())).toThrow('too long to show');
   expect(()=>parseCatchUpSummary(result(summary),input(),'length')).toThrow('incomplete');
   expect(()=>parseCatchUpSummary(JSON.stringify({summary,other:'unexpected'}),input())).toThrow('incomplete');
+});
+
+it('sends provider constraints for excessive prose and citations',()=>{
+  const request=catchUpSummaryRequest(input());
+  expect(request.system).toContain('25 words per sentence');
+  expect(request.responseSchema).toMatchObject({
+    type:'object',required:['sentences'],additionalProperties:false,
+    properties:{sentences:{minItems:1,maxItems:3,items:{required:['text','storyIds'],additionalProperties:false,
+      properties:{text:{pattern:expect.any(String)},storyIds:{minItems:1,maxItems:3}}}}}
+  });
+  const schema=request.responseSchema as {properties:{sentences:{items:{properties:{text:{pattern:string}}}}}};
+  const pattern=new RegExp(schema.properties.sentences.items.properties.text.pattern,'u');
+  for(const word of ['markets','السوق','marché']){
+    expect(pattern.test(Array(25).fill(word).join(' '))).toBe(true);
+    expect(pattern.test(Array(26).fill(word).join(' '))).toBe(false);
+  }
+});
+
+it('keeps the prior request fence for an overlong response with too many citations',async()=>{
+  const market=edition('market',1);
+  const data=prepareCatchUpSummary([{...market,sections:Array.from({length:34},(_,i)=>({
+    ...market.sections[0],storyId:`story-${i}`,summary:`Published market development ${i}.`
+  }))}],'en',since,now);
+  const {responseSchema:_,...previous}=catchUpSummaryRequest(data);
+  previous.system=CATCH_UP_PROMPT+' Copy the short id from the supporting story into storyIds, for example ["s1"].';
+  const id='reader_catch_up_v2:'+await sha256(JSON.stringify(['reader','feed',previous]));
+  const text=JSON.stringify({sentences:[
+    {text:Array(25).fill('market').join(' '),storyIds:['s1']},
+    {text:Array(35).fill('market').join(' '),storyIds:['s5','s13','s14']},
+    {text:Array(50).fill('market').join(' '),storyIds:['s7','s17','s19','s28','s34']}
+  ]});
+  await db.prepare('INSERT INTO unread_summary_cache (kind,id,feed_id,json) VALUES (?,?,?,?)')
+    .bind('reader_catch_up_v2',id,'feed',JSON.stringify({status:'failed',response:{text,finishReason:'stop'}})).run();
+  const p=port();
+  await expect(run(p,'reader',data)).rejects.toMatchObject({code:'SUMMARY_INVALID_OUTPUT'});
+  expect(p.complete).not.toHaveBeenCalled();
 });
 
 it.each([
