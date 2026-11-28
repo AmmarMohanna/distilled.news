@@ -79,6 +79,14 @@ it('pins every Flash-only stage and its recovery to frozen routes', () => {
   expect(models.stageRoutes?.factualReview).toEqual(gemini);
   expect(models.stageRoutes?.readerInventory).toEqual(deepseek);
   expect(models.languageStageRoutes?.ar?.correction).toEqual(gemini);
+  for (const language of ['en','ar','fr'] as const) {
+    for (const [stage, route] of Object.entries({...models.stageRoutes,...models.languageStageRoutes?.[language]})) {
+      expect([deepseek,gemini]).toContainEqual(route);
+      const request: ModelRequest = {model:'openai/gpt-4.1', system:'', user:'', maxTokens:1,
+        stageRoute:{stage:stage as NonNullable<ModelRequest['stageRoute']>['stage'],route:{...route,model:'openai/gpt-4.1'}}};
+      expect(frozenRouteError(models,language,request)).toBe('V5_STAGE_SCOPE_MISMATCH');
+    }
+  }
   for (const route of [gemini, deepseek]) {
     const request: ModelRequest = {model:route.model, system:'', user:'', maxTokens:2000, stageRoute:{stage:'factualReview',route}};
     expect(frozenRouteError(models, 'en', request)).toBeUndefined();
