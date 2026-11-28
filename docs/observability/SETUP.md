@@ -2,6 +2,14 @@
 
 # Private Cloudflare → Grafana setup
 
+## Production read-back and alert review
+
+The local dashboard definitions default to staging. After import or sync, select **Production** to see production metrics. [Deployment health dashboard](https://giganticmantel34.grafana.net/d/distilled-deployment-health/?var-environment=production) · [Briefing quality dashboard](https://giganticmantel34.grafana.net/d/distilled-briefing-quality/?var-environment=production)
+
+1. Run `node scripts/check-deployment-observer.mjs production` with your Cloudflare credentials to verify the deployment collector's aggregate D1 reads.
+2. Run `node scripts/grafana-repair.mjs inspect-production` with `GRAFANA_SERVICE_ACCOUNT_TOKEN` in the process environment, or use the repair script's existing protected stdin input. It reads the last 15 minutes of production metrics, evaluates the six proposed PromQL queries, and lists alert rules already installed in the production folder. An empty result means the series is unavailable in that interval.
+3. To prepare rule definitions locally, run `node scripts/prepare-grafana-alerts.mjs --production <prometheus-datasource-uid>`. The six rules have distinct production UIDs and default to paused in `distilled-production-ops`. Review the overdue count against the retained baseline. Verify deployment-wide metric coverage before enabling the unsettled-spend and source-freshness rules, since the current deployment collector does not export those series. Confirm the contact point before activation.
+
 Status: repository-side configuration only. No destination, dashboard, alert, datasource, secret, resource or deployment has been created remotely.
 
 ## 1. Review target and access

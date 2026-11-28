@@ -1,12 +1,51 @@
 import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {prepareProductionAlerts,productionAlertFolderUID} from './prepare-grafana-alerts.mjs';
 // Native PowerShell reads the existing protected files and pipes them to stdin.
 // Credentials never appear in argv, a new local file, or diagnostic output.
-const env={};for(const raw of JSON.parse(readFileSync(0,'utf8')).files){if(typeof raw!=='string')throw Error('GRAFANA_SECRET_FILE_UNAVAILABLE');for(const line of raw.split(/\r?\n/)){const m=line.match(/^\s*(?:export\s+)?([A-Z][A-Z0-9_]+)\s*=\s*(.*?)\s*$/);if(m&&m[2])env[m[1]]=m[2].replace(/^(['"])(.*)\1$/,'$2')}}
+const env={GRAFANA_URL:process.env.GRAFANA_URL,GRAFANA_SERVICE_ACCOUNT_TOKEN:process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN};
+if(!env.GRAFANA_SERVICE_ACCOUNT_TOKEN&&!process.stdin.isTTY){
+ const input=readFileSync(0,'utf8').trim();
+ for(const raw of input?JSON.parse(input).files:[]){
+  if(typeof raw!=='string')throw Error('GRAFANA_SECRET_FILE_UNAVAILABLE');
+  for(const line of raw.split(/\r?\n/)){
+   const match=line.match(/^\s*(?:export\s+)?(GRAFANA_URL|GRAFANA_SERVICE_ACCOUNT_TOKEN)\s*=\s*(.*?)\s*$/);
+   if(match&&match[2])env[match[1]]=match[2].replace(/^(['"])(.*)\1$/,'$2');
+  }
+ }
+}
 const base=(env.GRAFANA_URL??'https://giganticmantel34.grafana.net').replace(/\/$/,'');if(base!=='https://giganticmantel34.grafana.net'||!env.GRAFANA_SERVICE_ACCOUNT_TOKEN)throw Error('GRAFANA_ACCESS_UNAVAILABLE');
 async function api(path,body,method=body?'POST':'GET'){const response=await fetch(base+path,{method,redirect:'manual',headers:{authorization:'Bearer '+env.GRAFANA_SERVICE_ACCOUNT_TOKEN,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('GRAFANA_HTTP_'+response.status+'_'+path.split('?')[0]);return response.json()}
-const dataSources=await api('/api/datasources');const prometheus=dataSources.find(s=>s.type==='prometheus');if(!prometheus)throw Error('PROMETHEUS_NOT_FOUND');
 const folder='distilled-staging-ops',mode=process.argv[2]??'inspect';
+const dataSources=await api('/api/datasources');
+const prometheus=dataSources.find(s=>s.type==='prometheus'&&(mode!=='inspect-production'||s.uid==='grafanacloud-prom'));
+if(!prometheus)throw Error('PROMETHEUS_NOT_FOUND');
 const scope=expr=>expr.replace(/\b(distilled_eval_[a-z_]+)(\{)?/g,(_m,name,brace)=>name+'{review_protocol="atomic-development-review-v2"'+(brace?',':'}'));
+if(mode==='inspect-production'){
+ const instant=async expression=>{
+  const data=await api('/api/datasources/proxy/uid/'+encodeURIComponent(prometheus.uid)+'/api/v1/query?query='+encodeURIComponent(expression));
+  if(data.status!=='success'||data.data?.resultType!=='vector'||!Array.isArray(data.data.result))throw Error('GRAFANA_VECTOR_QUERY_FAILED');
+  return data.data.result;
+ };
+ const read=file=>JSON.parse(readFileSync(new URL('../ops/observability/'+file,import.meta.url),'utf8'));
+ const rules=prepareProductionAlerts(read('grafana-alerts.json'),read('technical-alerts.json'),{metricsUID:prometheus.uid});
+ const freshMetrics=[
+  'distilled_observer_up','distilled_deployment_scope','distilled_eval_last_tick_timestamp_seconds',
+  'distilled_eval_reviewed','distilled_unsettled_operations','distilled_source_no_recent_success'
+ ];
+ const probes=await Promise.all(freshMetrics.map(async metric=>{
+  const series=await instant('last_over_time('+metric+'{environment="production"}[15m])');
+  return {metric,series:series.length,values:series.map(sample=>sample.value?.[1]??null)};
+ }));
+ const preview=await Promise.all(rules.map(async rule=>{
+  const series=await instant(rule.data.find(q=>q.refId==='A').model.expr);
+  const threshold=rule.data.find(q=>q.refId==='C').model.conditions[0].evaluator.params[0];
+  return {uid:rule.uid,threshold,series:series.length,values:series.map(sample=>sample.value?.[1]??null)};
+ }));
+ const installed=(await api('/api/v1/provisioning/alert-rules')).filter(rule=>rule.folderUID===productionAlertFolderUID)
+  .map(rule=>({uid:rule.uid,isPaused:rule.isPaused}));
+ console.log(JSON.stringify({environment:'production',checkedAt:new Date().toISOString(),probes,preview,installed},null,2));
+ process.exit(0);
+}
 if(['rules','enable-rules'].includes(mode)){
  const existing=await api('/api/v1/provisioning/alert-rules');
  for(const spec of JSON.parse(readFileSync('ops/observability/technical-alerts.json','utf8'))){
