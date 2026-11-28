@@ -77,7 +77,7 @@ async function main(env) {
   let schedule;
   if (native && phases.includes('campaign')) {
     const adapter = await import('./native-adapter.mjs');
-    adapter.configure(manifest, dir);
+    adapter.configure(manifest, dir, bundle.approval);
     schedule = {
       startSchedule() {
         assertStartupFresh(bundle.preflight, 'campaign');

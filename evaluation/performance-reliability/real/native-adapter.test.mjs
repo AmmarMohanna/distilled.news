@@ -22,6 +22,7 @@ const users = [0, 1].map(slot => ({
   slot, id: 'owner-' + slot, username: `qa${runId}u${slot}`, email: gmailAlias(email, runId, slot)
 }));
 const manifest = {runId, origin, users: 2, controlPlaneRequestBudget: 500,
+  observeSeconds: 5400, pollSeconds: 30, cleanupReserveRequests: 60,
   budget: {totalUsd: 5, cloudUsd: 0.5, drainUsd: 0.5, maxModelCalls: 3},
   modelConfiguration: {provider: 'openrouter', editor: 'openai/gpt-4.1', verifier: 'openai/gpt-4.1-mini', repair: 'openai/gpt-4.1'}};
 
@@ -125,8 +126,11 @@ function fixture(t, overrides = {}) {
   return {adapter, env, state, bindings, dir, db, saveGrant, saveReservation, createUsers, linkToken};
 }
 
-async function ready(f) {
-  f.adapter.configure(manifest, f.dir);
+const approvalUntil = time => ({manifestHash: digest(manifest), expiresAt: iso(time)});
+const approval = approvalUntil(now + 6 * 3600_000);
+
+async function ready(f, scope = approval) {
+  f.adapter.configure(manifest, f.dir, scope);
   const result = await f.adapter.preflight({manifest});
   assert.deepEqual(result.blockers, []);
   assert.equal(result.ready, true);
@@ -195,7 +199,7 @@ test('creates one real native grant across users and rejects out-of-scope, track
   assert.equal(grant.maxOperations, 3);
   assert.equal(grant.maxConcurrentOperations, 3);
   assert.equal(grant.maxExposureUsd, 4);
-  assert.equal(Date.parse(grant.validUntil) - Date.parse(grant.validFrom), 6 * 3600_000);
+  assert.equal(grant.validUntil, iso(now + 2.5 * 3600_000));
   assert.equal(f.db.prepare("SELECT count(*) AS n FROM v1_model_spending_authorizations WHERE id LIKE 'campaign:%'").get().n, 1);
   await assert.rejects(sample({...users[0], username: 'not-a-campaign'}), /CAMPAIGN_USER_SCOPE_DENIED/);
   f.db.prepare("INSERT INTO settings VALUES(?, '{}')").run('model-spending:tracking-only:' + provider);
@@ -208,6 +212,34 @@ test('creates one real native grant across users and rejects out-of-scope, track
   conflict.createUsers();
   conflict.saveGrant({...grant, maxExposureUsd: 1});
   await assert.rejects(conflict.adapter.authorizeAccount({manifest, user: users[0]}), /GRANT_IDENTITY_CONFLICT/);
+});
+
+test('native grants require approval and leave time for observation and cleanup before starting Cron', async t => {
+  const unapproved = fixture(t);
+  unapproved.adapter.configure(manifest, unapproved.dir);
+  assert.equal((await unapproved.adapter.preflight({manifest})).ready, true);
+  unapproved.createUsers();
+  await assert.rejects(unapproved.adapter.authorizeAccount({manifest, user: users[0]}), /CAMPAIGN_GRANT_APPROVAL_REQUIRED/);
+
+  const short = fixture(t);
+  await ready(short, approvalUntil(now + 3600_000));
+  short.createUsers();
+  await assert.rejects(short.adapter.authorizeAccount({manifest, user: users[0]}), /CAMPAIGN_GRANT_WINDOW_TOO_SHORT/);
+  assert.equal(short.db.prepare("SELECT count(*) AS n FROM v1_model_spending_authorizations WHERE id LIKE 'campaign:%'").get().n, 0);
+
+  const capped = fixture(t);
+  const scope = approvalUntil(now + 2 * 3600_000);
+  await ready(capped, scope);
+  capped.createUsers();
+  await capped.adapter.authorizeAccount({manifest, user: users[0]});
+  const row = capped.db.prepare("SELECT json FROM v1_model_spending_authorizations WHERE id LIKE 'campaign:%'").get();
+  assert.equal(JSON.parse(row.json).validUntil, scope.expiresAt);
+
+  capped.adapter.configure(manifest, capped.dir, scope);
+  assert.equal((await capped.adapter.costs({manifest})).complete, true);
+  capped.state.time += 16 * 60_000;
+  await assert.rejects(capped.adapter.startSchedule(), /CAMPAIGN_GRANT_WINDOW_TOO_SHORT/);
+  assert.deepEqual(capped.state.cron, []);
 });
 
 test('reconciles a run-bound ledger and refuses uncovered categories and too many operations', async t => {

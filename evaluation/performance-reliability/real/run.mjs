@@ -41,7 +41,7 @@ execFileSync('git',['diff','--quiet']);execFileSync('git',['diff','--cached','--
 // all-stage accounting and optional provider/queue controls. No auth shortcut.
 const adapterPath=process.env.CAMPAIGN_ADAPTER;
 if(!adapterPath)throw Error('REVIEWED_AUTH_ACCOUNTING_ADAPTER_REQUIRED');
-const adapter=await import(pathToFileURL(resolve(adapterPath)).href);adapter.configure?.(m,dir);
+const adapter=await import(pathToFileURL(resolve(adapterPath)).href);adapter.configure?.(m,dir,approval);
 const adminCookie=process.env.CAMPAIGN_ADMIN_COOKIE;
 if(!/^dn_session=/.test(adminCookie??''))throw Error('REAL_ADMIN_SESSION_REQUIRED');
 const unlock=lockRun(dir),client=new ApplicationClient(m,dir);
@@ -93,7 +93,9 @@ try{
     const costs=await adapter.costs({manifest:m,registry,client,adminCookie,dir});
     const result=await observeOnce(m,client,dir,registry,observer,adminCookie,costs);
     if(lastResources){const r=lastResources;Object.assign(result.summary,{workerCpuMs:r.worker?.cpuTimeUs===undefined?null:r.worker.cpuTimeUs/1000,databaseRowsRead:r.database?.rowsRead??null,databaseRowsWritten:r.database?.rowsWritten??null,queueBacklog:r.queues.every(q=>q.backlog!==null)?r.queues.reduce((n,q)=>n+q.backlog,0):null});}
-    if(lastResources)result.stop.push(...queueSafetyStops(lastResources,m.stop));
+    if(lastResources)result.stop.push(...queueSafetyStops(lastResources,m.stop,Date.now(),details=>{
+     journal(dir,{category:'queue-age-safety-stop',...details});
+    }));
     await publishMetrics(result.summary);
     return result;
    };

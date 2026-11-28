@@ -14,7 +14,8 @@ const accountPath = target.pathname.split('/d1/')[0];
 const databaseId = target.pathname.split('/').at(-2);
 const workerPattern = /^distilled-news-staging-campaign-[a-z0-9-]+$/;
 const maxRows = 500;
-const hour = 3_600_000;
+// Signup, feed creation and planning precede the observation window.
+const setupAndPlanningMs = 45 * 60_000;
 const cron = '* * * * *';
 const forbiddenBindings = [
   'TURNSTILE_SECRET_KEY', 'VAPID_PRIVATE_KEY', 'APIFY_API_TOKEN',
@@ -45,7 +46,7 @@ export function createNativeAdapter({
 } = {}) {
   let active;
 
-  function configure(manifest, dir) {
+  function configure(manifest, dir, approval) {
     const worker = env.CAMPAIGN_PILOT_WORKER;
     if (!workerPattern.test(worker ?? '') ||
         manifest.origin !== `https://${worker}.distillednews-platform.workers.dev`) throw Error('ISOLATED_PILOT_WORKER_REQUIRED');
@@ -56,6 +57,11 @@ export function createNativeAdapter({
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > maxRows ||
         limit > manifest.budget.maxModelCalls) throw Error('BOUNDED_MODEL_OPERATION_LIMIT_REQUIRED');
     if (!/^[a-z0-9]{8,24}$/.test(manifest.runId)) throw Error('CAMPAIGN_RUN_ID_INVALID');
+    const manifestHash = digest(manifest);
+    const approvalDeadline = approval ? Date.parse(approval.expiresAt) : null;
+    if (approval && (!Number.isFinite(approvalDeadline) || approval.manifestHash !== manifestHash)) {
+      throw Error('CAMPAIGN_GRANT_APPROVAL_REQUIRED');
+    }
     const endpoint = target.origin + accountPath + '/workers/scripts/' + worker;
     const record = kind => reserveControlPlane(manifest, dir, kind);
     const db = qualityD1(env.CAMPAIGN_CLOUDFLARE_TOKEN, (url, init) => {
@@ -65,8 +71,8 @@ export function createNativeAdapter({
     const gmail = env.CAMPAIGN_GMAIL_DIRECTORY && env.CAMPAIGN_QA_GMAIL
       ? new GmailMailbox({directory: env.CAMPAIGN_GMAIL_DIRECTORY, email: env.CAMPAIGN_QA_GMAIL, fetcher, now, onRequest: record})
       : null;
-    active = {manifest, dir, provider, limit, endpoint, record, gmail, db,
-      id: 'campaign:' + manifest.runId, manifestHash: digest(manifest), ready: false, scheduleAttempted: false};
+    active = {manifest, dir, provider, limit, endpoint, record, gmail, db, approvalDeadline,
+      id: 'campaign:' + manifest.runId, manifestHash, ready: false, scheduleAttempted: false};
   }
 
   function context(manifest) {
@@ -167,6 +173,10 @@ export function createNativeAdapter({
     });
   }
 
+  function observationAndCleanupMs(manifest) {
+    return manifest.observeSeconds * 1000 + manifest.cleanupReserveRequests * 15_000;
+  }
+
   function requestedGrant(bindings, validFrom) {
     const ctx = context();
     const {editor, verifier, repair} = ctx.manifest.modelConfiguration;
@@ -174,9 +184,19 @@ export function createNativeAdapter({
     const modelIds = [...new Set([editor, verifier, repair, assessment, ctx.manifest.modelConfiguration.v5?.writer].filter(model => model !== undefined))].sort();
     if (modelIds.some(model => !model || model.includes('*'))) throw Error('CAMPAIGN_MODEL_IDS_REQUIRED');
     const {totalUsd, cloudUsd, drainUsd} = ctx.manifest.budget;
+    // Auto-preflight can check for overlap before an approval exists. The
+    // authoritative write and schedule start both require the admitted deadline.
+    const plannedUntil = Date.parse(validFrom) + setupAndPlanningMs + observationAndCleanupMs(ctx.manifest);
+    const validUntil = new Date(Math.min(plannedUntil, ctx.approvalDeadline ?? plannedUntil)).toISOString();
     return {id: ctx.id, accountId: ctx.provider, modelIds, maxExposureUsd: totalUsd - cloudUsd - drainUsd,
-      maxOperations: ctx.limit, maxConcurrentOperations: 3, validFrom,
-      validUntil: new Date(Date.parse(validFrom) + 6 * hour).toISOString(), campaignManifestHash: ctx.manifestHash};
+      maxOperations: ctx.limit, maxConcurrentOperations: 3, validFrom, validUntil, campaignManifestHash: ctx.manifestHash};
+  }
+
+  function requireGrantTime(ctx, grant) {
+    if (ctx.approvalDeadline === null) throw Error('CAMPAIGN_GRANT_APPROVAL_REQUIRED');
+    if (Date.parse(grant.validUntil) - now() < observationAndCleanupMs(ctx.manifest) + ctx.manifest.pollSeconds * 1000) {
+      throw Error('CAMPAIGN_GRANT_WINDOW_TOO_SHORT');
+    }
   }
 
   async function grantRecord() {
@@ -271,6 +291,7 @@ export function createNativeAdapter({
   async function authorizeAccount({manifest, user}) {
     const ctx = context(manifest);
     if (!ctx.ready) throw Error('NATIVE_PREFLIGHT_REQUIRED');
+    if (ctx.approvalDeadline === null) throw Error('CAMPAIGN_GRANT_APPROVAL_REQUIRED');
     await ownedUser(ctx, user);
     if (!await trackingOff()) throw Error('TRACKING_ONLY_NOT_ALLOWED');
     let stored = await grantRecord();
@@ -279,6 +300,7 @@ export function createNativeAdapter({
       if (!inventory || inventory.foreignAccounts || inventory.activeFeeds || inventory.outstanding) throw Error('CAMPAIGN_GRANT_ISOLATION_LOST');
       const grant = requestedGrant(ctx.bindings, new Date(now()).toISOString());
       if (!await noCompetingGrant(grant.modelIds, grant.validFrom, grant.validUntil, ctx.id)) throw Error('COMPETING_MODEL_GRANT');
+      requireGrantTime(ctx, grant);
       try { await authorizeGrant(ctx.db, grant); } catch {
         // The atomic ledger also refuses overlap. An identical concurrent
         // insert can be recovered only by verifying the authoritative row.
@@ -288,6 +310,7 @@ export function createNativeAdapter({
     }
     const expected = requestedGrant(ctx.bindings, stored.validFrom);
     if (digest(stored) !== digest(expected) || Date.parse(stored.validUntil) <= now()) throw Error('CAMPAIGN_GRANT_IDENTITY_CONFLICT');
+    requireGrantTime(ctx, stored);
     return {runId: manifest.runId, accountId: user.id, authoritative: true, maximumUsd: stored.maxExposureUsd / manifest.users,
       evidenceHash: digest({grant: stored, manifestHash: ctx.manifestHash, accountId: user.id})};
   }
@@ -359,6 +382,7 @@ export function createNativeAdapter({
     if ((await schedules()).length) throw Error('CAMPAIGN_CRON_ALREADY_CONFIGURED');
     // Reserve shutdown's read, write, and read-back before a schedule can start.
     for (let i = 0; i < 3; i++) ctx.record('cloudflare-cron-cleanup-reserve');
+    requireGrantTime(ctx, grant);
     // A timed-out PUT can still take effect. Arm cleanup before sending it.
     ctx.scheduleAttempted = true;
     await setSchedule(true, 'cloudflare-cron');

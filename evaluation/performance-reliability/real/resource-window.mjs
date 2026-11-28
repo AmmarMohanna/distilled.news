@@ -22,19 +22,33 @@ export async function observeResources(m,target,dir,env,from,until,fetcher=fetch
  const query=`query {viewer {accounts(filter:{accountTag:"${target.accountId}"}) {workersInvocationsAdaptive(limit:1,filter:{scriptName:"${worker}",datetime_geq:"${from}",datetime_leq:"${until}"}) {sum {requests errors cpuTimeUs}} d1AnalyticsAdaptiveGroups(limit:1,filter:{databaseId:"${target.databaseId}",datetime_geq:"${from}",datetime_leq:"${until}"}) {sum {rowsRead rowsWritten readQueries writeQueries}}}}}`;
  const json=await request('/graphql',{query});const account=json.data?.viewer?.accounts?.[0];
  const cachePath=resolve(dir,'queue-age-bounds.private.json');
- let cache={};if(existsSync(cachePath)){try{const saved=JSON.parse(readFileSync(cachePath,'utf8'));if(saved.runId===m.runId&&saved.accountId===target.accountId)cache=saved.queues??{};}catch{/* A damaged receipt cannot supply an age. */}}
+ let cache={};
+ if(existsSync(cachePath)){
+  try{
+   const saved=JSON.parse(readFileSync(cachePath,'utf8'));
+   if(saved.runId===m.runId&&saved.accountId===target.accountId&&saved.queues&&
+    typeof saved.queues==='object'&&!Array.isArray(saved.queues))cache=saved.queues;
+  }catch{/* A damaged receipt cannot supply an age. */}
+ }
+ const persistCache=()=>writePrivate(dir,'queue-age-bounds.private.json',{runId:m.runId,accountId:target.accountId,queues:cache});
  const queues=[];for(const id of target.queueIds){
   const q=await request('/accounts/'+target.accountId+'/queues/'+id+'/metrics'),v=q.result,now=Date.now();
-  const observation=queueAgeObservation(v,cache[id],now);if(observation.receipt)cache[id]=observation.receipt;
+  const observation=queueAgeObservation(v,cache[id],now);
+  if(observation.metrics.state==='EMPTY'&&Object.hasOwn(cache,id)){
+   delete cache[id];
+   // Keep the reset even if another queue's metrics read fails.
+   persistCache();
+  }else if(observation.receipt)cache[id]=observation.receipt;
   queues.push({queueId:id,approximate:true,...observation.metrics});
  }
- writePrivate(dir,'queue-age-bounds.private.json',{runId:m.runId,accountId:target.accountId,queues:cache});
+ persistCache();
  return {observedAt:new Date().toISOString(),from,until,worker:account?.workersInvocationsAdaptive?.[0]?.sum??null,database:account?.d1AnalyticsAdaptiveGroups?.[0]?.sum??null,queues,analyticsMayLag:true};
 }
 
 /** A queue's unacknowledged oldest timestamp cannot move backwards as new messages
  * are enqueued and old ones acknowledged. Retaining an older native timestamp
  * therefore provides a conservative AGE UPPER BOUND, never an exact current age.
+ * A confirmed empty observation ends that period of continuous backlog.
  * The receipt is private and campaign/account/queue scoped; no body is inspected.
  * Without any valid native timestamp the observation remains UNKNOWN. */
 export function queueAgeObservation(value,previous,now){
@@ -42,32 +56,41 @@ export function queueAgeObservation(value,previous,now){
  const bytes=Number.isSafeInteger(value?.backlog_bytes)&&value.backlog_bytes>=0?value.backlog_bytes:null;
  const timestamp=value?.oldest_message_timestamp_ms;
  const valid=n=>Number.isSafeInteger(n)&&n>0&&n<=now;
- const receipt=valid(timestamp)?{timestampMs:timestamp,observedAtMs:now}:undefined;
+ const state=count===null||bytes===null?'UNKNOWN':count===0&&bytes===0?'EMPTY':'PENDING';
+ const receipt=state==='PENDING'&&valid(timestamp)?{timestampMs:timestamp,observedAtMs:now}:undefined;
  const retained=valid(previous?.timestampMs)&&valid(previous?.observedAtMs)&&previous.timestampMs<=previous.observedAtMs?previous:null;
- const pending=count>0||bytes>0;
- const used=receipt??(pending?retained:null);
+ const used=receipt??(state==='PENDING'?retained:null);
  return {receipt,metrics:{backlog:count,bytes,oldestPendingMs:used?now-used.timestampMs:null,
   ageSource:receipt?'NATIVE':used?'NATIVE_RETAINED_UPPER_BOUND':'UNKNOWN',
   ageIsUpperBound:!receipt&&!!used,
   ageMeasuredAt:new Date(now).toISOString(),
   ageEvidenceAt:used?new Date(used.observedAtMs).toISOString():null,
-  state:count===null||bytes===null?'UNKNOWN':count===0&&bytes===0?'EMPTY':pending?'PENDING':'UNKNOWN'}};
+  state}};
 }
 
 /** Age cached readings as wall time advances; missing ages remain missing. */
-export function queueSafetyStops(resources,stop,now=Date.now()){
+export function queueSafetyStops(resources,stop,now=Date.now(),onAgeLimit){
  const observed=Date.parse(resources?.observedAt),reasons=[];
  if(!Array.isArray(resources?.queues)||!resources.queues.length)return ['QUEUE_BACKLOG_UNOBSERVABLE'];
  if(!Number.isFinite(observed)||observed>now)return ['QUEUE_OBSERVATION_TIME_UNOBSERVABLE'];
  if(now-observed>420000)reasons.push('QUEUE_OBSERVATION_STALE');
  for(const q of resources.queues){
-  if(!Number.isSafeInteger(q.backlog)||q.backlog<0||!Number.isSafeInteger(q.bytes)||q.bytes<0)reasons.push('QUEUE_BACKLOG_UNOBSERVABLE');
-  if(q.backlog>stop.maxBacklog)reasons.push('QUEUE_BACKLOG_LIMIT');
-  const pending=q.backlog>0||q.bytes>0;
+  const countKnown=Number.isSafeInteger(q.backlog)&&q.backlog>=0;
+  if(countKnown&&q.backlog>stop.maxBacklog)reasons.push('QUEUE_BACKLOG_LIMIT');
+  if(!countKnown||!Number.isSafeInteger(q.bytes)||q.bytes<0){
+   reasons.push('QUEUE_BACKLOG_UNOBSERVABLE');
+   continue;
+  }
+  if(q.backlog===0&&q.bytes===0)continue;
   const measured=Date.parse(q.ageMeasuredAt??resources.observedAt);
   if(!Number.isFinite(measured)||measured>now){reasons.push('QUEUE_OBSERVATION_TIME_UNOBSERVABLE');continue;}
-  if(pending&&(typeof q.oldestPendingMs!=='number'||!Number.isFinite(q.oldestPendingMs)))reasons.push('QUEUE_AGE_UNOBSERVABLE');
-  if(typeof q.oldestPendingMs==='number'&&q.oldestPendingMs+now-measured>stop.oldestPendingMs)reasons.push('QUEUE_PENDING_AGE_LIMIT');
+  if(!Number.isFinite(q.oldestPendingMs)||q.oldestPendingMs<0){reasons.push('QUEUE_AGE_UNOBSERVABLE');continue;}
+  const ageMs=q.oldestPendingMs+now-measured;
+  if(ageMs>stop.oldestPendingMs){
+   reasons.push('QUEUE_PENDING_AGE_LIMIT');
+   onAgeLimit?.({queueId:q.queueId,ageMs,limitMs:stop.oldestPendingMs,ageSource:q.ageSource??'UNKNOWN',
+    ageEvidenceAt:q.ageEvidenceAt??null,backlog:q.backlog,bytes:q.bytes});
+  }
  }
  return [...new Set(reasons)];
 }
