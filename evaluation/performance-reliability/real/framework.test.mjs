@@ -278,3 +278,17 @@ test('reader pages must be the app shell and only same-origin hashed bundles are
  assert.deepEqual(assetPaths('<script src="/assets/../secret"></script>'),[]);
  assert.deepEqual(assetPaths(null),[]);
 });
+
+test('campaign V5 writer matches the Worker profile and production rollout settings',async()=>{
+ const {readFileSync,readdirSync}=await import('node:fs');
+ const jsonc=path=>JSON.parse(readFileSync(path,'utf8').replace(/^\s*\/\/.*$/gm,'').replace(/,(\s*[}\]])/g,'$1'));
+ const source=readFileSync('apps/worker/src/v1-intelligence/v5-generation.ts','utf8');
+ const production=jsonc('apps/worker/wrangler.production.jsonc').vars,campaign=jsonc('apps/worker/wrangler.campaign-pilot.jsonc').vars;
+ for(const key of ['BRIEFING_V5_GENERATION_PROFILE','BRIEFING_V5_FEEDS_CREATED_FROM','BRIEFING_V5_AUTO_PUBLICATION_ENABLED','BRIEFING_V5_STAGE_ROUTES_JSON','BRIEFING_SOURCE_BINDINGS_ENABLED'])assert.equal(campaign[key],production[key],key);
+ for(const file of readdirSync('evaluation/performance-reliability/real/manifests').filter(f=>f.endsWith('.json'))){
+  const v5=JSON.parse(readFileSync('evaluation/performance-reliability/real/manifests/'+file,'utf8')).modelConfiguration.v5;
+  assert.equal(v5.profile,campaign.BRIEFING_V5_GENERATION_PROFILE,file);
+  const block=source.slice(source.indexOf(`'${v5.profile}': {`));
+  assert.equal(/model: '([^']+)'/.exec(block)?.[1],v5.writer,file);
+ }
+});

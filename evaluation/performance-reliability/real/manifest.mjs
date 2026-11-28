@@ -12,6 +12,7 @@ export function validateManifest(m){
  const origin=new URL(m.origin);assert(origin.origin===m.origin&&!origin.username&&!origin.password&&(m.origin===ORIGIN||/^https:\/\/distilled-news-staging-campaign-[a-z0-9-]+\.distillednews-platform\.workers\.dev$/.test(m.origin)),'STAGING_ORIGIN_ONLY');
  assert(/^[a-f0-9]{40}$/.test(m.revision),'EXACT_REVISION');
  assert(m.modelConfiguration&&['workers_ai','openrouter'].includes(m.modelConfiguration.provider)&&['editor','verifier','repair'].every(k=>typeof m.modelConfiguration[k]==='string'&&m.modelConfiguration[k].length>0),'EXACT_MODEL_CONFIGURATION_REQUIRED');
+ assert(m.modelConfiguration.v5===undefined||(/^[a-z0-9-]{1,64}$/.test(m.modelConfiguration.v5?.profile??'')&&/^[a-z0-9-]+\/[a-z0-9.:-]+$/.test(m.modelConfiguration.v5?.writer??'')&&Object.keys(m.modelConfiguration.v5).length===2),'V5_WRITER_CONFIGURATION');
  assert(int(m.users,2,20)&&int(m.feedsPerUser,2,10)&&m.users*m.feedsPerUser<=40,'USER_FEED_LIMIT');
  assert(Array.isArray(m.feeds)&&m.feeds.length===m.feedsPerUser,'FEED_TEMPLATES');
  assert(m.feeds.some(f=>f.language==='en')&&m.feeds.some(f=>f.language==='ar'),'BOTH_LANGUAGES_REQUIRED');

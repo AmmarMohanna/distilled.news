@@ -111,7 +111,10 @@ export function createNativeAdapter({
         text('AGENTOPS_CAMPAIGN_ISOLATED') === 'true',
       MODEL_CONFIGURATION: text('BRIEFING_ENGINE') === 'v3' && model.provider === 'openrouter' &&
         (!gateway || gateway === 'openrouter') && model.editor === editor && model.repair === editor &&
-        model.verifier === verifier && bindings.has('OPENROUTER_API_KEY') && Boolean(text('SOURCE_ASSESSMENT_MODEL')),
+        model.verifier === verifier && bindings.has('OPENROUTER_API_KEY') && Boolean(text('SOURCE_ASSESSMENT_MODEL')) &&
+        // A V5 writer profile on the Worker must be declared, with its exact model, in the manifest.
+        (text('BRIEFING_V5_GENERATION_PROFILE') ?? null) === (model.v5?.profile ?? null) &&
+        text('BRIEFING_V5_STAGE_ROUTES_JSON') === undefined,
       EXTERNAL_COST_CONFIGURATION: text('DISTILLED_WEB_OPERATOR_ENABLED') !== 'true' &&
         text('V1_BROWSER_ACQUISITION_ENABLED') !== 'true' &&
         !(bindings.has('SOURCE_EXECUTION_URL') && bindings.has('SOURCE_EXECUTION_TOKEN')),
@@ -168,7 +171,7 @@ export function createNativeAdapter({
     const ctx = context();
     const {editor, verifier, repair} = ctx.manifest.modelConfiguration;
     const assessment = bindings.get('SOURCE_ASSESSMENT_MODEL')?.text;
-    const modelIds = [...new Set([editor, verifier, repair, assessment])].sort();
+    const modelIds = [...new Set([editor, verifier, repair, assessment, ctx.manifest.modelConfiguration.v5?.writer].filter(model => model !== undefined))].sort();
     if (modelIds.some(model => !model || model.includes('*'))) throw Error('CAMPAIGN_MODEL_IDS_REQUIRED');
     const {totalUsd, cloudUsd, drainUsd} = ctx.manifest.budget;
     return {id: ctx.id, accountId: ctx.provider, modelIds, maxExposureUsd: totalUsd - cloudUsd - drainUsd,

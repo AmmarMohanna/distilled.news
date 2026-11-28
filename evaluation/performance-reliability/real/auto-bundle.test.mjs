@@ -63,7 +63,7 @@ function fakeFetch({pricing = true, admin = true, grafana = true, queueName = 'd
       {queue_name: 'dn-campaign-pilot-v1', queue_id: queueId(2)},
       {queue_name: 'distilled-news-production-processing', queue_id: queueId(3)}]});
     if (u === 'https://openrouter.ai/api/v1/models') return pricing
-      ? reply({data: [{id: 'openai/gpt-4.1', pricing: {prompt: '0.000002'}}, {id: 'openai/gpt-4.1-mini', pricing: {prompt: '0.0000004'}}]})
+      ? reply({data: [{id: 'openai/gpt-4.1', pricing: {prompt: '0.000002'}}, {id: 'openai/gpt-4.1-mini', pricing: {prompt: '0.0000004'}}, {id: 'deepseek/deepseek-v4.1-flash-1017', pricing: {prompt: '0.000000036'}}]})
       : reply({}, 503);
     if (u === origin + '/api/auth/session') return reply({authenticated: true, account: {role: admin ? 'admin' : 'user'}});
     if (u.startsWith('https://otlp-gateway-')) return new Response('', {status: grafana ? 200 : 401});

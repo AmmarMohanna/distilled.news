@@ -116,7 +116,7 @@ export async function readResources(m, env, fetcher) {
 export async function readPricing(m, fetcher) {
   try {
     const body = await json(fetcher, 'https://openrouter.ai/api/v1/models', {}, 'PRICING_UNAVAILABLE');
-    const wanted = [...new Set(['editor', 'verifier', 'repair'].map(k => m.modelConfiguration[k]))].sort();
+    const wanted = [...new Set([...['editor', 'verifier', 'repair'].map(k => m.modelConfiguration[k]), m.modelConfiguration.v5?.writer].filter(Boolean))].sort();
     const found = wanted.map(id => (body?.data ?? []).find(model => model.id === id));
     if (found.some(model => !model?.pricing)) return null;
     return Object.fromEntries(found.map(model => [model.id, model.pricing]));

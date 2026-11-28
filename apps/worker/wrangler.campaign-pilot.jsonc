@@ -17,6 +17,11 @@
   "vars": {
     "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
     "BRIEFING_ENGINE": "v3",
+    // V5 exactly as production: feeds created after the cutoff use the DeepSeek writer
+    // and publish automatically once verified. Every campaign feed is newer than this.
+    "BRIEFING_V5_AUTO_PUBLICATION_ENABLED": "true",
+    "BRIEFING_V5_FEEDS_CREATED_FROM": "2026-11-26T19:54:12.096Z",
+    "BRIEFING_V5_GENERATION_PROFILE": "deepseek-flash-wafer",
     "BRIEFING_VERIFIER_MODEL": "openai/gpt-4.1-mini",
     "DISTILLED_LIVE_OPENROUTER_MODEL": "openai/gpt-4.1-mini",
     "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
@@ -43,7 +48,8 @@
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
     "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
     "STORAGE_MAINTENANCE_ENABLED": "true",
-    "UNREAD_SUMMARY_ENABLED": "true",
+    "CATCH_UP_ENABLED": "true",
+    "CATCH_UP_LIFETIME_LIMIT_USD": "1",
     "V1_BROWSER_ACQUISITION_ENABLED": "false",
     "V1_DOWNSTREAM_ENABLED": "true",
     "V1_DOWNSTREAM_FEED_SOURCE_IDS": "staging-rss-source,staging-twitter-source",
@@ -72,7 +78,6 @@
     "V3_BACKLOG_CATCHUP_ENABLED": "true",
     "WINDOW_READINESS_MODE": "relay",
     "ENVIRONMENT": "staging",
-    "BRIEFING_PROMPT_VERSION": "4",
     "AGENTOPS_ENABLED": "true",
     "AGENTOPS_CAMPAIGN_ENABLED": "true",
     "AGENTOPS_CAMPAIGN_ISOLATED": "true",
